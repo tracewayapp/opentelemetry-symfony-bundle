@@ -1,0 +1,12 @@
+services:
+    Traceway\OpenTelemetryBundle\Tracing:
+        autoconfigure: true
+
+    Traceway\OpenTelemetryBundle\TracingInterface:
+        alias: Traceway\OpenTelemetryBundle\Tracing
+
+    Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber:
+        autoconfigure: true
+
+    Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware:
+        autoconfigure: true

@@ -1,0 +1,72 @@
+{
+    "name": "traceway/opentelemetry-symfony",
+    "description": "Pure-PHP OpenTelemetry instrumentation for Symfony — automatic HTTP, HttpClient, and Messenger tracing with response propagation, a lightweight Tracing helper, route templates, and semantic conventions. No C extension required.",
+    "type": "symfony-bundle",
+    "license": "MIT",
+    "keywords": ["opentelemetry", "otel", "tracing", "observability", "symfony", "instrumentation"],
+    "homepage": "https://github.com/tracewayapp/opentelemetry-symfony-bundle",
+    "authors": [
+        {
+            "name": "Traceway",
+            "homepage": "https://tracewayapp.com"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/tracewayapp/opentelemetry-symfony-bundle/issues",
+        "source": "https://github.com/tracewayapp/opentelemetry-symfony-bundle"
+    },
+    "require": {
+        "php": ">=8.1",
+        "open-telemetry/api": "^1.0",
+        "open-telemetry/context": "^1.0",
+        "open-telemetry/sdk": "^1.0",
+        "open-telemetry/sem-conv": "^1.0",
+        "symfony/config": "^6.4 || ^7.0 || ^8.0",
+        "symfony/dependency-injection": "^6.4 || ^7.0 || ^8.0",
+        "symfony/event-dispatcher": "^6.4 || ^7.0 || ^8.0",
+        "symfony/http-foundation": "^6.4 || ^7.0 || ^8.0",
+        "symfony/http-kernel": "^6.4 || ^7.0 || ^8.0",
+        "symfony/yaml": "^6.4 || ^7.0 || ^8.0"
+    },
+    "suggest": {
+        "symfony/http-client": "Required for automatic HttpClient outgoing request tracing",
+        "symfony/messenger": "Required for automatic Messenger job/task tracing"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^1.0",
+        "phpunit/phpunit": "^10.0 || ^11.0",
+        "symfony/framework-bundle": "^6.4 || ^7.0 || ^8.0",
+        "symfony/http-client": "^6.4 || ^7.0 || ^8.0",
+        "symfony/messenger": "^6.4 || ^7.0 || ^8.0",
+        "symfony/phpunit-bridge": "^6.4 || ^7.0 || ^8.0"
+    },
+    "conflict": {
+        "open-telemetry/api": "<1.0",
+        "open-telemetry/sdk": "<1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Traceway\\OpenTelemetryBundle\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Traceway\\OpenTelemetryBundle\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.0.x-dev",
+            "dev-master": "1.0.x-dev"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "phpstan": "phpstan analyse"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

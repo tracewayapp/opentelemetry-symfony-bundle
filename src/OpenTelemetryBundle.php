@@ -1,0 +1,26 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Traceway\OpenTelemetryBundle;
+
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\HttpKernel\Bundle\Bundle;
+use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\HttpClientTracingPass;
+
+final class OpenTelemetryBundle extends Bundle
+{
+    public const VERSION = '1.0.0';
+
+    public function getPath(): string
+    {
+        return \dirname(__DIR__);
+    }
+
+    public function build(ContainerBuilder $container): void
+    {
+        parent::build($container);
+
+        $container->addCompilerPass(new HttpClientTracingPass());
+    }
+}

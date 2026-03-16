@@ -1,5 +1,9 @@
 /tests/              export-ignore
 /phpunit.dist.xml    export-ignore
 /phpstan.neon.dist   export-ignore
+/.github/            export-ignore
+/.editorconfig       export-ignore
 /.gitattributes      export-ignore
 /.gitignore          export-ignore
+/CHANGELOG.md        export-ignore
+/CONTRIBUTING.md     export-ignore

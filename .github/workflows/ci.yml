@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  phpstan:
+    name: PHPStan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse
+
+  tests:
+    name: PHP ${{ matrix.php }} / Symfony ${{ matrix.symfony }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.1'
+            symfony: '6.4.*'
+          - php: '8.2'
+            symfony: '7.0.*'
+          - php: '8.3'
+            symfony: '7.2.*'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: Restrict Symfony version
+        run: |
+          composer require --no-update symfony/config:${{ matrix.symfony }}
+          composer require --no-update symfony/dependency-injection:${{ matrix.symfony }}
+          composer require --no-update symfony/event-dispatcher:${{ matrix.symfony }}
+          composer require --no-update symfony/http-foundation:${{ matrix.symfony }}
+          composer require --no-update symfony/http-kernel:${{ matrix.symfony }}
+          composer require --no-update symfony/yaml:${{ matrix.symfony }}
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run PHPUnit
+        run: vendor/bin/phpunit

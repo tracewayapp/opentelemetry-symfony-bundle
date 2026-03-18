@@ -43,6 +43,8 @@ final class TracedResponse implements ResponseInterface
             throw $e;
         }
 
+        $this->safeFinalize();
+
         return $headers;
     }
 
@@ -54,6 +56,8 @@ final class TracedResponse implements ResponseInterface
             $this->finalizeSpanWithError($e);
             throw $e;
         }
+
+        $this->safeFinalize();
 
         return $content;
     }
@@ -69,6 +73,8 @@ final class TracedResponse implements ResponseInterface
             $this->finalizeSpanWithError($e);
             throw $e;
         }
+
+        $this->safeFinalize();
 
         return $array;
     }
@@ -97,6 +103,15 @@ final class TracedResponse implements ResponseInterface
     public function __destruct()
     {
         $this->endSpan();
+    }
+
+    private function safeFinalize(): void
+    {
+        try {
+            $this->finalizeSpan($this->response->getStatusCode());
+        } catch (\Throwable $e) {
+            $this->finalizeSpanWithError($e);
+        }
     }
 
     private function finalizeSpan(int $statusCode): void

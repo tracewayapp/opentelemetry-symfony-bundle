@@ -15,8 +15,10 @@ use OpenTelemetry\SemConv\Attributes\ClientAttributes;
 use OpenTelemetry\SemConv\Attributes\HttpAttributes;
 use OpenTelemetry\SemConv\Attributes\NetworkAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
+use OpenTelemetry\SemConv\Attributes\ServiceAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
 use OpenTelemetry\SemConv\Attributes\UserAgentAttributes;
+use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
@@ -187,7 +189,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
             }
         }
         if (null !== $requestBodySize) {
-            $span->setAttribute('http.request.body.size', (int) $requestBodySize);
+            $span->setAttribute(HttpIncubatingAttributes::HTTP_REQUEST_BODY_SIZE, (int) $requestBodySize);
         }
 
         $responseBodySize = $response->headers->get('Content-Length');
@@ -198,7 +200,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
             }
         }
         if (null !== $responseBodySize) {
-            $span->setAttribute('http.response.body.size', (int) $responseBodySize);
+            $span->setAttribute(HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE, (int) $responseBodySize);
         }
 
         if ($statusCode >= $this->errorStatusThreshold && !$hadException) {
@@ -310,7 +312,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
             }
         }
 
-        $attributes['service.version'] = OpenTelemetryBundle::VERSION;
+        $attributes[ServiceAttributes::SERVICE_VERSION] = OpenTelemetryBundle::VERSION;
 
         return $attributes;
     }

@@ -9,6 +9,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Traceway\OpenTelemetryBundle\DependencyInjection\OpenTelemetryExtension;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
+use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableMiddleware as DoctrineTraceableMiddleware;
 use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\TracingInterface;
 
@@ -100,6 +101,74 @@ final class OpenTelemetryExtensionTest extends TestCase
 
         $def = $container->getDefinition(OpenTelemetryMiddleware::class);
         self::assertFalse($def->getArgument('$rootSpans'));
+    }
+
+    public function testPrependRegistersMessengerMiddleware(): void
+    {
+        $container = new ContainerBuilder();
+        $extension = new OpenTelemetryExtension();
+        $extension->prepend($container);
+
+        $frameworkConfigs = $container->getExtensionConfig('framework');
+        self::assertNotEmpty($frameworkConfigs);
+
+        $messengerConfig = $frameworkConfigs[0]['messenger'] ?? null;
+        self::assertNotNull($messengerConfig);
+
+        $middleware = $messengerConfig['buses']['messenger.bus.default']['middleware'] ?? [];
+        self::assertContains(OpenTelemetryMiddleware::class, $middleware);
+    }
+
+    public function testPrependSkippedWhenMessengerDisabled(): void
+    {
+        $container = new ContainerBuilder();
+        $container->prependExtensionConfig('open_telemetry', ['messenger_enabled' => false]);
+
+        $extension = new OpenTelemetryExtension();
+        $extension->prepend($container);
+
+        $frameworkConfigs = $container->getExtensionConfig('framework');
+        self::assertEmpty($frameworkConfigs);
+    }
+
+    public function testDoctrineMiddlewareRegisteredWhenEnabled(): void
+    {
+        $container = $this->buildContainer(['doctrine_enabled' => true]);
+
+        self::assertTrue($container->hasDefinition(DoctrineTraceableMiddleware::class));
+
+        $def = $container->getDefinition(DoctrineTraceableMiddleware::class);
+        self::assertTrue($def->hasTag('doctrine.middleware'));
+        self::assertTrue($def->getArgument('$recordStatements'));
+    }
+
+    public function testDoctrineMiddlewareNotRegisteredWhenDisabled(): void
+    {
+        $container = $this->buildContainer(['doctrine_enabled' => false]);
+
+        self::assertFalse($container->hasDefinition(DoctrineTraceableMiddleware::class));
+    }
+
+    public function testDoctrineRecordStatementsConfigured(): void
+    {
+        $container = $this->buildContainer([
+            'doctrine_enabled' => true,
+            'doctrine_record_statements' => false,
+        ]);
+
+        $def = $container->getDefinition(DoctrineTraceableMiddleware::class);
+        self::assertFalse($def->getArgument('$recordStatements'));
+    }
+
+    public function testDoctrineTracerNameWired(): void
+    {
+        $container = $this->buildContainer([
+            'tracer_name' => 'my-tracer',
+            'doctrine_enabled' => true,
+        ]);
+
+        $def = $container->getDefinition(DoctrineTraceableMiddleware::class);
+        self::assertSame('my-tracer', $def->getArgument('$tracerName'));
     }
 
     private function buildContainer(array $config): ContainerBuilder

@@ -31,6 +31,8 @@ final class ConfigurationTest extends TestCase
         self::assertTrue($config['http_client_enabled']);
         self::assertTrue($config['messenger_enabled']);
         self::assertFalse($config['messenger_root_spans']);
+        self::assertTrue($config['doctrine_enabled']);
+        self::assertTrue($config['doctrine_record_statements']);
     }
 
     public function testCustomValues(): void
@@ -45,6 +47,8 @@ final class ConfigurationTest extends TestCase
                 'http_client_enabled' => false,
                 'messenger_enabled' => false,
                 'messenger_root_spans' => true,
+                'doctrine_enabled' => false,
+                'doctrine_record_statements' => false,
             ],
         ]);
 
@@ -56,6 +60,8 @@ final class ConfigurationTest extends TestCase
         self::assertFalse($config['http_client_enabled']);
         self::assertFalse($config['messenger_enabled']);
         self::assertTrue($config['messenger_root_spans']);
+        self::assertFalse($config['doctrine_enabled']);
+        self::assertFalse($config['doctrine_record_statements']);
     }
 
     public function testExcludedPathsNormalization(): void

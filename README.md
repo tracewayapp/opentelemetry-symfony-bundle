@@ -8,7 +8,7 @@
 [![Symfony Version](https://img.shields.io/badge/symfony-%3E%3D6.4-000000.svg)](https://symfony.com)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Pure-PHP OpenTelemetry instrumentation for Symfony, **no C extension required**. Automatic HTTP, HttpClient, and Messenger tracing with a lightweight `Tracing` helper, route templates, response propagation, and full semantic conventions.
+Pure-PHP OpenTelemetry instrumentation for Symfony, **no C extension required**. Automatic HTTP, HttpClient, Messenger, and Doctrine DBAL tracing with a lightweight `Tracing` helper, route templates, response propagation, and full semantic conventions.
 
 Works with any OpenTelemetry-compatible backend: [Traceway](https://tracewayapp.com), [Jaeger](https://www.jaegertracing.io/), [Zipkin](https://zipkin.io/), [Datadog](https://www.datadoghq.com/), [Sentry](https://sentry.io/), [Grafana Tempo](https://grafana.com/oss/tempo/), [Honeycomb](https://www.honeycomb.io/), and more.
 
@@ -36,8 +36,9 @@ That's it. Every HTTP request, outgoing HttpClient call, and Messenger job is no
 - **HttpClient instrumentation** — CLIENT spans for every outgoing HTTP request with W3C Trace Context propagation into downstream services
 - **Response propagation** — injects trace context into response headers (Server-Timing, traceresponse) for browser-side correlation
 - **Symfony Messenger instrumentation** — automatic CONSUMER spans for dispatched/consumed messages with W3C Trace Context propagation across transports
-- **`Tracing` helper** — one-liner span creation for manual instrumentation (DB queries, cache, HTTP calls, etc.)
-- **Fully configurable** — exclude paths, toggle features, set error thresholds, control root span behavior
+- **Doctrine DBAL instrumentation** — CLIENT spans for every database query with `db.system.name`, `db.operation.name`, `db.namespace`, `db.query.text`, and `server.address`/`server.port`
+- **`Tracing` helper** — one-liner span creation for manual instrumentation (cache, HTTP calls, etc.)
+- **Fully configurable** — exclude paths, toggle features, set error thresholds, control root span behavior, toggle SQL recording
 - **No C extension required** — works on any PHP 8.1+ hosting, unlike the official `ext-opentelemetry` based package
 
 ## Requirements
@@ -45,6 +46,7 @@ That's it. Every HTTP request, outgoing HttpClient call, and Messenger job is no
 - PHP >= 8.1
 - Symfony >= 6.4
 - OpenTelemetry PHP SDK >= 1.0
+- Doctrine DBAL >= 4.0 *(optional, for database tracing)*
 
 ## Installation
 
@@ -94,6 +96,14 @@ open_telemetry:
     # Create root spans for consumed messages instead of linking to the
     # dispatching trace (default: false)
     messenger_root_spans: false
+
+    # Instrument Doctrine DBAL: CLIENT spans for database queries (default: true)
+    # Requires doctrine/dbal ^4.0
+    doctrine_enabled: true
+
+    # Record SQL on spans (default: true)
+    # Prepared statements use ? placeholders; query()/exec() record raw SQL
+    doctrine_record_statements: true
 ```
 
 ### Environment Variables
@@ -118,6 +128,7 @@ Once installed, every HTTP request automatically gets a SERVER span with:
 
 - Route template naming (`GET /api/users/{id}` instead of `GET /api/users/42`)
 - Request/response attributes following [OTel semantic conventions](https://opentelemetry.io/docs/specs/semconv/http/)
+- Query string attribute (`url.query`)
 - Body size attributes (`http.request.body.size`, `http.response.body.size`)
 - Client IP recording (`client.address`)
 - Bundle version tracking (`service.version`)
@@ -142,7 +153,7 @@ Works with all Symfony HttpClient instances, including scoped clients.
 When `symfony/messenger` is installed, the bundle automatically:
 
 - **On dispatch:** injects W3C Trace Context into the message envelope so it survives serialization across transports
-- **On consume:** creates a CONSUMER span with messaging attributes (`messaging.system`, `messaging.operation`, `messaging.message.class`)
+- **On consume:** creates a CONSUMER span with messaging attributes (`messaging.system`, `messaging.operation.type`, `messaging.message.class`)
 
 #### Root Spans for Background Jobs
 
@@ -154,6 +165,25 @@ open_telemetry:
 ```
 
 Each consumed message will then start its own trace, appearing as a standalone task in your backend.
+
+### Automatic Doctrine DBAL Tracing
+
+When `doctrine/dbal` (^4.0) is installed, every database query automatically gets a CLIENT span with:
+
+- Span name: the SQL template (e.g. `SELECT * FROM users WHERE id = ?`), truncated at 120 chars
+- Database attributes following [OTel database semantic conventions](https://opentelemetry.io/docs/specs/semconv/database/) (`db.system.name`, `db.operation.name`, `db.namespace`, `db.query.text`)
+- Server attributes (`server.address`, `server.port`)
+- Exception recording on query failure
+- Transaction spans (`BEGIN`, `COMMIT`, `ROLLBACK`)
+
+SQL is recorded by default as `db.query.text`. Prepared statements use `?` placeholders (e.g. `SELECT * FROM users WHERE id = ?`), so parameter values are not recorded. However, `query()`/`exec()` calls record raw SQL which may contain literal values. Disable SQL recording if raw SQL may contain sensitive data (span name falls back to `{OPERATION} {dbName}`):
+
+```yaml
+open_telemetry:
+    doctrine_record_statements: false
+```
+
+The bundle auto-detects the database system (MySQL, PostgreSQL, SQLite, SQL Server, Oracle) from the Doctrine DBAL driver.
 
 ### Manual Instrumentation with `Tracing`
 
@@ -178,8 +208,8 @@ class OrderService
 
         // Span with attributes and kind
         $result = $this->tracing->trace('db.query', fn () => $this->db->query('SELECT ...'), [
-            'db.system' => 'mysql',
-            'db.statement' => 'SELECT * FROM orders WHERE id = ?',
+            'db.system.name' => 'mysql',
+            'db.query.text' => 'SELECT * FROM orders WHERE id = ?',
         ], SpanKind::KIND_CLIENT);
 
         // Nested spans — parent-child linking is automatic
@@ -215,6 +245,7 @@ git clone https://github.com/tracewayapp/opentelemetry-symfony-bundle.git
 cd opentelemetry-symfony-bundle
 composer install
 vendor/bin/phpunit
+vendor/bin/phpstan analyse
 ```
 
 ## License

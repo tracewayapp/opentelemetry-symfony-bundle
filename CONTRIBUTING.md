@@ -28,7 +28,7 @@ vendor/bin/phpstan analyse
 - `declare(strict_types=1)` in every file
 - `final` classes by default
 - Constructor property promotion where possible
-- PHPStan level 9 clean — no baseline
+- PHPStan 2.x level 10 clean — no baseline
 
 ## Submitting Changes
 

@@ -1,9 +1,9 @@
 {
     "name": "traceway/opentelemetry-symfony",
-    "description": "Pure-PHP OpenTelemetry instrumentation for Symfony — automatic HTTP, HttpClient, and Messenger tracing with response propagation, a lightweight Tracing helper, route templates, and semantic conventions. No C extension required.",
+    "description": "Pure-PHP OpenTelemetry instrumentation for Symfony — automatic HTTP, HttpClient, Messenger, and Doctrine DBAL tracing with response propagation, a lightweight Tracing helper, route templates, and semantic conventions. No C extension required.",
     "type": "symfony-bundle",
     "license": "MIT",
-    "keywords": ["opentelemetry", "otel", "tracing", "observability", "symfony", "instrumentation"],
+    "keywords": ["opentelemetry", "otel", "tracing", "observability", "symfony", "doctrine", "instrumentation"],
     "homepage": "https://github.com/tracewayapp/opentelemetry-symfony-bundle",
     "authors": [
         {
@@ -29,11 +29,13 @@
         "symfony/yaml": "^6.4 || ^7.0 || ^8.0"
     },
     "suggest": {
+        "doctrine/dbal": "Required for automatic Doctrine DBAL query tracing (^4.0)",
         "symfony/http-client": "Required for automatic HttpClient outgoing request tracing",
         "symfony/messenger": "Required for automatic Messenger job/task tracing"
     },
     "require-dev": {
-        "phpstan/phpstan": "^1.0",
+        "doctrine/dbal": "^4.0",
+        "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^10.0 || ^11.0",
         "symfony/framework-bundle": "^6.4 || ^7.0 || ^8.0",
         "symfony/http-client": "^6.4 || ^7.0 || ^8.0",
@@ -59,8 +61,8 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "1.0.x-dev",
-            "dev-master": "1.0.x-dev"
+            "dev-main": "1.1.x-dev",
+            "dev-master": "1.1.x-dev"
         }
     },
     "scripts": {

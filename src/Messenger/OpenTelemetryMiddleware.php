@@ -54,8 +54,17 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface
     private function handleDispatch(Envelope $envelope, StackInterface $stack): Envelope
     {
         if (null === $envelope->last(TraceContextStamp::class)) {
+            $carrier = [];
+            Globals::propagator()->inject($carrier);
+
             $headers = [];
-            Globals::propagator()->inject($headers);
+            if (\is_array($carrier)) {
+                foreach ($carrier as $key => $value) {
+                    if (\is_string($key) && \is_string($value)) {
+                        $headers[$key] = $value;
+                    }
+                }
+            }
 
             if ([] !== $headers) {
                 $envelope = $envelope->with(new TraceContextStamp($headers));
@@ -93,7 +102,7 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface
             ->setParent($parentContext)
             ->setSpanKind(SpanKind::KIND_CONSUMER)
             ->setAttribute('messaging.system', 'symfony_messenger')
-            ->setAttribute('messaging.operation', 'process')
+            ->setAttribute('messaging.operation.type', 'process')
             ->setAttribute('messaging.message.class', $messageClass)
             ->startSpan();
 

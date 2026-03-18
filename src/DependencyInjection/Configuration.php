@@ -30,10 +30,16 @@ final class Configuration implements ConfigurationInterface
                     ->defaultValue([])
                     ->beforeNormalization()
                         ->ifArray()
-                        ->then(static fn (array $paths): array => array_map(
-                            static fn (string $p): string => str_starts_with($p, '/') ? $p : '/' . $p,
-                            $paths,
-                        ))
+                        ->then(static function (array $paths): array {
+                            $normalized = [];
+                            foreach ($paths as $p) {
+                                if (!\is_string($p)) {
+                                    continue;
+                                }
+                                $normalized[] = str_starts_with($p, '/') ? $p : '/' . $p;
+                            }
+                            return $normalized;
+                        })
                     ->end()
                 ->end()
                 ->booleanNode('record_client_ip')
@@ -57,6 +63,14 @@ final class Configuration implements ConfigurationInterface
                 ->booleanNode('messenger_root_spans')
                     ->info('Create root spans for consumed messages instead of linking to the dispatching trace. Useful for task-oriented backends (e.g. Traceway, Sentry).')
                     ->defaultFalse()
+                ->end()
+                ->booleanNode('doctrine_enabled')
+                    ->info('Instrument Doctrine DBAL: auto-create CLIENT spans for database queries.')
+                    ->defaultTrue()
+                ->end()
+                ->booleanNode('doctrine_record_statements')
+                    ->info('Record SQL on spans. Prepared statements use ? placeholders; query()/exec() record raw SQL which may contain literal values. Disable in production if raw SQL may contain sensitive data.')
+                    ->defaultTrue()
                 ->end()
             ->end()
         ;

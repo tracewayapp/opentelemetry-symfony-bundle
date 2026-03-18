@@ -10,6 +10,7 @@ use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\Middleware\StackMiddleware;
+use Symfony\Component\Messenger\Stamp\ConsumedByWorkerStamp;
 use Symfony\Component\Messenger\Stamp\ReceivedStamp;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
 use Traceway\OpenTelemetryBundle\Messenger\TraceContextStamp;
@@ -91,7 +92,7 @@ final class OpenTelemetryMiddlewareTest extends TestCase
         $attributes = $spans[0]->getAttributes()->toArray();
 
         self::assertSame('symfony_messenger', $attributes['messaging.system']);
-        self::assertSame('process', $attributes['messaging.operation']);
+        self::assertSame('process', $attributes['messaging.operation.type']);
         self::assertSame(\stdClass::class, $attributes['messaging.message.class']);
     }
 
@@ -174,5 +175,35 @@ final class OpenTelemetryMiddlewareTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertSame('stdClass process', $spans[0]->getName());
+    }
+
+    public function testConsumedByWorkerStampTriggersConsumeSpan(): void
+    {
+        $middleware = new OpenTelemetryMiddleware('test');
+        $envelope = new Envelope(new \stdClass(), [new ConsumedByWorkerStamp()]);
+
+        $stack = new StackMiddleware();
+        $middleware->handle($envelope, $stack);
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertStringContainsString('process', $spans[0]->getName());
+        self::assertSame(SpanKind::KIND_CONSUMER, $spans[0]->getKind());
+    }
+
+    public function testConsumeWithEmptyTraceContextStamp(): void
+    {
+        $middleware = new OpenTelemetryMiddleware('test', rootSpans: false);
+        $envelope = new Envelope(new \stdClass(), [
+            new ReceivedStamp('sync'),
+            new TraceContextStamp([]),
+        ]);
+
+        $stack = new StackMiddleware();
+        $middleware->handle($envelope, $stack);
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame(StatusCode::STATUS_OK, $spans[0]->getStatus()->getCode());
     }
 }

@@ -49,16 +49,16 @@ final class TracingTest extends TestCase
         $tracing = new Tracing('test-tracer');
 
         $tracing->trace('db.query', fn () => null, [
-            'db.system' => 'mysql',
-            'db.statement' => 'SELECT 1',
+            'db.system.name' => 'mysql',
+            'db.query.text' => 'SELECT 1',
         ]);
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
 
         $attributes = $spans[0]->getAttributes()->toArray();
-        self::assertSame('mysql', $attributes['db.system']);
-        self::assertSame('SELECT 1', $attributes['db.statement']);
+        self::assertSame('mysql', $attributes['db.system.name']);
+        self::assertSame('SELECT 1', $attributes['db.query.text']);
     }
 
     public function testTraceUsesSpanKind(): void

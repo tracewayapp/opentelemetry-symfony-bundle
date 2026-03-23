@@ -7,6 +7,7 @@ namespace Traceway\OpenTelemetryBundle\HttpClient;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\SemConv\Attributes\HttpAttributes;
+use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 
 /**
@@ -43,6 +44,10 @@ final class TracedResponse implements ResponseInterface
             throw $e;
         }
 
+        if (!$this->spanEnded && isset($headers['content-length'][0])) {
+            $this->span->setAttribute(HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE, (int) $headers['content-length'][0]);
+        }
+
         $this->safeFinalize();
 
         return $headers;
@@ -55,6 +60,10 @@ final class TracedResponse implements ResponseInterface
         } catch (\Throwable $e) {
             $this->finalizeSpanWithError($e);
             throw $e;
+        }
+
+        if ('' !== $content && !$this->spanEnded) {
+            $this->span->setAttribute(HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE, \strlen($content));
         }
 
         $this->safeFinalize();

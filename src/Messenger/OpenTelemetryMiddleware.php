@@ -18,8 +18,9 @@ use Symfony\Component\Messenger\Stamp\ReceivedStamp;
 /**
  * OpenTelemetry middleware for Symfony Messenger.
  *
- * On dispatch: injects the current trace context into the envelope as a
- * {@see TraceContextStamp} so it survives serialization across transports.
+ * On dispatch: creates a PRODUCER span and injects the current trace context
+ * into the envelope as a {@see TraceContextStamp} so it survives serialization
+ * across transports.
  *
  * On consume: extracts the stamp and creates a CONSUMER span. When
  * {@see $rootSpans} is true the span has no parent, so task-oriented
@@ -49,29 +50,55 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface
     }
 
     /**
-     * Dispatch side: inject current trace context into the envelope.
+     * Dispatch side: create a PRODUCER span and inject trace context into the envelope.
      */
     private function handleDispatch(Envelope $envelope, StackInterface $stack): Envelope
     {
-        if (null === $envelope->last(TraceContextStamp::class)) {
-            $carrier = [];
-            Globals::propagator()->inject($carrier);
+        $messageClass = $envelope->getMessage()::class;
+        $spanName = $this->resolveSpanName($messageClass, 'publish');
 
-            $headers = [];
-            if (\is_array($carrier)) {
-                foreach ($carrier as $key => $value) {
-                    if (\is_string($key) && \is_string($value)) {
-                        $headers[$key] = $value;
+        $span = $this->getTracer()
+            ->spanBuilder($spanName)
+            ->setSpanKind(SpanKind::KIND_PRODUCER)
+            ->setAttribute('messaging.system', 'symfony_messenger')
+            ->setAttribute('messaging.operation.type', 'publish')
+            ->setAttribute('messaging.message.class', $messageClass)
+            ->startSpan();
+
+        $scope = $span->activate();
+
+        try {
+            if (null === $envelope->last(TraceContextStamp::class)) {
+                $carrier = [];
+                Globals::propagator()->inject($carrier);
+
+                $headers = [];
+                if (\is_array($carrier)) {
+                    foreach ($carrier as $key => $value) {
+                        if (\is_string($key) && \is_string($value)) {
+                            $headers[$key] = $value;
+                        }
                     }
+                }
+
+                if ([] !== $headers) {
+                    $envelope = $envelope->with(new TraceContextStamp($headers));
                 }
             }
 
-            if ([] !== $headers) {
-                $envelope = $envelope->with(new TraceContextStamp($headers));
-            }
-        }
+            $envelope = $stack->next()->handle($envelope, $stack);
+            $span->setStatus(StatusCode::STATUS_OK);
 
-        return $stack->next()->handle($envelope, $stack);
+            return $envelope;
+        } catch (\Throwable $e) {
+            $span->recordException($e);
+            $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
+
+            throw $e;
+        } finally {
+            $span->end();
+            $scope->detach();
+        }
     }
 
     /**
@@ -86,7 +113,7 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface
     private function handleConsume(Envelope $envelope, StackInterface $stack): Envelope
     {
         $messageClass = $envelope->getMessage()::class;
-        $spanName = $this->resolveSpanName($messageClass);
+        $spanName = $this->resolveSpanName($messageClass, 'process');
 
         $tracer = $this->getTracer();
 
@@ -98,13 +125,20 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface
             $parentContext = Globals::propagator()->extract($stamp->getHeaders());
         }
 
-        $span = $tracer->spanBuilder($spanName)
+        $builder = $tracer->spanBuilder($spanName)
             ->setParent($parentContext)
             ->setSpanKind(SpanKind::KIND_CONSUMER)
             ->setAttribute('messaging.system', 'symfony_messenger')
             ->setAttribute('messaging.operation.type', 'process')
-            ->setAttribute('messaging.message.class', $messageClass)
-            ->startSpan();
+            ->setAttribute('messaging.message.class', $messageClass);
+
+        /** @var ReceivedStamp|null $receivedStamp */
+        $receivedStamp = $envelope->last(ReceivedStamp::class);
+        if (null !== $receivedStamp) {
+            $builder->setAttribute('messaging.destination.name', $receivedStamp->getTransportName());
+        }
+
+        $span = $builder->startSpan();
 
         $scope = $span->activate();
 
@@ -138,10 +172,11 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface
     /**
      * @return non-empty-string
      */
-    private function resolveSpanName(string $messageClass): string
+    private function resolveSpanName(string $messageClass, string $operation): string
     {
         $pos = strrpos($messageClass, '\\');
+        $shortName = false !== $pos ? substr($messageClass, $pos + 1) : $messageClass;
 
-        return sprintf('%s process', false !== $pos ? substr($messageClass, $pos + 1) : $messageClass);
+        return sprintf('%s %s', $shortName, $operation);
     }
 }

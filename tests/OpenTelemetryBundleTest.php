@@ -6,6 +6,7 @@ namespace Traceway\OpenTelemetryBundle\Tests;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\CacheTracingPass;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\HttpClientTracingPass;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
@@ -37,8 +38,26 @@ final class OpenTelemetryBundleTest extends TestCase
         self::assertTrue($found, 'HttpClientTracingPass should be registered');
     }
 
+    public function testBuildRegistersCacheTracingPass(): void
+    {
+        $container = new ContainerBuilder();
+        $bundle = new OpenTelemetryBundle();
+        $bundle->build($container);
+
+        $passes = $container->getCompilerPassConfig()->getBeforeOptimizationPasses();
+        $found = false;
+        foreach ($passes as $pass) {
+            if ($pass instanceof CacheTracingPass) {
+                $found = true;
+                break;
+            }
+        }
+
+        self::assertTrue($found, 'CacheTracingPass should be registered');
+    }
+
     public function testVersionConstant(): void
     {
-        self::assertSame('1.1.0', OpenTelemetryBundle::VERSION);
+        self::assertSame('1.2.0', OpenTelemetryBundle::VERSION);
     }
 }

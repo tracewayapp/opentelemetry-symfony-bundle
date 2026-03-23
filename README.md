@@ -8,7 +8,7 @@
 [![Symfony Version](https://img.shields.io/badge/symfony-%3E%3D6.4-000000.svg)](https://symfony.com)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Pure-PHP OpenTelemetry instrumentation for Symfony, **no C extension required**. Automatic HTTP, HttpClient, Messenger, and Doctrine DBAL tracing with a lightweight `Tracing` helper, route templates, response propagation, and full semantic conventions.
+Pure-PHP OpenTelemetry instrumentation for Symfony, **no C extension required**. Automatic HTTP, Console, HttpClient, Messenger, Doctrine DBAL, Cache, and Twig tracing with a lightweight `Tracing` helper, route templates, response propagation, and full semantic conventions.
 
 Works with any OpenTelemetry-compatible backend: [Traceway](https://tracewayapp.com), [Jaeger](https://www.jaegertracing.io/), [Zipkin](https://zipkin.io/), [Datadog](https://www.datadoghq.com/), [Sentry](https://sentry.io/), [Grafana Tempo](https://grafana.com/oss/tempo/), [Honeycomb](https://www.honeycomb.io/), and more.
 
@@ -28,15 +28,18 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 ```
 
-That's it. Every HTTP request, outgoing HttpClient call, and Messenger job is now traced automatically.
+That's it. Every HTTP request, console command, outgoing HttpClient call, Messenger job, cache operation, and Twig template render is now traced automatically.
 
 ## Features
 
 - **Automatic HTTP tracing** — SERVER spans for every request with route templates (`GET /api/items/{id}`), body size attributes, semantic conventions, sub-request support, and exception recording
+- **Console command tracing** — SERVER spans for every `bin/console` command with command name, exit code, and exception recording
 - **HttpClient instrumentation** — CLIENT spans for every outgoing HTTP request with W3C Trace Context propagation into downstream services
 - **Response propagation** — injects trace context into response headers (Server-Timing, traceresponse) for browser-side correlation
-- **Symfony Messenger instrumentation** — automatic CONSUMER spans for dispatched/consumed messages with W3C Trace Context propagation across transports
+- **Symfony Messenger instrumentation** — automatic PRODUCER spans on dispatch and CONSUMER spans on consume with W3C Trace Context propagation across transports
 - **Doctrine DBAL instrumentation** — CLIENT spans for every database query with `db.system.name`, `db.operation.name`, `db.namespace`, `db.query.text`, and `server.address`/`server.port`
+- **Cache pool instrumentation** — INTERNAL spans for cache `get` (with hit/miss detection), `delete`, and `invalidateTags` operations with pool name attributes
+- **Twig template instrumentation** — INTERNAL spans for every template render, including nested templates and includes, with template name attributes
 - **`Tracing` helper** — one-liner span creation for manual instrumentation (cache, HTTP calls, etc.)
 - **Fully configurable** — exclude paths, toggle features, set error thresholds, control root span behavior, toggle SQL recording
 - **No C extension required** — works on any PHP 8.1+ hosting, unlike the official `ext-opentelemetry` based package
@@ -47,6 +50,7 @@ That's it. Every HTTP request, outgoing HttpClient call, and Messenger job is no
 - Symfony >= 6.4
 - OpenTelemetry PHP SDK >= 1.0
 - Doctrine DBAL >= 4.0 *(optional, for database tracing)*
+- Twig >= 3.0 *(optional, for template tracing)*
 
 ## Installation
 
@@ -87,6 +91,14 @@ open_telemetry:
     # HTTP status codes >= this value are marked as errors (default: 500, range: 400-599)
     error_status_threshold: 500
 
+    # Instrument Symfony Console: SERVER spans for console commands (default: true)
+    console_enabled: true
+
+    # Console command names to exclude from tracing
+    console_excluded_commands:
+        - cache:clear
+        - assets:install
+
     # Instrument Symfony HttpClient: CLIENT spans for outgoing requests (default: true)
     http_client_enabled: true
 
@@ -104,6 +116,25 @@ open_telemetry:
     # Record SQL on spans (default: true)
     # Prepared statements use ? placeholders; query()/exec() record raw SQL
     doctrine_record_statements: true
+
+    # Instrument Symfony Cache: INTERNAL spans for get/delete (default: true)
+    # Requires symfony/cache
+    cache_enabled: true
+
+    # Cache pool service IDs to exclude from tracing
+    cache_excluded_pools:
+        - cache.system
+        - cache.validator
+        - cache.serializer
+
+    # Instrument Twig: INTERNAL spans for template rendering (default: true)
+    # Requires twig/twig
+    twig_enabled: true
+
+    # Template name prefixes to exclude from tracing
+    twig_excluded_templates:
+        - '@WebProfiler/'
+        - '@Debug/'
 ```
 
 ### Environment Variables
@@ -137,13 +168,34 @@ Once installed, every HTTP request automatically gets a SERVER span with:
 - Sub-request support (INTERNAL spans)
 - W3C Trace Context propagation from incoming headers
 
+### Automatic Console Command Tracing
+
+Every `bin/console` command automatically gets a SERVER span with:
+
+- Span name: the command name (e.g. `app:import-users`)
+- `process.command` attribute with the command name
+- `process.command.args` attribute with the input arguments (when non-empty)
+- `process.exit_code` attribute with the exit code
+- Exception recording on command failure
+- Non-zero exit codes automatically marked as errors
+
+Exclude noisy framework commands from tracing:
+
+```yaml
+open_telemetry:
+    console_excluded_commands:
+        - cache:clear
+        - cache:warmup
+        - assets:install
+```
+
 ### Automatic HttpClient Tracing
 
 When `symfony/http-client` is installed, every outgoing HTTP request automatically gets a CLIENT span with:
 
 - Span name: `GET api.example.com`
-- Request attributes (`http.request.method`, `url.full`, `server.address`, `server.port`)
-- Response status code and error detection
+- Request attributes (`http.request.method`, `url.full`, `url.path`, `url.scheme`, `server.address`, `server.port`)
+- Response status code, error detection, and `http.response.body.size` tracking
 - W3C Trace Context propagation into outgoing request headers (so downstream services are linked in the same trace)
 
 Works with all Symfony HttpClient instances, including scoped clients.
@@ -152,8 +204,8 @@ Works with all Symfony HttpClient instances, including scoped clients.
 
 When `symfony/messenger` is installed, the bundle automatically:
 
-- **On dispatch:** injects W3C Trace Context into the message envelope so it survives serialization across transports
-- **On consume:** creates a CONSUMER span with messaging attributes (`messaging.system`, `messaging.operation.type`, `messaging.message.class`)
+- **On dispatch:** creates a PRODUCER span (`messaging.operation.type=publish`) and injects W3C Trace Context into the message envelope so it survives serialization across transports
+- **On consume:** creates a CONSUMER span (`messaging.operation.type=process`) with messaging attributes (`messaging.system`, `messaging.message.class`, `messaging.destination.name`)
 
 #### Root Spans for Background Jobs
 
@@ -184,6 +236,39 @@ open_telemetry:
 ```
 
 The bundle auto-detects the database system (MySQL, PostgreSQL, SQLite, SQL Server, Oracle) from the Doctrine DBAL driver.
+
+### Automatic Cache Tracing
+
+When `symfony/cache` is installed, every cache pool operation automatically gets an INTERNAL span with:
+
+- Span name: `cache.get {key}`, `cache.delete {key}`, or `cache.clear`
+- `cache.key` attribute with the cache key
+- `cache.pool` attribute with the pool name (e.g. `cache.app`)
+- `cache.hit` attribute (boolean) on `get()` operations — detects whether the callback was invoked
+- `cache.tags` attribute on `invalidateTags()` operations
+- Exception recording on cache failures
+
+All services tagged with `cache.pool` are automatically decorated. Tag-aware pools also trace `invalidateTags()`.
+
+Exclude noisy framework pools from tracing:
+
+```yaml
+open_telemetry:
+    cache_excluded_pools:
+        - cache.system
+        - cache.validator
+        - cache.serializer
+```
+
+### Automatic Twig Template Tracing
+
+When `twig/twig` is installed, every template render automatically gets an INTERNAL span with:
+
+- Span name: `twig.render {template}` (e.g. `twig.render home.html.twig`)
+- `twig.template` attribute with the template name
+- Nested template spans for includes and extends (parent-child linking)
+- Only template-level rendering is traced (blocks and macros are not individually traced to keep span volume manageable)
+- Configurable template exclusion via `twig_excluded_templates` to filter out framework templates
 
 ### Manual Instrumentation with `Tracing`
 

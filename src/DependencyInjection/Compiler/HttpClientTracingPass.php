@@ -31,6 +31,7 @@ final class HttpClientTracingPass implements CompilerPassInterface
         }
 
         $tracerName = $container->getParameter('open_telemetry.tracer_name');
+        \assert(\is_string($tracerName));
 
         $clientIds = $this->findHttpClientServiceIds($container);
 

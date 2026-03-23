@@ -6,11 +6,12 @@ namespace Traceway\OpenTelemetryBundle;
 
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
+use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\CacheTracingPass;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\HttpClientTracingPass;
 
 final class OpenTelemetryBundle extends Bundle
 {
-    public const VERSION = '1.1.0';
+    public const VERSION = '1.2.0';
 
     public function getPath(): string
     {
@@ -22,5 +23,6 @@ final class OpenTelemetryBundle extends Bundle
         parent::build($container);
 
         $container->addCompilerPass(new HttpClientTracingPass());
+        $container->addCompilerPass(new CacheTracingPass());
     }
 }

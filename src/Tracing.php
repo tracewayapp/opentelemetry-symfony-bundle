@@ -30,6 +30,7 @@ final class Tracing implements TracingInterface
      * {@inheritDoc}
      *
      * @param non-empty-string $name
+     * @param SpanKind::KIND_* $kind
      */
     public function trace(
         string $name,
@@ -39,7 +40,7 @@ final class Tracing implements TracingInterface
     ): mixed {
         $span = $this->getTracer()
             ->spanBuilder($name)
-            ->setSpanKind($kind) // @phpstan-ignore argument.type
+            ->setSpanKind($kind)
             ->setAttributes($attributes)
             ->startSpan();
 

@@ -7,11 +7,13 @@ namespace Traceway\OpenTelemetryBundle\Tests\DependencyInjection;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Traceway\OpenTelemetryBundle\DependencyInjection\OpenTelemetryExtension;
+use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableMiddleware as DoctrineTraceableMiddleware;
 use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\TracingInterface;
+use Traceway\OpenTelemetryBundle\Twig\OpenTelemetryTwigExtension;
 
 final class OpenTelemetryExtensionTest extends TestCase
 {
@@ -21,6 +23,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
         self::assertTrue($container->hasDefinition(Tracing::class));
         self::assertTrue($container->hasDefinition(OpenTelemetrySubscriber::class));
+        self::assertTrue($container->hasDefinition(ConsoleSubscriber::class));
         self::assertTrue($container->hasDefinition(OpenTelemetryMiddleware::class));
         self::assertTrue($container->hasAlias(TracingInterface::class));
     }
@@ -52,6 +55,9 @@ final class OpenTelemetryExtensionTest extends TestCase
         $subscriberDef = $container->getDefinition(OpenTelemetrySubscriber::class);
         self::assertSame('custom-tracer', $subscriberDef->getArgument('$tracerName'));
 
+        $consoleDef = $container->getDefinition(ConsoleSubscriber::class);
+        self::assertSame('custom-tracer', $consoleDef->getArgument('$tracerName'));
+
         $middlewareDef = $container->getDefinition(OpenTelemetryMiddleware::class);
         self::assertSame('custom-tracer', $middlewareDef->getArgument('$tracerName'));
     }
@@ -62,6 +68,24 @@ final class OpenTelemetryExtensionTest extends TestCase
 
         self::assertFalse($container->hasDefinition(OpenTelemetrySubscriber::class));
         self::assertTrue($container->hasDefinition(Tracing::class));
+    }
+
+    public function testConsoleSubscriberRemovedWhenDisabled(): void
+    {
+        $container = $this->buildContainer(['console_enabled' => false]);
+
+        self::assertFalse($container->hasDefinition(ConsoleSubscriber::class));
+        self::assertTrue($container->hasDefinition(OpenTelemetrySubscriber::class));
+    }
+
+    public function testConsoleSubscriberReceivesExcludedCommands(): void
+    {
+        $container = $this->buildContainer([
+            'console_excluded_commands' => ['cache:clear', 'assets:install'],
+        ]);
+
+        $def = $container->getDefinition(ConsoleSubscriber::class);
+        self::assertSame(['cache:clear', 'assets:install'], $def->getArgument('$excludedCommands'));
     }
 
     public function testMiddlewareRemovedWhenMessengerDisabled(): void
@@ -169,6 +193,86 @@ final class OpenTelemetryExtensionTest extends TestCase
 
         $def = $container->getDefinition(DoctrineTraceableMiddleware::class);
         self::assertSame('my-tracer', $def->getArgument('$tracerName'));
+    }
+
+    public function testCacheEnabledParameterSetByDefault(): void
+    {
+        $container = $this->buildContainer([]);
+
+        self::assertTrue($container->getParameter('open_telemetry.cache_enabled'));
+    }
+
+    public function testCacheExcludedPoolsParameterSet(): void
+    {
+        $container = $this->buildContainer([
+            'cache_excluded_pools' => ['cache.system', 'cache.validator'],
+        ]);
+
+        self::assertSame(
+            ['cache.system', 'cache.validator'],
+            $container->getParameter('open_telemetry.cache_excluded_pools'),
+        );
+    }
+
+    public function testCacheExcludedPoolsDefaultEmpty(): void
+    {
+        $container = $this->buildContainer([]);
+
+        self::assertSame([], $container->getParameter('open_telemetry.cache_excluded_pools'));
+    }
+
+    public function testCacheDisabledParameter(): void
+    {
+        $container = $this->buildContainer(['cache_enabled' => false]);
+
+        self::assertFalse($container->getParameter('open_telemetry.cache_enabled'));
+    }
+
+    public function testTwigExtensionRegisteredWhenEnabled(): void
+    {
+        $container = $this->buildContainer(['twig_enabled' => true]);
+
+        self::assertTrue($container->hasDefinition(OpenTelemetryTwigExtension::class));
+
+        $def = $container->getDefinition(OpenTelemetryTwigExtension::class);
+        self::assertTrue($def->hasTag('twig.extension'));
+    }
+
+    public function testTwigExtensionNotRegisteredWhenDisabled(): void
+    {
+        $container = $this->buildContainer(['twig_enabled' => false]);
+
+        self::assertFalse($container->hasDefinition(OpenTelemetryTwigExtension::class));
+    }
+
+    public function testTwigExtensionTracerNameWired(): void
+    {
+        $container = $this->buildContainer([
+            'tracer_name' => 'my-tracer',
+            'twig_enabled' => true,
+        ]);
+
+        $def = $container->getDefinition(OpenTelemetryTwigExtension::class);
+        self::assertSame('my-tracer', $def->getArgument('$tracerName'));
+    }
+
+    public function testTwigExtensionExcludedTemplatesWired(): void
+    {
+        $container = $this->buildContainer([
+            'twig_enabled' => true,
+            'twig_excluded_templates' => ['@WebProfiler/', '@Debug/'],
+        ]);
+
+        $def = $container->getDefinition(OpenTelemetryTwigExtension::class);
+        self::assertSame(['@WebProfiler/', '@Debug/'], $def->getArgument('$excludedTemplates'));
+    }
+
+    public function testTwigExtensionExcludedTemplatesDefaultEmpty(): void
+    {
+        $container = $this->buildContainer(['twig_enabled' => true]);
+
+        $def = $container->getDefinition(OpenTelemetryTwigExtension::class);
+        self::assertSame([], $def->getArgument('$excludedTemplates'));
     }
 
     private function buildContainer(array $config): ContainerBuilder

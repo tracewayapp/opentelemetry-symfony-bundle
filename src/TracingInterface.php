@@ -23,7 +23,7 @@ interface TracingInterface
      * @param non-empty-string $name Span name (e.g. "db.query", "http.client", "cache.get")
      * @param callable(): T $callback The work to trace
      * @param array<string, mixed> $attributes Span attributes set before the callback runs
-     * @param int $kind Span kind (defaults to INTERNAL)
+     * @param SpanKind::KIND_* $kind Span kind (defaults to INTERNAL)
      *
      * @return T The callback's return value
      *

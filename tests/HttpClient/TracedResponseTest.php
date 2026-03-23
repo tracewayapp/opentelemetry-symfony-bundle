@@ -63,6 +63,7 @@ final class TracedResponseTest extends TestCase
         self::assertCount(1, $spans);
         $attributes = $spans[0]->getAttributes()->toArray();
         self::assertSame(200, $attributes['http.response.status_code']);
+        self::assertSame(5, $attributes['http.response.body.size']);
     }
 
     public function testToArrayFinalizesSpan(): void
@@ -92,6 +93,17 @@ final class TracedResponseTest extends TestCase
         self::assertCount(1, $spans);
         $attributes = $spans[0]->getAttributes()->toArray();
         self::assertSame(200, $attributes['http.response.status_code']);
+    }
+
+    public function testGetHeadersRecordsBodySizeFromContentLength(): void
+    {
+        $response = $this->makeResponse(200, 'hello world', ['content-length' => '11']);
+
+        $response->getHeaders();
+
+        $spans = $this->exporter->getSpans();
+        $attributes = $spans[0]->getAttributes()->toArray();
+        self::assertSame(11, $attributes['http.response.body.size']);
     }
 
     public function testSpanEndedOnlyOnce(): void

@@ -56,6 +56,8 @@ final class TraceableHttpClientTest extends TestCase
         self::assertSame('https://api.example.com:8443/data', $attributes['url.full']);
         self::assertSame('api.example.com', $attributes['server.address']);
         self::assertSame(8443, $attributes['server.port']);
+        self::assertSame('/data', $attributes['url.path']);
+        self::assertSame('https', $attributes['url.scheme']);
     }
 
     public function testResponseStatusCodeRecorded(): void

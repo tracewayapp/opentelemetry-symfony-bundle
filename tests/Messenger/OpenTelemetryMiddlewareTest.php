@@ -30,6 +30,26 @@ final class OpenTelemetryMiddlewareTest extends TestCase
         $this->tearDownOTel();
     }
 
+    public function testDispatchCreatesProducerSpan(): void
+    {
+        $middleware = new OpenTelemetryMiddleware('test');
+        $envelope = new Envelope(new \stdClass());
+
+        $stack = new StackMiddleware();
+        $middleware->handle($envelope, $stack);
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame('stdClass publish', $spans[0]->getName());
+        self::assertSame(SpanKind::KIND_PRODUCER, $spans[0]->getKind());
+        self::assertSame(StatusCode::STATUS_OK, $spans[0]->getStatus()->getCode());
+
+        $attributes = $spans[0]->getAttributes()->toArray();
+        self::assertSame('symfony_messenger', $attributes['messaging.system']);
+        self::assertSame('publish', $attributes['messaging.operation.type']);
+        self::assertSame(\stdClass::class, $attributes['messaging.message.class']);
+    }
+
     public function testDispatchInjectsTraceContextStamp(): void
     {
         $tracer = Globals::tracerProvider()->getTracer('test');
@@ -65,6 +85,33 @@ final class OpenTelemetryMiddlewareTest extends TestCase
         self::assertSame($existingHeaders, $stamp->getHeaders());
     }
 
+    public function testDispatchRecordsExceptionOnFailure(): void
+    {
+        $middleware = new OpenTelemetryMiddleware('test');
+        $envelope = new Envelope(new \stdClass());
+
+        $failingMiddleware = new class implements \Symfony\Component\Messenger\Middleware\MiddlewareInterface {
+            public function handle(Envelope $envelope, \Symfony\Component\Messenger\Middleware\StackInterface $stack): Envelope
+            {
+                throw new \RuntimeException('dispatch failed');
+            }
+        };
+
+        $stack = new StackMiddleware([$middleware, $failingMiddleware]);
+
+        try {
+            $middleware->handle($envelope, $stack);
+            self::fail('Expected exception');
+        } catch (\RuntimeException) {
+        }
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame(SpanKind::KIND_PRODUCER, $spans[0]->getKind());
+        self::assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
+        self::assertSame('dispatch failed', $spans[0]->getStatus()->getDescription());
+    }
+
     public function testConsumeCreatesSpan(): void
     {
         $middleware = new OpenTelemetryMiddleware('test');
@@ -83,7 +130,7 @@ final class OpenTelemetryMiddlewareTest extends TestCase
     public function testConsumeSpanHasMessagingAttributes(): void
     {
         $middleware = new OpenTelemetryMiddleware('test');
-        $envelope = new Envelope(new \stdClass(), [new ReceivedStamp('sync')]);
+        $envelope = new Envelope(new \stdClass(), [new ReceivedStamp('async')]);
 
         $stack = new StackMiddleware();
         $middleware->handle($envelope, $stack);
@@ -94,6 +141,7 @@ final class OpenTelemetryMiddlewareTest extends TestCase
         self::assertSame('symfony_messenger', $attributes['messaging.system']);
         self::assertSame('process', $attributes['messaging.operation.type']);
         self::assertSame(\stdClass::class, $attributes['messaging.message.class']);
+        self::assertSame('async', $attributes['messaging.destination.name']);
     }
 
     public function testConsumeRecordsException(): void

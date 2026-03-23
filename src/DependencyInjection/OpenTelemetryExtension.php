@@ -14,9 +14,11 @@ use Symfony\Component\Messenger\Middleware\MiddlewareInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Doctrine\DBAL\Driver\Middleware as DoctrineMiddleware;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableMiddleware as DoctrineTraceableMiddleware;
+use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
 use Traceway\OpenTelemetryBundle\Tracing;
+use Traceway\OpenTelemetryBundle\Twig\OpenTelemetryTwigExtension;
 
 final class OpenTelemetryExtension extends Extension implements PrependExtensionInterface
 {
@@ -73,6 +75,14 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->removeDefinition(OpenTelemetrySubscriber::class);
         }
 
+        if ($config['console_enabled'] && $this->isConsoleAvailable()) {
+            $container->getDefinition(ConsoleSubscriber::class)
+                ->setArgument('$tracerName', $tracerName)
+                ->setArgument('$excludedCommands', $config['console_excluded_commands']);
+        } else {
+            $container->removeDefinition(ConsoleSubscriber::class);
+        }
+
         if ($config['messenger_enabled'] && $this->isMessengerAvailable()) {
             $container->getDefinition(OpenTelemetryMiddleware::class)
                 ->setArgument('$tracerName', $tracerName)
@@ -88,6 +98,27 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $definition->addTag('doctrine.middleware');
             $container->setDefinition(DoctrineTraceableMiddleware::class, $definition);
         }
+
+        $cacheEnabled = $config['cache_enabled'] && $this->isCacheAvailable();
+        $container->setParameter('open_telemetry.cache_enabled', $cacheEnabled);
+        /** @var string[] $cacheExcludedPools */
+        $cacheExcludedPools = $config['cache_excluded_pools'];
+        $container->setParameter('open_telemetry.cache_excluded_pools', $cacheExcludedPools);
+
+        if ($config['twig_enabled'] && $this->isTwigAvailable()) {
+            /** @var string[] $twigExcluded */
+            $twigExcluded = $config['twig_excluded_templates'];
+            $twigExtDef = new Definition(OpenTelemetryTwigExtension::class);
+            $twigExtDef->setArgument('$tracerName', $tracerName);
+            $twigExtDef->setArgument('$excludedTemplates', $twigExcluded);
+            $twigExtDef->addTag('twig.extension');
+            $container->setDefinition(OpenTelemetryTwigExtension::class, $twigExtDef);
+        }
+    }
+
+    private function isConsoleAvailable(): bool
+    {
+        return class_exists(\Symfony\Component\Console\ConsoleEvents::class);
     }
 
     private function isMessengerAvailable(): bool
@@ -103,5 +134,15 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     private function isDoctrineAvailable(): bool
     {
         return interface_exists(DoctrineMiddleware::class);
+    }
+
+    private function isCacheAvailable(): bool
+    {
+        return interface_exists(\Symfony\Contracts\Cache\CacheInterface::class);
+    }
+
+    private function isTwigAvailable(): bool
+    {
+        return class_exists(\Twig\Environment::class);
     }
 }

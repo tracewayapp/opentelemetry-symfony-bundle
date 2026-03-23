@@ -45,8 +45,16 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
             ->setAttribute(UrlAttributes::URL_FULL, $url)
             ->setAttribute(ServerAttributes::SERVER_ADDRESS, $host);
 
-        if (\is_array($parsedUrl) && isset($parsedUrl['port'])) {
-            $spanBuilder->setAttribute(ServerAttributes::SERVER_PORT, $parsedUrl['port']);
+        if (\is_array($parsedUrl)) {
+            if (isset($parsedUrl['port'])) {
+                $spanBuilder->setAttribute(ServerAttributes::SERVER_PORT, $parsedUrl['port']);
+            }
+            if (isset($parsedUrl['path'])) {
+                $spanBuilder->setAttribute(UrlAttributes::URL_PATH, $parsedUrl['path']);
+            }
+            if (isset($parsedUrl['scheme'])) {
+                $spanBuilder->setAttribute(UrlAttributes::URL_SCHEME, $parsedUrl['scheme']);
+            }
         }
 
         $parent = Context::getCurrent();

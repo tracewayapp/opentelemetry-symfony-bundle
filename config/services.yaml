@@ -8,5 +8,8 @@ services:
     Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber:
         autoconfigure: true
 
+    Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber:
+        autoconfigure: true
+
     Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware:
         autoconfigure: true

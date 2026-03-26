@@ -112,6 +112,12 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
         }
 
         $span = $spanBuilder->setParent($parentContext)->startSpan();
+
+        $distributedTraceId = $request->headers->get('traceway-trace-id');
+        if (null !== $distributedTraceId && '' !== $distributedTraceId) {
+            $span->setAttribute('traceway.distributed_trace_id', $distributedTraceId);
+        }
+
         $scope = $span->storeInContext($parentContext)->activate();
 
         $request->attributes->set(self::ATTR_SPAN, $span);

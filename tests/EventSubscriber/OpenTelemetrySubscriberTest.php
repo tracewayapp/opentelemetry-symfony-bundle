@@ -434,4 +434,35 @@ final class OpenTelemetrySubscriberTest extends TestCase
 
         self::assertEmpty($this->exporter->getSpans());
     }
+
+    public function testTracewayDistributedTraceIdHeaderRecorded(): void
+    {
+        $request = Request::create('/api/items', 'GET');
+        $request->headers->set('traceway-trace-id', 'abc-123-distributed');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $spans = $this->exporter->getSpans();
+        $attributes = $spans[0]->getAttributes()->toArray();
+
+        self::assertSame('abc-123-distributed', $attributes['traceway.distributed_trace_id']);
+    }
+
+    public function testTracewayDistributedTraceIdAbsentWhenHeaderMissing(): void
+    {
+        $request = Request::create('/api/items', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $spans = $this->exporter->getSpans();
+        $attributes = $spans[0]->getAttributes()->toArray();
+
+        self::assertArrayNotHasKey('traceway.distributed_trace_id', $attributes);
+    }
 }

@@ -99,6 +99,10 @@ final class Configuration implements ConfigurationInterface
                     ->scalarPrototype()->end()
                     ->defaultValue([])
                 ->end()
+                ->booleanNode('monolog_enabled')
+                    ->info('Inject trace_id and span_id into Monolog log records for log-trace correlation.')
+                    ->defaultTrue()
+                ->end()
             ->end()
         ;
 

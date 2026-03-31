@@ -1,9 +1,9 @@
 {
     "name": "traceway/opentelemetry-symfony",
-    "description": "Pure-PHP OpenTelemetry instrumentation for Symfony — automatic HTTP, Console, HttpClient, Messenger, Doctrine DBAL, Cache, and Twig tracing with response propagation, a lightweight Tracing helper, route templates, and semantic conventions. No C extension required.",
+    "description": "Pure-PHP OpenTelemetry instrumentation for Symfony — automatic HTTP, Console, HttpClient, Messenger, Doctrine DBAL, Cache, Twig tracing and Monolog log-trace correlation with response propagation, a lightweight Tracing helper, route templates, and semantic conventions. No C extension required.",
     "type": "symfony-bundle",
     "license": "MIT",
-    "keywords": ["opentelemetry", "otel", "tracing", "observability", "symfony", "console", "doctrine", "cache", "twig", "instrumentation"],
+    "keywords": ["opentelemetry", "otel", "tracing", "observability", "symfony", "console", "doctrine", "cache", "twig", "monolog", "logging", "instrumentation"],
     "homepage": "https://github.com/tracewayapp/opentelemetry-symfony-bundle",
     "authors": [
         {
@@ -36,10 +36,12 @@
         "symfony/cache": "Required for automatic cache pool tracing (get/delete/invalidateTags)",
         "symfony/http-client": "Required for automatic HttpClient outgoing request tracing",
         "symfony/messenger": "Required for automatic Messenger job/task tracing",
-        "twig/twig": "Required for automatic Twig template rendering tracing"
+        "twig/twig": "Required for automatic Twig template rendering tracing",
+        "monolog/monolog": "Required for automatic log-trace correlation (injects trace_id/span_id into log records)"
     },
     "require-dev": {
         "doctrine/dbal": "^4.0",
+        "monolog/monolog": "^3.0",
         "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^10.0 || ^11.0",
         "symfony/cache": "^6.4 || ^7.0 || ^8.0",
@@ -68,8 +70,8 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "1.2.x-dev",
-            "dev-master": "1.2.x-dev"
+            "dev-main": "1.3.x-dev",
+            "dev-master": "1.3.x-dev"
         }
     },
     "scripts": {

@@ -11,6 +11,7 @@ use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableMiddleware as DoctrineTraceableMiddleware;
+use Traceway\OpenTelemetryBundle\Monolog\TraceContextProcessor;
 use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\TracingInterface;
 use Traceway\OpenTelemetryBundle\Twig\OpenTelemetryTwigExtension;
@@ -273,6 +274,23 @@ final class OpenTelemetryExtensionTest extends TestCase
 
         $def = $container->getDefinition(OpenTelemetryTwigExtension::class);
         self::assertSame([], $def->getArgument('$excludedTemplates'));
+    }
+
+    public function testMonologProcessorRegisteredByDefault(): void
+    {
+        $container = $this->buildContainer([]);
+
+        self::assertTrue($container->hasDefinition(TraceContextProcessor::class));
+
+        $def = $container->getDefinition(TraceContextProcessor::class);
+        self::assertTrue($def->hasTag('monolog.processor'));
+    }
+
+    public function testMonologProcessorNotRegisteredWhenDisabled(): void
+    {
+        $container = $this->buildContainer(['monolog_enabled' => false]);
+
+        self::assertFalse($container->hasDefinition(TraceContextProcessor::class));
     }
 
     private function buildContainer(array $config): ContainerBuilder

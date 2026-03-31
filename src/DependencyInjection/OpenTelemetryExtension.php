@@ -18,6 +18,7 @@ use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
 use Traceway\OpenTelemetryBundle\Tracing;
+use Traceway\OpenTelemetryBundle\Monolog\TraceContextProcessor;
 use Traceway\OpenTelemetryBundle\Twig\OpenTelemetryTwigExtension;
 
 final class OpenTelemetryExtension extends Extension implements PrependExtensionInterface
@@ -114,6 +115,12 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $twigExtDef->addTag('twig.extension');
             $container->setDefinition(OpenTelemetryTwigExtension::class, $twigExtDef);
         }
+
+        if ($config['monolog_enabled'] && $this->isMonologAvailable()) {
+            $monologDef = new Definition(TraceContextProcessor::class);
+            $monologDef->addTag('monolog.processor');
+            $container->setDefinition(TraceContextProcessor::class, $monologDef);
+        }
     }
 
     private function isConsoleAvailable(): bool
@@ -144,5 +151,10 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     private function isTwigAvailable(): bool
     {
         return class_exists(\Twig\Environment::class);
+    }
+
+    private function isMonologAvailable(): bool
+    {
+        return class_exists(\Monolog\Logger::class);
     }
 }

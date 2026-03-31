@@ -27,6 +27,7 @@ use Symfony\Contracts\Cache\ItemInterface;
 class TraceableCachePool implements CacheInterface, AdapterInterface
 {
     private ?TracerInterface $tracer = null;
+    private ?bool $enabled = null;
 
     /** @var AdapterInterface&CacheInterface */
     private readonly AdapterInterface $pool;
@@ -62,6 +63,10 @@ class TraceableCachePool implements CacheInterface, AdapterInterface
      */
     public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed
     {
+        if (!$this->isEnabled()) {
+            return $this->pool->get($key, $callback, $beta, $metadata);
+        }
+
         $hit = true;
         $wrappedCallback = static function (ItemInterface $item, bool &$save) use ($callback, &$hit): mixed {
             $hit = false;
@@ -93,6 +98,10 @@ class TraceableCachePool implements CacheInterface, AdapterInterface
 
     public function delete(string $key): bool
     {
+        if (!$this->isEnabled()) {
+            return $this->pool->delete($key);
+        }
+
         $span = $this->getTracer()
             ->spanBuilder(\sprintf('cache.delete %s', $key))
             ->setSpanKind(SpanKind::KIND_INTERNAL)
@@ -132,6 +141,10 @@ class TraceableCachePool implements CacheInterface, AdapterInterface
 
     public function clear(string $prefix = ''): bool
     {
+        if (!$this->isEnabled()) {
+            return $this->pool->clear($prefix);
+        }
+
         $span = $this->getTracer()
             ->spanBuilder('cache.clear')
             ->setSpanKind(SpanKind::KIND_INTERNAL)
@@ -173,6 +186,11 @@ class TraceableCachePool implements CacheInterface, AdapterInterface
     public function commit(): bool
     {
         return $this->pool->commit();
+    }
+
+    protected function isEnabled(): bool
+    {
+        return $this->enabled ??= $this->getTracer()->isEnabled();
     }
 
     protected function getTracer(): TracerInterface

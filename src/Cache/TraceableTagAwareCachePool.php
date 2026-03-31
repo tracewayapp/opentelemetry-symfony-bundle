@@ -32,6 +32,10 @@ final class TraceableTagAwareCachePool extends TraceableCachePool implements Tag
 
     public function invalidateTags(array $tags): bool
     {
+        if (!$this->isEnabled()) {
+            return $this->tagAwarePool->invalidateTags($tags);
+        }
+
         $span = $this->getTracer()
             ->spanBuilder('cache.invalidate_tags')
             ->setSpanKind(SpanKind::KIND_INTERNAL)

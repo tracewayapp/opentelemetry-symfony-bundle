@@ -198,12 +198,6 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
         }
 
         $responseBodySize = $response->headers->get('Content-Length');
-        if (null === $responseBodySize) {
-            $content = $response->getContent();
-            if (false !== $content && '' !== $content) {
-                $responseBodySize = \strlen($content);
-            }
-        }
         if (null !== $responseBodySize) {
             $span->setAttribute(HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE, (int) $responseBodySize);
         }

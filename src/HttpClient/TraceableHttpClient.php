@@ -30,6 +30,8 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
 {
     private ?TracerInterface $tracer = null;
     private ?bool $enabled = null;
+    private ?string $otlpEndpoint = null;
+    private bool $otlpEndpointResolved = false;
 
     /** Prevents recursive instrumentation when the exporter uses this client. */
     private bool $inFlight = false;
@@ -142,6 +144,8 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
     {
         $this->tracer = null;
         $this->enabled = null;
+        $this->otlpEndpoint = null;
+        $this->otlpEndpointResolved = false;
         $this->inFlight = false;
 
         if ($this->client instanceof ResetInterface) {
@@ -176,20 +180,17 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
         return $this->isOtlpEndpoint($url);
     }
 
-    /**
-     * Auto-detect calls to the OTLP exporter endpoint to prevent
-     * instrumentation loops when the exporter resolves to this client.
-     */
     private function isOtlpEndpoint(string $url): bool
     {
-        $endpoint = $_SERVER['OTEL_EXPORTER_OTLP_ENDPOINT']
-            ?? $_ENV['OTEL_EXPORTER_OTLP_ENDPOINT']
-            ?? getenv('OTEL_EXPORTER_OTLP_ENDPOINT');
+        if (!$this->otlpEndpointResolved) {
+            $endpoint = $_SERVER['OTEL_EXPORTER_OTLP_ENDPOINT']
+                ?? $_ENV['OTEL_EXPORTER_OTLP_ENDPOINT']
+                ?? getenv('OTEL_EXPORTER_OTLP_ENDPOINT');
 
-        if (!\is_string($endpoint) || '' === $endpoint) {
-            return false;
+            $this->otlpEndpoint = (\is_string($endpoint) && '' !== $endpoint) ? $endpoint : null;
+            $this->otlpEndpointResolved = true;
         }
 
-        return str_starts_with($url, $endpoint);
+        return null !== $this->otlpEndpoint && str_starts_with($url, $this->otlpEndpoint);
     }
 }

@@ -9,6 +9,8 @@ use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\TestCase;
 use Psr\Cache\CacheItemInterface;
 use Psr\Cache\CacheItemPoolInterface;
+use Symfony\Component\Cache\Adapter\AdapterInterface;
+use Symfony\Component\Cache\CacheItem;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Traceway\OpenTelemetryBundle\Cache\TraceableCachePool;
@@ -196,11 +198,11 @@ final class TraceableCachePoolTest extends TestCase
     }
 
     /**
-     * Creates a mock that implements both CacheItemPoolInterface and CacheInterface.
+     * Creates a mock that implements AdapterInterface and CacheInterface.
      */
-    private function createCachePool(mixed $returnValue, bool $isHit): CacheItemPoolInterface&CacheInterface
+    private function createCachePool(mixed $returnValue, bool $isHit): AdapterInterface&CacheInterface
     {
-        $mock = new class($returnValue, $isHit) implements CacheItemPoolInterface, CacheInterface {
+        $mock = new class($returnValue, $isHit) implements AdapterInterface, CacheInterface {
             public function __construct(
                 private readonly mixed $returnValue,
                 private readonly bool $isHit,
@@ -228,10 +230,10 @@ final class TraceableCachePoolTest extends TestCase
             }
 
             public function delete(string $key): bool { return true; }
-            public function getItem(string $key): CacheItemInterface { throw new \LogicException('Not implemented'); }
+            public function getItem(mixed $key): CacheItem { throw new \LogicException('Not implemented'); }
             public function getItems(array $keys = []): iterable { return []; }
-            public function hasItem(string $key): bool { return false; }
-            public function clear(): bool { return true; }
+            public function hasItem(mixed $key): bool { return false; }
+            public function clear(string $prefix = ''): bool { return true; }
             public function deleteItem(string $key): bool { return true; }
             public function deleteItems(array $keys): bool { return true; }
             public function save(CacheItemInterface $item): bool { return true; }
@@ -242,9 +244,9 @@ final class TraceableCachePoolTest extends TestCase
         return $mock;
     }
 
-    private function createFailingCachePool(\Throwable $exception): CacheItemPoolInterface&CacheInterface
+    private function createFailingCachePool(\Throwable $exception): AdapterInterface&CacheInterface
     {
-        $mock = new class($exception) implements CacheItemPoolInterface, CacheInterface {
+        $mock = new class($exception) implements AdapterInterface, CacheInterface {
             public function __construct(private readonly \Throwable $exception) {}
 
             public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed
@@ -253,9 +255,9 @@ final class TraceableCachePoolTest extends TestCase
             }
 
             public function delete(string $key): bool { throw $this->exception; }
-            public function getItem(string $key): CacheItemInterface { throw new \LogicException('Not implemented'); }
+            public function getItem(mixed $key): CacheItem { throw new \LogicException('Not implemented'); }
             public function getItems(array $keys = []): iterable { return []; }
-            public function hasItem(string $key): bool { return false; }
+            public function hasItem(mixed $key): bool { return false; }
             public function clear(string $prefix = ''): bool { throw $this->exception; }
             public function deleteItem(string $key): bool { return true; }
             public function deleteItems(array $keys): bool { return true; }

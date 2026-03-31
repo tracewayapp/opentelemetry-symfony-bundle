@@ -188,12 +188,6 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
         $span->setAttribute(HttpAttributes::HTTP_RESPONSE_STATUS_CODE, $statusCode);
 
         $requestBodySize = $event->getRequest()->headers->get('Content-Length');
-        if (null === $requestBodySize) {
-            $body = $event->getRequest()->getContent();
-            if ('' !== $body) {
-                $requestBodySize = \strlen($body);
-            }
-        }
         if (null !== $requestBodySize) {
             $span->setAttribute(HttpIncubatingAttributes::HTTP_REQUEST_BODY_SIZE, (int) $requestBodySize);
         }
@@ -233,12 +227,13 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
      */
     public function onFinishRequestEndSpan(FinishRequestEvent $event): void
     {
-        $span = $this->getSpan($event->getRequest());
+        $request = $event->getRequest();
+        $span = $this->getSpan($request);
         if (null === $span) {
             return;
         }
 
-        $exception = $event->getRequest()->attributes->get(self::ATTR_EXCEPTION);
+        $exception = $request->attributes->get(self::ATTR_EXCEPTION);
         if ($exception instanceof \Throwable) {
             $span->setStatus(StatusCode::STATUS_ERROR, $exception->getMessage());
         } elseif ($event->isMainRequest()) {
@@ -246,15 +241,24 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
         }
 
         $span->end();
+        $request->attributes->remove(self::ATTR_SPAN);
+        $request->attributes->remove(self::ATTR_SCOPE);
+        $request->attributes->remove(self::ATTR_EXCEPTION);
     }
 
     /**
-     * End the main request span after the response has been sent to the client.
+     * End the main request span after the response has been sent to the client
+     * and clean up references to allow garbage collection.
      */
     public function onTerminate(TerminateEvent $event): void
     {
-        $span = $this->getSpan($event->getRequest());
+        $request = $event->getRequest();
+        $span = $this->getSpan($request);
         $span?->end();
+
+        $request->attributes->remove(self::ATTR_SPAN);
+        $request->attributes->remove(self::ATTR_SCOPE);
+        $request->attributes->remove(self::ATTR_EXCEPTION);
     }
 
     private function getTracer(): TracerInterface

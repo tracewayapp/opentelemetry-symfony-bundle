@@ -10,6 +10,8 @@ use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\API\Trace\TracerInterface;
 use Psr\Cache\CacheItemInterface;
 use Psr\Cache\CacheItemPoolInterface;
+use Symfony\Component\Cache\Adapter\AdapterInterface;
+use Symfony\Component\Cache\CacheItem;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 
@@ -18,13 +20,16 @@ use Symfony\Contracts\Cache\ItemInterface;
  *
  * Traces get(), delete(), and clear(). Other PSR-6 methods are
  * delegated without tracing to keep span volume manageable.
+ *
+ * Implements AdapterInterface so Symfony's profiler TraceableAdapter
+ * can safely wrap this decorator in dev mode.
  */
-class TraceableCachePool implements CacheInterface, CacheItemPoolInterface
+class TraceableCachePool implements CacheInterface, AdapterInterface
 {
     private ?TracerInterface $tracer = null;
 
-    /** @var CacheItemPoolInterface&CacheInterface */
-    private readonly CacheItemPoolInterface $pool;
+    /** @var AdapterInterface&CacheInterface */
+    private readonly AdapterInterface $pool;
 
     public function __construct(
         CacheItemPoolInterface $pool,
@@ -37,6 +42,15 @@ class TraceableCachePool implements CacheInterface, CacheItemPoolInterface
                 $poolName,
                 $pool::class,
                 CacheInterface::class,
+            ));
+        }
+
+        if (!$pool instanceof AdapterInterface) {
+            throw new \LogicException(\sprintf(
+                'Pool "%s" (%s) must implement %s.',
+                $poolName,
+                $pool::class,
+                AdapterInterface::class,
             ));
         }
 
@@ -98,27 +112,25 @@ class TraceableCachePool implements CacheInterface, CacheItemPoolInterface
         }
     }
 
-    public function getItem(string $key): CacheItemInterface
+    public function getItem(mixed $key): CacheItem
     {
         return $this->pool->getItem($key);
     }
 
     /**
-     * @param string[] $keys
-     * @return iterable<string, CacheItemInterface>
+     * @return iterable<string, CacheItem>
      */
     public function getItems(array $keys = []): iterable
     {
-        /** @var iterable<string, CacheItemInterface> */
         return $this->pool->getItems($keys);
     }
 
-    public function hasItem(string $key): bool
+    public function hasItem(mixed $key): bool
     {
         return $this->pool->hasItem($key);
     }
 
-    public function clear(): bool
+    public function clear(string $prefix = ''): bool
     {
         $span = $this->getTracer()
             ->spanBuilder('cache.clear')
@@ -127,7 +139,7 @@ class TraceableCachePool implements CacheInterface, CacheItemPoolInterface
             ->startSpan();
 
         try {
-            return $this->pool->clear();
+            return $this->pool->clear($prefix);
         } catch (\Throwable $e) {
             $span->recordException($e);
             $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());

@@ -33,6 +33,11 @@ final class HttpClientTracingPass implements CompilerPassInterface
         $tracerName = $container->getParameter('open_telemetry.tracer_name');
         \assert(\is_string($tracerName));
 
+        /** @var string[] $excludedHosts */
+        $excludedHosts = $container->hasParameter('open_telemetry.http_client_excluded_hosts')
+            ? $container->getParameter('open_telemetry.http_client_excluded_hosts')
+            : [];
+
         $clientIds = $this->findHttpClientServiceIds($container);
 
         foreach ($clientIds as $clientId) {
@@ -42,6 +47,7 @@ final class HttpClientTracingPass implements CompilerPassInterface
             $decorator = new Definition(TraceableHttpClient::class);
             $decorator->setArgument('$client', new Reference($innerId));
             $decorator->setArgument('$tracerName', $tracerName);
+            $decorator->setArgument('$excludedHosts', $excludedHosts);
             $decorator->setDecoratedService($clientId, $innerId, -16);
 
             $container->setDefinition($decoratorId, $decorator);

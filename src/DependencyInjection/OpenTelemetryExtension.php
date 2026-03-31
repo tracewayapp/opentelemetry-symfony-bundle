@@ -66,6 +66,10 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         $container->setParameter('open_telemetry.http_client_enabled', $httpClientEnabled);
         $container->setParameter('open_telemetry.tracer_name', $tracerName);
 
+        /** @var string[] $httpExcludedHosts */
+        $httpExcludedHosts = $config['http_client_excluded_hosts'];
+        $container->setParameter('open_telemetry.http_client_excluded_hosts', $httpExcludedHosts);
+
         if ($config['traces_enabled']) {
             $container->getDefinition(OpenTelemetrySubscriber::class)
                 ->setArgument('$tracerName', $tracerName)

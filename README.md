@@ -52,7 +52,6 @@ That's it. Every HTTP request, console command, outgoing HttpClient call, Messen
 - OpenTelemetry PHP SDK >= 1.0
 - Doctrine DBAL >= 4.0 *(optional, for database tracing)*
 - Twig >= 3.0 *(optional, for template tracing)*
-- Monolog >= 3.0 *(optional, for log-trace correlation)*
 
 ## Installation
 
@@ -103,6 +102,11 @@ open_telemetry:
 
     # Instrument Symfony HttpClient: CLIENT spans for outgoing requests (default: true)
     http_client_enabled: true
+
+    # Hostnames to exclude from outgoing HTTP client tracing
+    # The OTLP exporter endpoint is auto-excluded (no config needed)
+    http_client_excluded_hosts:
+        - 'internal-auth.local'
 
     # Instrument Symfony Messenger (default: true)
     messenger_enabled: true
@@ -206,6 +210,8 @@ When `symfony/http-client` is installed, every outgoing HTTP request automatical
 
 Works with all Symfony HttpClient instances, including scoped clients.
 
+The bundle includes built-in safety against instrumentation loops: the OTLP exporter endpoint (`OTEL_EXPORTER_OTLP_ENDPOINT`) is auto-excluded, and a re-entrance guard prevents nested HTTP calls (e.g. security token validation, SDK export) from creating duplicate spans. You can also exclude specific hosts via `http_client_excluded_hosts`.
+
 ### Automatic Messenger Tracing
 
 When `symfony/messenger` is installed, the bundle automatically:
@@ -275,33 +281,6 @@ When `twig/twig` is installed, every template render automatically gets an INTER
 - Nested template spans for includes and extends (parent-child linking)
 - Only template-level rendering is traced (blocks and macros are not individually traced to keep span volume manageable)
 - Configurable template exclusion via `twig_excluded_templates` to filter out framework templates
-
-### Monolog Log-Trace Correlation
-
-When `monolog/monolog` is installed, every log record automatically gets `trace_id` and `span_id` injected into the `extra` array. This enables one-click navigation from a log line to the matching trace in your observability backend.
-
-```bash
-composer require monolog/monolog
-```
-
-No configuration needed — the processor registers itself via the `monolog.processor` tag and works with all Monolog handlers.
-
-**Example log output:**
-
-```
-[2026-03-31T07:41:00] app.INFO: Order created {"order_id":42} {"trace_id":"b9fc75a4f306c9a65a2385351c72f3af","span_id":"3d7f9dffd8d8a566"}
-```
-
-The `trace_id` is consistent across all log lines within the same request, while `span_id` reflects the currently active span — so logs inside a nested child span will show that child's span ID.
-
-Logs written outside of a traced context (e.g., during cache warmup or container compilation) are left untouched — no empty trace IDs cluttering your logs.
-
-Disable with:
-
-```yaml
-open_telemetry:
-    monolog_enabled: false
-```
 
 ### Manual Instrumentation with `Tracing`
 

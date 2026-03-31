@@ -9,6 +9,8 @@ use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\TestCase;
 use Psr\Cache\CacheItemInterface;
 use Psr\Cache\CacheItemPoolInterface;
+use Symfony\Component\Cache\Adapter\AdapterInterface;
+use Symfony\Component\Cache\CacheItem;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 use Traceway\OpenTelemetryBundle\Cache\TraceableTagAwareCachePool;
@@ -108,16 +110,16 @@ final class TraceableTagAwareCachePoolTest extends TestCase
         self::assertSame('cache.delete key', $spans[1]->getName());
     }
 
-    private function createTagAwarePool(): CacheItemPoolInterface&TagAwareCacheInterface
+    private function createTagAwarePool(): AdapterInterface&TagAwareCacheInterface
     {
-        return new class implements CacheItemPoolInterface, CacheInterface, TagAwareCacheInterface {
+        return new class implements AdapterInterface, CacheInterface, TagAwareCacheInterface {
             public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed { return 'cached'; }
             public function delete(string $key): bool { return true; }
             public function invalidateTags(array $tags): bool { return true; }
-            public function getItem(string $key): CacheItemInterface { throw new \LogicException('Not implemented'); }
+            public function getItem(mixed $key): CacheItem { throw new \LogicException('Not implemented'); }
             public function getItems(array $keys = []): iterable { return []; }
-            public function hasItem(string $key): bool { return false; }
-            public function clear(): bool { return true; }
+            public function hasItem(mixed $key): bool { return false; }
+            public function clear(string $prefix = ''): bool { return true; }
             public function deleteItem(string $key): bool { return true; }
             public function deleteItems(array $keys): bool { return true; }
             public function save(CacheItemInterface $item): bool { return true; }
@@ -126,17 +128,17 @@ final class TraceableTagAwareCachePoolTest extends TestCase
         };
     }
 
-    private function createFailingTagAwarePool(\Throwable $e): CacheItemPoolInterface&TagAwareCacheInterface
+    private function createFailingTagAwarePool(\Throwable $e): AdapterInterface&TagAwareCacheInterface
     {
-        return new class($e) implements CacheItemPoolInterface, CacheInterface, TagAwareCacheInterface {
+        return new class($e) implements AdapterInterface, CacheInterface, TagAwareCacheInterface {
             public function __construct(private readonly \Throwable $e) {}
             public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed { throw $this->e; }
             public function delete(string $key): bool { throw $this->e; }
             public function invalidateTags(array $tags): bool { throw $this->e; }
-            public function getItem(string $key): CacheItemInterface { throw new \LogicException('Not implemented'); }
+            public function getItem(mixed $key): CacheItem { throw new \LogicException('Not implemented'); }
             public function getItems(array $keys = []): iterable { return []; }
-            public function hasItem(string $key): bool { return false; }
-            public function clear(): bool { return true; }
+            public function hasItem(mixed $key): bool { return false; }
+            public function clear(string $prefix = ''): bool { throw $this->e; }
             public function deleteItem(string $key): bool { return true; }
             public function deleteItems(array $keys): bool { return true; }
             public function save(CacheItemInterface $item): bool { return true; }

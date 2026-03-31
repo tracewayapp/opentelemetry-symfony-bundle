@@ -58,7 +58,7 @@ final class ConsoleSubscriber implements EventSubscriberInterface
 
     public function __destruct()
     {
-        $this->endSpan();
+        $this->endSpan(suppressScopeNotice: true);
     }
 
     public function onCommand(ConsoleCommandEvent $event): void
@@ -111,13 +111,19 @@ final class ConsoleSubscriber implements EventSubscriberInterface
         $this->endSpan();
     }
 
-    private function endSpan(): void
+    private function endSpan(bool $suppressScopeNotice = false): void
     {
-        $this->span?->end();
-        $this->scope?->detach();
+        if ($this->scope !== null) {
+            if ($suppressScopeNotice) {
+                @$this->scope->detach();
+            } else {
+                $this->scope->detach();
+            }
+            $this->scope = null;
+        }
 
+        $this->span?->end();
         $this->span = null;
-        $this->scope = null;
         $this->errorRecorded = false;
     }
 

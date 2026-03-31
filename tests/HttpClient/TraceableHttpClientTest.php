@@ -275,4 +275,118 @@ final class TraceableHttpClientTest extends TestCase
         $attributes = $spans[0]->getAttributes()->toArray();
         self::assertArrayNotHasKey('server.port', $attributes);
     }
+
+    public function testReEntranceGuardPreventsRecursiveSpans(): void
+    {
+        $innerCalled = false;
+        $outerClient = null;
+        $depth = 0;
+
+        $mockClient = new MockHttpClient(function () use (&$innerCalled, &$outerClient, &$depth) {
+            $depth++;
+            if ($depth === 1) {
+                $innerResponse = $outerClient->request('GET', 'https://collector.example.com/export');
+                $innerResponse->getContent();
+                $innerCalled = true;
+            }
+
+            return new MockResponse('OK');
+        });
+
+        $outerClient = new TraceableHttpClient($mockClient);
+        $response = $outerClient->request('GET', 'https://api.example.com/test');
+        $response->getStatusCode();
+
+        self::assertTrue($innerCalled);
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans, 'Only the outer call should produce a span');
+        self::assertSame('GET api.example.com', $spans[0]->getName());
+    }
+
+    public function testExcludedHostsSkipsTracing(): void
+    {
+        $mockClient = new MockHttpClient(new MockResponse('OK', ['http_code' => 200]));
+        $client = new TraceableHttpClient($mockClient, 'opentelemetry-symfony', ['collector.local']);
+
+        $response = $client->request('POST', 'https://collector.local/v1/traces');
+        $response->getContent();
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(0, $spans, 'Excluded host should not produce spans');
+    }
+
+    public function testExcludedHostsAreCaseInsensitive(): void
+    {
+        $mockClient = new MockHttpClient(new MockResponse('OK', ['http_code' => 200]));
+        $client = new TraceableHttpClient($mockClient, 'opentelemetry-symfony', ['Collector.LOCAL']);
+
+        $response = $client->request('GET', 'https://collector.local/v1/traces');
+        $response->getContent();
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(0, $spans);
+    }
+
+    public function testOtlpEndpointAutoExcluded(): void
+    {
+        $prev = $_SERVER['OTEL_EXPORTER_OTLP_ENDPOINT'] ?? null;
+        $_SERVER['OTEL_EXPORTER_OTLP_ENDPOINT'] = 'https://otel.example.com:4318';
+
+        try {
+            $mockClient = new MockHttpClient(new MockResponse('OK', ['http_code' => 200]));
+            $client = new TraceableHttpClient($mockClient);
+
+            $response = $client->request('POST', 'https://otel.example.com:4318/v1/traces');
+            $response->getContent();
+
+            $spans = $this->exporter->getSpans();
+            self::assertCount(0, $spans, 'OTLP endpoint should be auto-excluded');
+        } finally {
+            if (null === $prev) {
+                unset($_SERVER['OTEL_EXPORTER_OTLP_ENDPOINT']);
+            } else {
+                $_SERVER['OTEL_EXPORTER_OTLP_ENDPOINT'] = $prev;
+            }
+        }
+    }
+
+    public function testNonExcludedHostStillTraced(): void
+    {
+        $mockClient = new MockHttpClient(new MockResponse('OK', ['http_code' => 200]));
+        $client = new TraceableHttpClient($mockClient, 'opentelemetry-symfony', ['collector.local']);
+
+        $response = $client->request('GET', 'https://api.example.com/users');
+        $response->getStatusCode();
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame('GET api.example.com', $spans[0]->getName());
+    }
+
+    public function testReEntranceGuardResetsAfterException(): void
+    {
+        $callCount = 0;
+        $mockClient = new MockHttpClient(function () use (&$callCount) {
+            $callCount++;
+            if ($callCount === 1) {
+                throw new \RuntimeException('First call fails');
+            }
+
+            return new MockResponse('OK');
+        });
+
+        $client = new TraceableHttpClient($mockClient);
+
+        try {
+            $client->request('GET', 'https://api.example.com/fail');
+        } catch (\RuntimeException) {
+        }
+
+        $response = $client->request('GET', 'https://api.example.com/ok');
+        $response->getStatusCode();
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(2, $spans, 'Guard must reset after exception so next call is traced');
+    }
 }

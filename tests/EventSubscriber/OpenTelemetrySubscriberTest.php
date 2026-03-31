@@ -207,7 +207,7 @@ final class OpenTelemetrySubscriberTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         $attributes = $spans[0]->getAttributes()->toArray();
-        self::assertSame(15, $attributes['http.request.body.size']);
+        self::assertArrayNotHasKey('http.request.body.size', $attributes, 'Request body size only set from Content-Length header');
         self::assertSame(8, $attributes['http.response.body.size']);
     }
 

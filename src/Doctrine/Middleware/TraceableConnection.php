@@ -16,6 +16,7 @@ use OpenTelemetry\API\Trace\TracerInterface;
 final class TraceableConnection extends AbstractConnectionMiddleware
 {
     private ?TracerInterface $tracer = null;
+    private ?bool $enabled = null;
 
     public function __construct(
         Connection $connection,
@@ -45,6 +46,10 @@ final class TraceableConnection extends AbstractConnectionMiddleware
 
     public function query(string $sql): Result
     {
+        if (!$this->isEnabled()) {
+            return parent::query($sql);
+        }
+
         $span = $this->startSpan($sql);
 
         try {
@@ -63,6 +68,10 @@ final class TraceableConnection extends AbstractConnectionMiddleware
 
     public function exec(string $sql): int
     {
+        if (!$this->isEnabled()) {
+            return (int) parent::exec($sql);
+        }
+
         $span = $this->startSpan($sql);
 
         try {
@@ -81,6 +90,12 @@ final class TraceableConnection extends AbstractConnectionMiddleware
 
     public function beginTransaction(): void
     {
+        if (!$this->isEnabled()) {
+            parent::beginTransaction();
+
+            return;
+        }
+
         $span = $this->startSpan('BEGIN');
 
         try {
@@ -97,6 +112,12 @@ final class TraceableConnection extends AbstractConnectionMiddleware
 
     public function commit(): void
     {
+        if (!$this->isEnabled()) {
+            parent::commit();
+
+            return;
+        }
+
         $span = $this->startSpan('COMMIT');
 
         try {
@@ -113,6 +134,12 @@ final class TraceableConnection extends AbstractConnectionMiddleware
 
     public function rollBack(): void
     {
+        if (!$this->isEnabled()) {
+            parent::rollBack();
+
+            return;
+        }
+
         $span = $this->startSpan('ROLLBACK');
 
         try {
@@ -127,9 +154,19 @@ final class TraceableConnection extends AbstractConnectionMiddleware
         }
     }
 
+    private function isEnabled(): bool
+    {
+        return $this->enabled ??= $this->getTracer()->isEnabled();
+    }
+
+    private function getTracer(): TracerInterface
+    {
+        return $this->tracer ??= Globals::tracerProvider()->getTracer($this->tracerName);
+    }
+
     private function startSpan(string $sql): SpanInterface
     {
-        $tracer = $this->tracer ??= Globals::tracerProvider()->getTracer($this->tracerName);
+        $tracer = $this->getTracer();
 
         return DbSpanBuilder::create(
             $tracer,

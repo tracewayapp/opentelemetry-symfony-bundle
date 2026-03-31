@@ -29,6 +29,7 @@ use Symfony\Component\Messenger\Stamp\ReceivedStamp;
 final class OpenTelemetryMiddleware implements MiddlewareInterface
 {
     private ?TracerInterface $tracer = null;
+    private ?bool $enabled = null;
 
     /**
      * @param string $tracerName Instrumentation library name
@@ -42,6 +43,10 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface
 
     public function handle(Envelope $envelope, StackInterface $stack): Envelope
     {
+        if (!$this->isEnabled()) {
+            return $stack->next()->handle($envelope, $stack);
+        }
+
         if ($this->isConsuming($envelope)) {
             return $this->handleConsume($envelope, $stack);
         }
@@ -162,6 +167,11 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface
     {
         return null !== $envelope->last(ReceivedStamp::class)
             || null !== $envelope->last(ConsumedByWorkerStamp::class);
+    }
+
+    private function isEnabled(): bool
+    {
+        return $this->enabled ??= $this->getTracer()->isEnabled();
     }
 
     private function getTracer(): TracerInterface

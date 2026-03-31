@@ -45,6 +45,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
     private readonly array $excludedPaths;
 
     private ?TracerInterface $tracer = null;
+    private ?bool $enabled = null;
 
     /**
      * @param string   $tracerName           Instrumentation library name
@@ -83,6 +84,10 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
 
     public function onRequest(RequestEvent $event): void
     {
+        if (!$this->isEnabled()) {
+            return;
+        }
+
         $request = $event->getRequest();
 
         if ($this->isExcluded($request)) {
@@ -259,6 +264,11 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
         $request->attributes->remove(self::ATTR_SPAN);
         $request->attributes->remove(self::ATTR_SCOPE);
         $request->attributes->remove(self::ATTR_EXCEPTION);
+    }
+
+    private function isEnabled(): bool
+    {
+        return $this->enabled ??= $this->getTracer()->isEnabled();
     }
 
     private function getTracer(): TracerInterface

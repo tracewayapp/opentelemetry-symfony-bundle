@@ -9,6 +9,7 @@ use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\Context\ScopeInterface;
+use Symfony\Contracts\Service\ResetInterface;
 use Twig\Extension\AbstractExtension;
 use Twig\Profiler\NodeVisitor\ProfilerNodeVisitor;
 use Twig\Profiler\Profile;
@@ -23,10 +24,14 @@ use Twig\Profiler\Profile;
  * Span matching uses spl_object_id() on the Profile instance, which is
  * guaranteed unique per enter/leave pair and avoids stack-based mismatch
  * edge cases.
+ *
+ * Implements ResetInterface to safely drain any orphaned spans between
+ * requests in long-running processes (Swoole, RoadRunner).
  */
-final class OpenTelemetryTwigExtension extends AbstractExtension
+final class OpenTelemetryTwigExtension extends AbstractExtension implements ResetInterface
 {
     private ?TracerInterface $tracer = null;
+    private ?bool $enabled = null;
 
     /** @var array<int, array{SpanInterface, ScopeInterface}> */
     private array $spans = [];
@@ -62,9 +67,21 @@ final class OpenTelemetryTwigExtension extends AbstractExtension
         return [new ProfilerNodeVisitor(static::class)];
     }
 
+    public function reset(): void
+    {
+        foreach (array_reverse($this->spans, true) as [$span, $scope]) {
+            $span->end();
+            @$scope->detach();
+        }
+
+        $this->spans = [];
+        $this->tracer = null;
+        $this->enabled = null;
+    }
+
     public function enter(Profile $profile): void
     {
-        if (!$profile->isTemplate() || $this->isExcluded($profile->getTemplate())) {
+        if (!$this->isEnabled() || !$profile->isTemplate() || $this->isExcluded($profile->getTemplate())) {
             return;
         }
 
@@ -102,6 +119,11 @@ final class OpenTelemetryTwigExtension extends AbstractExtension
         }
 
         return false;
+    }
+
+    private function isEnabled(): bool
+    {
+        return $this->enabled ??= $this->getTracer()->isEnabled();
     }
 
     private function getTracer(): TracerInterface

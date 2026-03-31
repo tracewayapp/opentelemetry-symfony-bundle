@@ -21,6 +21,7 @@ use OpenTelemetry\API\Trace\TracerInterface;
 final class Tracing implements TracingInterface
 {
     private ?TracerInterface $tracer = null;
+    private ?bool $enabled = null;
 
     public function __construct(
         private readonly string $tracerName = 'opentelemetry-symfony',
@@ -38,6 +39,10 @@ final class Tracing implements TracingInterface
         array $attributes = [],
         int $kind = SpanKind::KIND_INTERNAL,
     ): mixed {
+        if (!$this->isEnabled()) {
+            return $callback();
+        }
+
         $span = $this->getTracer()
             ->spanBuilder($name)
             ->setSpanKind($kind)
@@ -60,6 +65,11 @@ final class Tracing implements TracingInterface
             $span->end();
             $scope->detach();
         }
+    }
+
+    private function isEnabled(): bool
+    {
+        return $this->enabled ??= $this->getTracer()->isEnabled();
     }
 
     private function getTracer(): TracerInterface

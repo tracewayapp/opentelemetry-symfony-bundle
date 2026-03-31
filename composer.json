@@ -1,6 +1,6 @@
 {
     "name": "traceway/opentelemetry-symfony",
-    "description": "Pure-PHP OpenTelemetry instrumentation for Symfony — automatic HTTP, Console, HttpClient, Messenger, Doctrine DBAL, Cache, Twig tracing and Monolog log-trace correlation with response propagation, a lightweight Tracing helper, route templates, and semantic conventions. No C extension required.",
+    "description": "Pure-PHP OpenTelemetry instrumentation for Symfony — automatic HTTP, Console, HttpClient, Messenger, Doctrine DBAL, Cache, Twig tracing and Monolog log-trace correlation with response propagation, a lightweight Tracing helper, route templates, and semantic conventions. No C extension required (ext-protobuf recommended for production).",
     "type": "symfony-bundle",
     "license": "MIT",
     "keywords": ["opentelemetry", "otel", "tracing", "observability", "symfony", "console", "doctrine", "cache", "twig", "monolog", "logging", "instrumentation"],
@@ -32,6 +32,7 @@
     "suggest": {
         "open-telemetry/exporter-otlp": "Required to export traces via OTLP (the most common protocol for OpenTelemetry backends)",
         "php-http/guzzle7-adapter": "HTTP transport for the OTLP exporter (or use any PSR-18 client)",
+        "ext-protobuf": "Significantly faster protobuf serialization for OTLP export (use with OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf)",
         "doctrine/dbal": "Required for automatic Doctrine DBAL query tracing (^4.0)",
         "symfony/cache": "Required for automatic cache pool tracing (get/delete/invalidateTags)",
         "symfony/http-client": "Required for automatic HttpClient outgoing request tracing",

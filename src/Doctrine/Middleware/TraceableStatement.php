@@ -14,6 +14,7 @@ use OpenTelemetry\API\Trace\TracerInterface;
 final class TraceableStatement extends AbstractStatementMiddleware
 {
     private ?TracerInterface $tracer = null;
+    private ?bool $enabled = null;
 
     public function __construct(
         Statement $statement,
@@ -30,10 +31,12 @@ final class TraceableStatement extends AbstractStatementMiddleware
 
     public function execute(): Result
     {
-        $tracer = $this->tracer ??= Globals::tracerProvider()->getTracer($this->tracerName);
+        if (!($this->enabled ??= $this->getTracer()->isEnabled())) {
+            return parent::execute();
+        }
 
         $span = DbSpanBuilder::create(
-            $tracer,
+            $this->getTracer(),
             $this->sql,
             $this->recordStatements,
             $this->dbSystem,
@@ -54,5 +57,10 @@ final class TraceableStatement extends AbstractStatementMiddleware
         }
 
         return $result;
+    }
+
+    private function getTracer(): TracerInterface
+    {
+        return $this->tracer ??= Globals::tracerProvider()->getTracer($this->tracerName);
     }
 }

@@ -29,6 +29,7 @@ use Symfony\Contracts\Service\ResetInterface;
 final class TraceableHttpClient implements HttpClientInterface, ResetInterface
 {
     private ?TracerInterface $tracer = null;
+    private ?bool $enabled = null;
 
     /** Prevents recursive instrumentation when the exporter uses this client. */
     private bool $inFlight = false;
@@ -52,7 +53,7 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
      */
     public function request(string $method, string $url, array $options = []): ResponseInterface
     {
-        if ($this->inFlight || $this->isExcluded($url)) {
+        if (!$this->isEnabled() || $this->inFlight || $this->isExcluded($url)) {
             return $this->client->request($method, $url, $options);
         }
 
@@ -140,11 +141,17 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
     public function reset(): void
     {
         $this->tracer = null;
+        $this->enabled = null;
         $this->inFlight = false;
 
         if ($this->client instanceof ResetInterface) {
             $this->client->reset();
         }
+    }
+
+    private function isEnabled(): bool
+    {
+        return $this->enabled ??= $this->getTracer()->isEnabled();
     }
 
     private function getTracer(): TracerInterface

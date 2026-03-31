@@ -26,6 +26,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 final class ConsoleSubscriber implements EventSubscriberInterface
 {
     private ?TracerInterface $tracer = null;
+    private ?bool $enabled = null;
     private ?SpanInterface $span = null;
     private ?ScopeInterface $scope = null;
     private bool $errorRecorded = false;
@@ -63,6 +64,10 @@ final class ConsoleSubscriber implements EventSubscriberInterface
 
     public function onCommand(ConsoleCommandEvent $event): void
     {
+        if (!$this->isEnabled()) {
+            return;
+        }
+
         $commandName = $this->resolveCommandName($event->getCommand());
 
         if ($this->isExcluded($commandName)) {
@@ -125,6 +130,11 @@ final class ConsoleSubscriber implements EventSubscriberInterface
         $this->span?->end();
         $this->span = null;
         $this->errorRecorded = false;
+    }
+
+    private function isEnabled(): bool
+    {
+        return $this->enabled ??= $this->getTracer()->isEnabled();
     }
 
     private function getTracer(): TracerInterface

@@ -14,6 +14,7 @@ use Symfony\Component\Cache\Adapter\AdapterInterface;
 use Symfony\Component\Cache\CacheItem;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Service\ResetInterface;
 
 /**
  * Decorates a Symfony cache pool to create INTERNAL spans for cache operations.
@@ -24,7 +25,7 @@ use Symfony\Contracts\Cache\ItemInterface;
  * Implements AdapterInterface so Symfony's profiler TraceableAdapter
  * can safely wrap this decorator in dev mode.
  */
-class TraceableCachePool implements CacheInterface, AdapterInterface
+class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInterface
 {
     private ?TracerInterface $tracer = null;
     private ?bool $enabled = null;
@@ -186,6 +187,16 @@ class TraceableCachePool implements CacheInterface, AdapterInterface
     public function commit(): bool
     {
         return $this->pool->commit();
+    }
+
+    public function reset(): void
+    {
+        $this->tracer = null;
+        $this->enabled = null;
+
+        if ($this->pool instanceof ResetInterface) {
+            $this->pool->reset();
+        }
     }
 
     protected function isEnabled(): bool

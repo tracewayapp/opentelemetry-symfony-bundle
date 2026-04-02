@@ -20,6 +20,7 @@ use OpenTelemetry\SemConv\Attributes\UrlAttributes;
 use OpenTelemetry\SemConv\Attributes\UserAgentAttributes;
 use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Symfony\Contracts\Service\ResetInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Event\FinishRequestEvent;
@@ -35,17 +36,16 @@ use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
  * Creates a SERVER span per request with proper URL path templates,
  * semantic conventions, sub-request handling, and exception recording.
  */
-final class OpenTelemetrySubscriber implements EventSubscriberInterface
+final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetInterface
 {
-    private const ATTR_SPAN = '_otel.span';
-    private const ATTR_SCOPE = '_otel.scope';
-    private const ATTR_EXCEPTION = '_otel.exception';
-
     /** @var string[] */
     private readonly array $excludedPaths;
 
     private ?TracerInterface $tracer = null;
     private ?bool $enabled = null;
+
+    /** @var \WeakMap<Request, array{span?: SpanInterface, scope?: ScopeInterface, exception?: \Throwable}> */
+    private \WeakMap $requestData;
 
     /**
      * @param string   $tracerName           Instrumentation library name
@@ -60,6 +60,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
         private readonly int $errorStatusThreshold = 500,
     ) {
         $this->excludedPaths = array_values($excludedPaths);
+        $this->requestData = new \WeakMap();
     }
 
     /**
@@ -125,8 +126,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
 
         $scope = $span->storeInContext($parentContext)->activate();
 
-        $request->attributes->set(self::ATTR_SPAN, $span);
-        $request->attributes->set(self::ATTR_SCOPE, $scope);
+        $this->requestData[$request] = ['span' => $span, 'scope' => $scope];
     }
 
     /**
@@ -175,7 +175,9 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
         $span->recordException($event->getThrowable());
         $span->setStatus(StatusCode::STATUS_ERROR, $event->getThrowable()->getMessage());
 
-        $event->getRequest()->attributes->set(self::ATTR_EXCEPTION, $event->getThrowable());
+        $data = $this->requestData[$event->getRequest()] ?? [];
+        $data['exception'] = $event->getThrowable();
+        $this->requestData[$event->getRequest()] = $data;
     }
 
     public function onResponse(ResponseEvent $event): void
@@ -185,8 +187,10 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
             return;
         }
 
-        $hadException = $event->getRequest()->attributes->has(self::ATTR_EXCEPTION);
-        $event->getRequest()->attributes->remove(self::ATTR_EXCEPTION);
+        $data = $this->requestData[$event->getRequest()] ?? [];
+        $hadException = isset($data['exception']);
+        unset($data['exception']);
+        $this->requestData[$event->getRequest()] = $data;
 
         $response = $event->getResponse();
         $statusCode = $response->getStatusCode();
@@ -232,7 +236,8 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
             return;
         }
 
-        $exception = $request->attributes->get(self::ATTR_EXCEPTION);
+        $data = $this->requestData[$request] ?? [];
+        $exception = $data['exception'] ?? null;
         if ($exception instanceof \Throwable) {
             $span->setStatus(StatusCode::STATUS_ERROR, $exception->getMessage());
         } elseif ($event->isMainRequest()) {
@@ -240,9 +245,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
         }
 
         $span->end();
-        $request->attributes->remove(self::ATTR_SPAN);
-        $request->attributes->remove(self::ATTR_SCOPE);
-        $request->attributes->remove(self::ATTR_EXCEPTION);
+        unset($this->requestData[$request]);
     }
 
     /**
@@ -255,9 +258,14 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
         $span = $this->getSpan($request);
         $span?->end();
 
-        $request->attributes->remove(self::ATTR_SPAN);
-        $request->attributes->remove(self::ATTR_SCOPE);
-        $request->attributes->remove(self::ATTR_EXCEPTION);
+        unset($this->requestData[$request]);
+    }
+
+    public function reset(): void
+    {
+        $this->tracer = null;
+        $this->enabled = null;
+        $this->requestData = new \WeakMap();
     }
 
     private function isEnabled(): bool
@@ -285,16 +293,12 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface
 
     private function getSpan(Request $request): ?SpanInterface
     {
-        $span = $request->attributes->get(self::ATTR_SPAN);
-
-        return $span instanceof SpanInterface ? $span : null;
+        return ($this->requestData[$request] ?? [])['span'] ?? null;
     }
 
     private function getScope(Request $request): ?ScopeInterface
     {
-        $scope = $request->attributes->get(self::ATTR_SCOPE);
-
-        return $scope instanceof ScopeInterface ? $scope : null;
+        return ($this->requestData[$request] ?? [])['scope'] ?? null;
     }
 
     /**

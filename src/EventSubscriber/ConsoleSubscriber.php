@@ -16,6 +16,7 @@ use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\Console\Event\ConsoleErrorEvent;
 use Symfony\Component\Console\Event\ConsoleTerminateEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Symfony\Contracts\Service\ResetInterface;
 
 /**
  * Automatic console command instrumentation for Symfony using OpenTelemetry.
@@ -23,13 +24,16 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
  * Creates a SERVER span per command with the command name, exit code,
  * and exception recording. Built-in Symfony commands can be excluded.
  */
-final class ConsoleSubscriber implements EventSubscriberInterface
+final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterface
 {
     private ?TracerInterface $tracer = null;
     private ?bool $enabled = null;
-    private ?SpanInterface $span = null;
-    private ?ScopeInterface $scope = null;
-    private bool $errorRecorded = false;
+
+    /** @var \SplObjectStorage<Command, array{SpanInterface, ScopeInterface, bool}> */
+    private \SplObjectStorage $commandSpans;
+
+    /** @var array{SpanInterface, ScopeInterface, bool}|null Fallback for events with null command */
+    private ?array $orphanSpan = null;
 
     /** @var string[] */
     private readonly array $excludedCommands;
@@ -43,6 +47,7 @@ final class ConsoleSubscriber implements EventSubscriberInterface
         array $excludedCommands = [],
     ) {
         $this->excludedCommands = array_values($excludedCommands);
+        $this->commandSpans = new \SplObjectStorage();
     }
 
     /**
@@ -59,7 +64,14 @@ final class ConsoleSubscriber implements EventSubscriberInterface
 
     public function __destruct()
     {
-        $this->endSpan(suppressScopeNotice: true);
+        $this->drainSpans(suppressScopeNotice: true);
+    }
+
+    public function reset(): void
+    {
+        $this->drainSpans(suppressScopeNotice: true);
+        $this->tracer = null;
+        $this->enabled = null;
     }
 
     public function onCommand(ConsoleCommandEvent $event): void
@@ -68,7 +80,8 @@ final class ConsoleSubscriber implements EventSubscriberInterface
             return;
         }
 
-        $commandName = $this->resolveCommandName($event->getCommand());
+        $command = $event->getCommand();
+        $commandName = $this->resolveCommandName($command);
 
         if ($this->isExcluded($commandName)) {
             return;
@@ -85,51 +98,105 @@ final class ConsoleSubscriber implements EventSubscriberInterface
         }
 
         $span = $builder->startSpan();
-        $this->span = $span;
-        $this->scope = $span->activate();
+        $scope = $span->activate();
+
+        $entry = [$span, $scope, false];
+
+        if (null !== $command) {
+            $this->commandSpans[$command] = $entry;
+        } else {
+            $this->orphanSpan = $entry;
+        }
     }
 
     public function onError(ConsoleErrorEvent $event): void
     {
-        if (null === $this->span || !$this->span->isRecording()) {
+        $entry = $this->resolveEntry($event->getCommand());
+        if (null === $entry) {
             return;
         }
 
-        $this->span->recordException($event->getError());
-        $this->span->setStatus(StatusCode::STATUS_ERROR, $event->getError()->getMessage());
-        $this->errorRecorded = true;
+        [$span, $scope] = $entry;
+
+        if (!$span->isRecording()) {
+            return;
+        }
+
+        $span->recordException($event->getError());
+        $span->setStatus(StatusCode::STATUS_ERROR, $event->getError()->getMessage());
+
+        $updated = [$span, $scope, true];
+        $command = $event->getCommand();
+        if (null !== $command && $this->commandSpans->contains($command)) {
+            $this->commandSpans[$command] = $updated;
+        } else {
+            $this->orphanSpan = $updated;
+        }
     }
 
     public function onTerminate(ConsoleTerminateEvent $event): void
     {
-        if (null === $this->span) {
+        $command = $event->getCommand();
+        $entry = $this->resolveEntry($command);
+        if (null === $entry) {
             return;
         }
 
-        $exitCode = $event->getExitCode();
-        $this->span->setAttribute('process.exit_code', $exitCode);
+        [$span, $scope, $errorRecorded] = $entry;
 
-        if ($exitCode !== Command::SUCCESS && !$this->errorRecorded && $this->span->isRecording()) {
-            $this->span->setStatus(StatusCode::STATUS_ERROR);
+        $exitCode = $event->getExitCode();
+        $span->setAttribute('process.exit_code', $exitCode);
+
+        if ($exitCode !== Command::SUCCESS && !$errorRecorded && $span->isRecording()) {
+            $span->setStatus(StatusCode::STATUS_ERROR);
         }
 
-        $this->endSpan();
+        $span->end();
+        $scope->detach();
+
+        if (null !== $command && $this->commandSpans->contains($command)) {
+            $this->commandSpans->detach($command);
+        } else {
+            $this->orphanSpan = null;
+        }
     }
 
-    private function endSpan(bool $suppressScopeNotice = false): void
+    /**
+     * @return array{SpanInterface, ScopeInterface, bool}|null
+     */
+    private function resolveEntry(?Command $command): ?array
     {
-        if ($this->scope !== null) {
-            if ($suppressScopeNotice) {
-                @$this->scope->detach();
-            } else {
-                $this->scope->detach();
-            }
-            $this->scope = null;
+        if (null !== $command && $this->commandSpans->contains($command)) {
+            return $this->commandSpans[$command];
         }
 
-        $this->span?->end();
-        $this->span = null;
-        $this->errorRecorded = false;
+        return $this->orphanSpan;
+    }
+
+    private function drainSpans(bool $suppressScopeNotice = false): void
+    {
+        foreach ($this->commandSpans as $command) {
+            [$span, $scope] = $this->commandSpans[$command];
+            $span->end();
+            if ($suppressScopeNotice) {
+                @$scope->detach();
+            } else {
+                $scope->detach();
+            }
+        }
+
+        $this->commandSpans = new \SplObjectStorage();
+
+        if (null !== $this->orphanSpan) {
+            [$span, $scope] = $this->orphanSpan;
+            $span->end();
+            if ($suppressScopeNotice) {
+                @$scope->detach();
+            } else {
+                $scope->detach();
+            }
+            $this->orphanSpan = null;
+        }
     }
 
     private function isEnabled(): bool

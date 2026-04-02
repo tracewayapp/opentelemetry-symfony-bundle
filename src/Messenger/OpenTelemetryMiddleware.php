@@ -14,6 +14,7 @@ use Symfony\Component\Messenger\Middleware\MiddlewareInterface;
 use Symfony\Component\Messenger\Middleware\StackInterface;
 use Symfony\Component\Messenger\Stamp\ConsumedByWorkerStamp;
 use Symfony\Component\Messenger\Stamp\ReceivedStamp;
+use Symfony\Contracts\Service\ResetInterface;
 
 /**
  * OpenTelemetry middleware for Symfony Messenger.
@@ -26,7 +27,7 @@ use Symfony\Component\Messenger\Stamp\ReceivedStamp;
  * {@see $rootSpans} is true the span has no parent, so task-oriented
  * backends (e.g. Traceway, Sentry) classify it as an independent job.
  */
-final class OpenTelemetryMiddleware implements MiddlewareInterface
+final class OpenTelemetryMiddleware implements MiddlewareInterface, ResetInterface
 {
     private ?TracerInterface $tracer = null;
     private ?bool $enabled = null;
@@ -167,6 +168,12 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface
     {
         return null !== $envelope->last(ReceivedStamp::class)
             || null !== $envelope->last(ConsumedByWorkerStamp::class);
+    }
+
+    public function reset(): void
+    {
+        $this->tracer = null;
+        $this->enabled = null;
     }
 
     private function isEnabled(): bool

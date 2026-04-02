@@ -30,32 +30,13 @@ class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInter
     private ?TracerInterface $tracer = null;
     private ?bool $enabled = null;
 
-    /** @var AdapterInterface&CacheInterface */
-    private readonly AdapterInterface $pool;
+    private readonly CacheItemPoolInterface $pool;
 
     public function __construct(
         CacheItemPoolInterface $pool,
         protected readonly string $tracerName,
         protected readonly string $poolName,
     ) {
-        if (!$pool instanceof CacheInterface) {
-            throw new \LogicException(\sprintf(
-                'Pool "%s" (%s) must implement %s.',
-                $poolName,
-                $pool::class,
-                CacheInterface::class,
-            ));
-        }
-
-        if (!$pool instanceof AdapterInterface) {
-            throw new \LogicException(\sprintf(
-                'Pool "%s" (%s) must implement %s.',
-                $poolName,
-                $pool::class,
-                AdapterInterface::class,
-            ));
-        }
-
         $this->pool = $pool;
     }
 
@@ -64,6 +45,10 @@ class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInter
      */
     public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed
     {
+        if (!$this->pool instanceof CacheInterface) {
+            throw new \LogicException(\sprintf('Pool "%s" (%s) must implement %s.', $this->poolName, $this->pool::class, CacheInterface::class));
+        }
+
         if (!$this->isEnabled()) {
             return $this->pool->get($key, $callback, $beta, $metadata);
         }
@@ -99,6 +84,10 @@ class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInter
 
     public function delete(string $key): bool
     {
+        if (!$this->pool instanceof CacheInterface) {
+            throw new \LogicException(\sprintf('Pool "%s" (%s) must implement %s.', $this->poolName, $this->pool::class, CacheInterface::class));
+        }
+
         if (!$this->isEnabled()) {
             return $this->pool->delete($key);
         }
@@ -124,7 +113,9 @@ class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInter
 
     public function getItem(mixed $key): CacheItem
     {
-        return $this->pool->getItem($key);
+        $item = $this->pool->getItem($key);
+
+        return $item instanceof CacheItem ? $item : throw new \LogicException('Expected CacheItem.');
     }
 
     /**
@@ -132,6 +123,7 @@ class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInter
      */
     public function getItems(array $keys = []): iterable
     {
+        /** @var iterable<string, CacheItem> */
         return $this->pool->getItems($keys);
     }
 

@@ -14,6 +14,7 @@ use Symfony\Component\Cache\Adapter\AdapterInterface;
 use Symfony\Component\Cache\CacheItem;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Service\ResetInterface;
 
 /**
  * Decorates a Symfony cache pool to create INTERNAL spans for cache operations.
@@ -24,37 +25,18 @@ use Symfony\Contracts\Cache\ItemInterface;
  * Implements AdapterInterface so Symfony's profiler TraceableAdapter
  * can safely wrap this decorator in dev mode.
  */
-class TraceableCachePool implements CacheInterface, AdapterInterface
+class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInterface
 {
     private ?TracerInterface $tracer = null;
     private ?bool $enabled = null;
 
-    /** @var AdapterInterface&CacheInterface */
-    private readonly AdapterInterface $pool;
+    private readonly CacheItemPoolInterface $pool;
 
     public function __construct(
         CacheItemPoolInterface $pool,
         protected readonly string $tracerName,
         protected readonly string $poolName,
     ) {
-        if (!$pool instanceof CacheInterface) {
-            throw new \LogicException(\sprintf(
-                'Pool "%s" (%s) must implement %s.',
-                $poolName,
-                $pool::class,
-                CacheInterface::class,
-            ));
-        }
-
-        if (!$pool instanceof AdapterInterface) {
-            throw new \LogicException(\sprintf(
-                'Pool "%s" (%s) must implement %s.',
-                $poolName,
-                $pool::class,
-                AdapterInterface::class,
-            ));
-        }
-
         $this->pool = $pool;
     }
 
@@ -63,6 +45,10 @@ class TraceableCachePool implements CacheInterface, AdapterInterface
      */
     public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed
     {
+        if (!$this->pool instanceof CacheInterface) {
+            throw new \LogicException(\sprintf('Pool "%s" (%s) must implement %s.', $this->poolName, $this->pool::class, CacheInterface::class));
+        }
+
         if (!$this->isEnabled()) {
             return $this->pool->get($key, $callback, $beta, $metadata);
         }
@@ -98,6 +84,10 @@ class TraceableCachePool implements CacheInterface, AdapterInterface
 
     public function delete(string $key): bool
     {
+        if (!$this->pool instanceof CacheInterface) {
+            throw new \LogicException(\sprintf('Pool "%s" (%s) must implement %s.', $this->poolName, $this->pool::class, CacheInterface::class));
+        }
+
         if (!$this->isEnabled()) {
             return $this->pool->delete($key);
         }
@@ -123,7 +113,9 @@ class TraceableCachePool implements CacheInterface, AdapterInterface
 
     public function getItem(mixed $key): CacheItem
     {
-        return $this->pool->getItem($key);
+        $item = $this->pool->getItem($key);
+
+        return $item instanceof CacheItem ? $item : throw new \LogicException('Expected CacheItem.');
     }
 
     /**
@@ -131,6 +123,7 @@ class TraceableCachePool implements CacheInterface, AdapterInterface
      */
     public function getItems(array $keys = []): iterable
     {
+        /** @var iterable<string, CacheItem> */
         return $this->pool->getItems($keys);
     }
 
@@ -142,7 +135,9 @@ class TraceableCachePool implements CacheInterface, AdapterInterface
     public function clear(string $prefix = ''): bool
     {
         if (!$this->isEnabled()) {
-            return $this->pool->clear($prefix);
+            return $this->pool instanceof AdapterInterface
+                ? $this->pool->clear($prefix)
+                : $this->pool->clear();
         }
 
         $span = $this->getTracer()
@@ -152,7 +147,11 @@ class TraceableCachePool implements CacheInterface, AdapterInterface
             ->startSpan();
 
         try {
-            return $this->pool->clear($prefix);
+            $result = $this->pool instanceof AdapterInterface
+                ? $this->pool->clear($prefix)
+                : $this->pool->clear();
+
+            return $result;
         } catch (\Throwable $e) {
             $span->recordException($e);
             $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
@@ -186,6 +185,16 @@ class TraceableCachePool implements CacheInterface, AdapterInterface
     public function commit(): bool
     {
         return $this->pool->commit();
+    }
+
+    public function reset(): void
+    {
+        $this->tracer = null;
+        $this->enabled = null;
+
+        if ($this->pool instanceof ResetInterface) {
+            $this->pool->reset();
+        }
     }
 
     protected function isEnabled(): bool

@@ -54,8 +54,7 @@
     },
     "conflict": {
         "open-telemetry/api": "<1.0",
-        "open-telemetry/sdk": "<1.0",
-        "doctrine/dbal": "<4.0"
+        "open-telemetry/sdk": "<1.0"
     },
     "autoload": {
         "psr-4": {

@@ -177,13 +177,14 @@ final class TraceableCachePoolTest extends TestCase
         self::assertEmpty($this->exporter->getSpans());
     }
 
-    public function testConstructorRejectsPoolWithoutCacheInterface(): void
+    public function testGetRejectsPoolWithoutCacheInterface(): void
     {
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('must implement');
 
         $inner = $this->createMock(CacheItemPoolInterface::class);
-        new TraceableCachePool($inner, 'test-tracer', 'cache.app');
+        $pool = new TraceableCachePool($inner, 'test-tracer', 'cache.app');
+        $pool->get('key', fn () => 'value');
     }
 
     public function testCustomTracerName(): void

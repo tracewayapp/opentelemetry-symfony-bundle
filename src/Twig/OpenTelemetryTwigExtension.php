@@ -33,8 +33,8 @@ final class OpenTelemetryTwigExtension extends AbstractExtension implements Rese
     private ?TracerInterface $tracer = null;
     private ?bool $enabled = null;
 
-    /** @var array<int, array{SpanInterface, ScopeInterface}> */
-    private array $spans = [];
+    /** @var \SplObjectStorage<Profile, array{SpanInterface, ScopeInterface}> */
+    private \SplObjectStorage $spans;
 
     /** @var string[] */
     private readonly array $excludedTemplates;
@@ -47,16 +47,18 @@ final class OpenTelemetryTwigExtension extends AbstractExtension implements Rese
         array $excludedTemplates = [],
     ) {
         $this->excludedTemplates = array_values($excludedTemplates);
+        $this->spans = new \SplObjectStorage();
     }
 
     public function __destruct()
     {
-        foreach (array_reverse($this->spans, true) as [$span, $scope]) {
+        foreach ($this->spans as $profile) {
+            [$span, $scope] = $this->spans[$profile];
             $span->end();
             $scope->detach();
         }
 
-        $this->spans = [];
+        $this->spans = new \SplObjectStorage();
     }
 
     /**
@@ -69,12 +71,13 @@ final class OpenTelemetryTwigExtension extends AbstractExtension implements Rese
 
     public function reset(): void
     {
-        foreach (array_reverse($this->spans, true) as [$span, $scope]) {
+        foreach ($this->spans as $profile) {
+            [$span, $scope] = $this->spans[$profile];
             $span->end();
             @$scope->detach();
         }
 
-        $this->spans = [];
+        $this->spans = new \SplObjectStorage();
         $this->tracer = null;
         $this->enabled = null;
     }
@@ -92,19 +95,17 @@ final class OpenTelemetryTwigExtension extends AbstractExtension implements Rese
             ->startSpan();
 
         $scope = $span->activate();
-        $this->spans[spl_object_id($profile)] = [$span, $scope];
+        $this->spans[$profile] = [$span, $scope];
     }
 
     public function leave(Profile $profile): void
     {
-        $id = spl_object_id($profile);
-
-        if (!isset($this->spans[$id])) {
+        if (!$this->spans->contains($profile)) {
             return;
         }
 
-        [$span, $scope] = $this->spans[$id];
-        unset($this->spans[$id]);
+        [$span, $scope] = $this->spans[$profile];
+        $this->spans->detach($profile);
 
         $span->end();
         $scope->detach();

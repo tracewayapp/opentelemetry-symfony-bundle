@@ -58,6 +58,6 @@ final class OpenTelemetryBundleTest extends TestCase
 
     public function testVersionConstant(): void
     {
-        self::assertSame('1.3.2', OpenTelemetryBundle::VERSION);
+        self::assertSame('1.4.0', OpenTelemetryBundle::VERSION);
     }
 }

@@ -17,7 +17,6 @@ use Symfony\Component\HttpKernel\Event\TerminateEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
-use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
 final class OpenTelemetrySubscriberTest extends TestCase
@@ -296,7 +295,7 @@ final class OpenTelemetrySubscriberTest extends TestCase
         );
     }
 
-    public function testServiceVersionAttributePresent(): void
+    public function testServiceVersionAttributeIsNotPresent(): void
     {
         $request = Request::create('/api/items', 'GET');
         $kernel = $this->createStub(HttpKernelInterface::class);
@@ -308,7 +307,7 @@ final class OpenTelemetrySubscriberTest extends TestCase
         $spans = $this->exporter->getSpans();
         $attributes = $spans[0]->getAttributes()->toArray();
 
-        self::assertSame(OpenTelemetryBundle::VERSION, $attributes['service.version']);
+        self::assertArrayNotHasKey('service.version', $attributes);
     }
 
     public function testIncomingTraceContextCreatesChildSpan(): void

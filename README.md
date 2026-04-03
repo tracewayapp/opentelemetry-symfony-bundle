@@ -28,6 +28,12 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http/json
 
 > Use `http/json` by default. Switch to `http/protobuf` only if you have `ext-protobuf` installed — see [Performance](#performance).
 
+Optionally, it is possible to also provide a version identifier using e.g.:
+
+```env
+OTEL_RESOURCE_ATTRIBUTES=service.version=1.0
+```
+
 That's it — every HTTP request, console command, outgoing HTTP call, Messenger job, DB query, cache operation, and Twig render is now traced automatically.
 
 ## What Gets Traced

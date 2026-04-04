@@ -13,7 +13,7 @@ final class Configuration implements ConfigurationInterface
     {
         $treeBuilder = new TreeBuilder('open_telemetry');
 
-        $isDbal4 = static function (): bool {
+        $isDbalCompatible = static function (): bool {
             if (!class_exists(\Composer\InstalledVersions::class)) {
                 return true;
             }
@@ -94,9 +94,9 @@ final class Configuration implements ConfigurationInterface
                 ->end()
                 ->booleanNode('doctrine_enabled')
                     ->info('Instrument Doctrine DBAL: auto-create CLIENT spans for database queries. Requires doctrine/dbal ^4.0; auto-disabled when DBAL 3.x is installed.')
-                    ->defaultValue($isDbal4())
+                    ->defaultValue($isDbalCompatible())
                     ->beforeNormalization()
-                        ->ifTrue(static fn ($v): bool => $v === true && !$isDbal4())
+                        ->ifTrue(static fn ($v): bool => $v === true && !$isDbalCompatible())
                         ->then(static fn () => false)
                     ->end()
                 ->end()

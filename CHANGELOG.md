@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Doctrine config default not normalized** — `doctrine_enabled` default value now uses a shared `$isDbal4` closure so it evaluates correctly even when no config is set manually, following FrameworkBundle's `$enableIfStandalone` pattern ([#8](https://github.com/tracewayapp/opentelemetry-symfony-bundle/issues/8))
+- **Doctrine config default not normalized** — `doctrine_enabled` default value now uses a shared `$isDbalCompatible` closure so it evaluates correctly even when no config is set manually, following FrameworkBundle's `$enableIfStandalone` pattern ([#8](https://github.com/tracewayapp/opentelemetry-symfony-bundle/issues/8))
 
 ## [1.4.3] - 2026-04-04
 

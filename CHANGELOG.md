@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.4] - 2026-04-04
+
+### Fixed
+
+- **Doctrine config default not normalized** — `doctrine_enabled` default value now uses a shared `$isDbal4` closure so it evaluates correctly even when no config is set manually, following FrameworkBundle's `$enableIfStandalone` pattern ([#8](https://github.com/tracewayapp/opentelemetry-symfony-bundle/issues/8))
+
 ## [1.4.3] - 2026-04-04
 
 ### Changed
@@ -185,6 +191,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Messenger root spans for task-oriented backends (Traceway, Sentry)
 - 58 unit tests with 131 assertions
 
+[1.4.4]: https://github.com/tracewayapp/opentelemetry-symfony-bundle/compare/v1.4.3...v1.4.4
 [1.4.3]: https://github.com/tracewayapp/opentelemetry-symfony-bundle/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/tracewayapp/opentelemetry-symfony-bundle/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/tracewayapp/opentelemetry-symfony-bundle/compare/v1.4.0...v1.4.1

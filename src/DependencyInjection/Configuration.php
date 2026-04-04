@@ -13,6 +13,20 @@ final class Configuration implements ConfigurationInterface
     {
         $treeBuilder = new TreeBuilder('open_telemetry');
 
+        $isDbal4 = static function (): bool {
+            if (!class_exists(\Composer\InstalledVersions::class)) {
+                return true;
+            }
+
+            try {
+                $version = \Composer\InstalledVersions::getVersion('doctrine/dbal');
+            } catch (\OutOfBoundsException) {
+                return true; // doctrine/dbal not installed, Extension handle will disable it
+            }
+
+            return $version === null || version_compare($version, '4.0.0', '>=');
+        };
+
         $treeBuilder->getRootNode()
             ->children()
                 ->booleanNode('traces_enabled')
@@ -80,25 +94,9 @@ final class Configuration implements ConfigurationInterface
                 ->end()
                 ->booleanNode('doctrine_enabled')
                     ->info('Instrument Doctrine DBAL: auto-create CLIENT spans for database queries. Requires doctrine/dbal ^4.0; auto-disabled when DBAL 3.x is installed.')
-                    ->defaultTrue()
+                    ->defaultValue($isDbal4())
                     ->beforeNormalization()
-                        ->ifTrue(static function ($v): bool {
-                            if ($v !== true) {
-                                return false;
-                            }
-
-                            if (!class_exists(\Composer\InstalledVersions::class)) {
-                                return false;
-                            }
-
-                            try {
-                                $version = \Composer\InstalledVersions::getVersion('doctrine/dbal');
-                            } catch (\OutOfBoundsException) {
-                                return false; // doctrine/dbal not installed
-                            }
-
-                            return $version !== null && version_compare($version, '4.0.0', '<');
-                        })
+                        ->ifTrue(static fn ($v): bool => $v === true && !$isDbal4())
                         ->then(static fn () => false)
                     ->end()
                 ->end()

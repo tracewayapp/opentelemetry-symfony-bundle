@@ -9,7 +9,6 @@ use Doctrine\DBAL\Driver\Connection;
 use OpenTelemetry\API\Trace\SpanKind;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableConnectionDbal4;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableDriver;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
@@ -36,7 +35,11 @@ final class TraceableDriverTest extends TestCase
         $driver = new TraceableDriver($innerDriver, 'test-tracer', false);
         $result = $driver->connect(['driver' => 'pdo_mysql', 'dbname' => 'shop', 'host' => 'db.local', 'port' => 3306]);
 
-        self::assertInstanceOf(TraceableConnectionDbal4::class, $result);
+        $expected = interface_exists(\Doctrine\DBAL\VersionAwarePlatformDriver::class)
+            ? \Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableConnectionDbal3::class
+            : \Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableConnectionDbal4::class;
+
+        self::assertInstanceOf($expected, $result);
     }
 
     #[DataProvider('dbSystemProvider')]

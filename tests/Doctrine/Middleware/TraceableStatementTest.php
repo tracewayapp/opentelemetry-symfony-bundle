@@ -9,21 +9,33 @@ use Doctrine\DBAL\Driver\Statement;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\TestCase;
-use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableStatementDbal4;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
+/**
+ * Tests for DBAL 4 statement wrapper.
+ *
+ * Skipped when doctrine/dbal ^3.x is installed (incompatible signatures).
+ *
+ * @group dbal4
+ */
 final class TraceableStatementTest extends TestCase
 {
     use OTelTestTrait;
 
     protected function setUp(): void
     {
+        if (interface_exists(\Doctrine\DBAL\VersionAwarePlatformDriver::class)) {
+            self::markTestSkipped('DBAL 4 is not installed.');
+        }
+
         $this->setUpOTel();
     }
 
     protected function tearDown(): void
     {
-        $this->tearDownOTel();
+        if (isset($this->exporter)) {
+            $this->tearDownOTel();
+        }
     }
 
     public function testExecuteCreatesSpan(): void
@@ -32,7 +44,7 @@ final class TraceableStatementTest extends TestCase
         $inner = $this->createStub(Statement::class);
         $inner->method('execute')->willReturn($innerResult);
 
-        $statement = new TraceableStatementDbal4(
+        $statement = new \Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableStatementDbal4(
             $inner,
             'test-tracer',
             true,
@@ -70,7 +82,7 @@ final class TraceableStatementTest extends TestCase
         $inner = $this->createStub(Statement::class);
         $inner->method('execute')->willThrowException(new \RuntimeException('Deadlock'));
 
-        $statement = new TraceableStatementDbal4(
+        $statement = new \Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableStatementDbal4(
             $inner,
             'test-tracer',
             false,
@@ -97,7 +109,7 @@ final class TraceableStatementTest extends TestCase
         $inner = $this->createStub(Statement::class);
         $inner->method('execute')->willReturn($this->createStub(Result::class));
 
-        $statement = new TraceableStatementDbal4(
+        $statement = new \Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableStatementDbal4(
             $inner,
             'test-tracer',
             true,
@@ -122,7 +134,7 @@ final class TraceableStatementTest extends TestCase
         $inner = $this->createStub(Statement::class);
         $inner->method('execute')->willReturn($this->createStub(Result::class));
 
-        $statement = new TraceableStatementDbal4(
+        $statement = new \Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableStatementDbal4(
             $inner,
             'test-tracer',
             false,
@@ -146,7 +158,7 @@ final class TraceableStatementTest extends TestCase
         $inner = $this->createStub(Statement::class);
         $inner->method('execute')->willReturn($this->createStub(Result::class));
 
-        $statement = new TraceableStatementDbal4(
+        $statement = new \Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableStatementDbal4(
             $inner,
             'test-tracer',
             false,

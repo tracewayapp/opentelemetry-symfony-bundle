@@ -10,8 +10,8 @@ use Doctrine\DBAL\Driver\Statement;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\TestCase;
-use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableConnection;
-use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableStatement;
+use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableConnectionDbal4;
+use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableStatementDbal4;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
 final class TraceableConnectionTest extends TestCase
@@ -19,13 +19,13 @@ final class TraceableConnectionTest extends TestCase
     use OTelTestTrait;
 
     private Connection $inner;
-    private TraceableConnection $connection;
+    private TraceableConnectionDbal4 $connection;
 
     protected function setUp(): void
     {
         $this->setUpOTel();
         $this->inner = $this->createStub(Connection::class);
-        $this->connection = new TraceableConnection(
+        $this->connection = new TraceableConnectionDbal4(
             $this->inner,
             'test-tracer',
             false,
@@ -120,7 +120,7 @@ final class TraceableConnectionTest extends TestCase
 
         $result = $this->connection->prepare('SELECT * FROM users WHERE id = ?');
 
-        self::assertInstanceOf(TraceableStatement::class, $result);
+        self::assertInstanceOf(TraceableStatementDbal4::class, $result);
     }
 
     public function testExecRecordsExceptionOnFailure(): void
@@ -245,7 +245,7 @@ final class TraceableConnectionTest extends TestCase
 
     public function testSpanNameTruncatedForLongSql(): void
     {
-        $connection = new TraceableConnection(
+        $connection = new TraceableConnectionDbal4(
             $this->inner,
             'test-tracer',
             true,
@@ -267,7 +267,7 @@ final class TraceableConnectionTest extends TestCase
 
     public function testSpanNameWithoutDbName(): void
     {
-        $connection = new TraceableConnection(
+        $connection = new TraceableConnectionDbal4(
             $this->inner,
             'test-tracer',
             false,
@@ -297,7 +297,7 @@ final class TraceableConnectionTest extends TestCase
         $inner = $this->createStub(Connection::class);
         $inner->method('beginTransaction')->willThrowException(new \RuntimeException('Lock wait timeout'));
 
-        $connection = new TraceableConnection($inner, 'test-tracer', false, 'mysql', 'app_db', 'localhost', 3306);
+        $connection = new TraceableConnectionDbal4($inner, 'test-tracer', false, 'mysql', 'app_db', 'localhost', 3306);
 
         try {
             $connection->beginTransaction();
@@ -317,7 +317,7 @@ final class TraceableConnectionTest extends TestCase
         $inner = $this->createStub(Connection::class);
         $inner->method('commit')->willThrowException(new \RuntimeException('Commit failed'));
 
-        $connection = new TraceableConnection($inner, 'test-tracer', false, 'mysql', 'app_db', 'localhost', 3306);
+        $connection = new TraceableConnectionDbal4($inner, 'test-tracer', false, 'mysql', 'app_db', 'localhost', 3306);
 
         try {
             $connection->commit();
@@ -337,7 +337,7 @@ final class TraceableConnectionTest extends TestCase
         $inner = $this->createStub(Connection::class);
         $inner->method('rollBack')->willThrowException(new \RuntimeException('Rollback failed'));
 
-        $connection = new TraceableConnection($inner, 'test-tracer', false, 'mysql', 'app_db', 'localhost', 3306);
+        $connection = new TraceableConnectionDbal4($inner, 'test-tracer', false, 'mysql', 'app_db', 'localhost', 3306);
 
         try {
             $connection->rollBack();
@@ -369,9 +369,9 @@ final class TraceableConnectionTest extends TestCase
         self::assertSame('exception', $spans[0]->getEvents()[0]->getName());
     }
 
-    private function connectionWithStatements(bool $recordStatements): TraceableConnection
+    private function connectionWithStatements(bool $recordStatements): TraceableConnectionDbal4
     {
-        return new TraceableConnection(
+        return new TraceableConnectionDbal4(
             $this->inner,
             'test-tracer',
             $recordStatements,

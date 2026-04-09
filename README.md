@@ -44,7 +44,7 @@ That's it — every HTTP request, console command, outgoing HTTP call, Messenger
 | **Console commands** | SERVER | Command name, arguments, exit code, exceptions |
 | **HttpClient** | CLIENT | Outgoing requests with W3C context propagation, OTLP endpoint auto-excluded, re-entrance guard |
 | **Messenger** | PRODUCER/CONSUMER | Message class, transport, W3C context propagation across async boundaries |
-| **Doctrine DBAL** | CLIENT | SQL queries (parameterized), transactions, db system/namespace auto-detection. Requires `doctrine/dbal` ^4.0 |
+| **Doctrine DBAL** | CLIENT | SQL queries (parameterized), transactions, db system/namespace auto-detection. Requires `doctrine/dbal` ^3.6 or ^4.0 |
 | **Cache** | INTERNAL | `get` (hit/miss), `delete`, `invalidateTags` with pool name. Requires `symfony/cache` |
 | **Twig** | INTERNAL | Template name, nested includes. Requires `twig/twig` |
 | **Monolog** | — | Injects `trace_id` + `span_id` into every log record. Requires `monolog/monolog` |
@@ -54,7 +54,7 @@ Additional: response propagation (Server-Timing headers), `Tracing` helper for m
 ## Requirements
 
 - PHP >= 8.1, Symfony >= 6.4, OpenTelemetry PHP SDK >= 1.0
-- Doctrine DBAL >= 4.0 *(optional)*, Twig >= 3.0 *(optional)*
+- Doctrine DBAL >= 3.6 *(optional)*, Twig >= 3.0 *(optional)*
 
 ## Configuration
 

@@ -22,7 +22,7 @@ final class TraceableDriver extends AbstractDriverMiddleware
     {
         $connection = parent::connect($params);
 
-        return new TraceableConnection(
+        $args = [
             $connection,
             $this->tracerName,
             $this->recordStatements,
@@ -30,7 +30,22 @@ final class TraceableDriver extends AbstractDriverMiddleware
             $params['dbname'] ?? null,
             $params['host'] ?? null,
             isset($params['port']) ? (int) $params['port'] : null,
-        );
+        ];
+
+        return self::isDbal4()
+            ? new TraceableConnectionDbal4(...$args)
+            : new TraceableConnectionDbal3(...$args);
+    }
+
+    /**
+     * VersionAwarePlatformDriver was removed in DBAL 4 — its absence signals DBAL 4+.
+     */
+    private static function isDbal4(): bool
+    {
+        /** @var bool|null $result */
+        static $result = null;
+
+        return $result ??= !interface_exists(\Doctrine\DBAL\VersionAwarePlatformDriver::class);
     }
 
     /**

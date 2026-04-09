@@ -13,7 +13,7 @@ use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\API\Trace\TracerInterface;
 
-final class TraceableConnection extends AbstractConnectionMiddleware
+final class TraceableConnectionDbal4 extends AbstractConnectionMiddleware
 {
     private ?TracerInterface $tracer = null;
     private ?bool $enabled = null;
@@ -32,7 +32,7 @@ final class TraceableConnection extends AbstractConnectionMiddleware
 
     public function prepare(string $sql): Statement
     {
-        return new TraceableStatement(
+        return new TraceableStatementDbal4(
             parent::prepare($sql),
             $this->tracerName,
             $this->recordStatements,

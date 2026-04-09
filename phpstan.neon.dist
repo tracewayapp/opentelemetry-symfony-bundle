@@ -2,4 +2,12 @@ parameters:
     level: 10
     paths:
         - src/
+    # DBAL 3 classes are excluded because require-dev has DBAL 4 whose
+    # AbstractConnectionMiddleware/AbstractStatementMiddleware have
+    # incompatible signatures (void vs bool, execute() vs execute($params)).
+    # These files are validated in the DBAL 3 CI matrix.
+    excludePaths:
+        analyseAndScan:
+            - src/Doctrine/Middleware/TraceableConnectionDbal3.php
+            - src/Doctrine/Middleware/TraceableStatementDbal3.php
     tmpDir: /tmp/phpstan

@@ -11,7 +11,7 @@ use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\API\Trace\TracerInterface;
 
-final class TraceableStatement extends AbstractStatementMiddleware
+final class TraceableStatementDbal4 extends AbstractStatementMiddleware
 {
     private ?TracerInterface $tracer = null;
     private ?bool $enabled = null;

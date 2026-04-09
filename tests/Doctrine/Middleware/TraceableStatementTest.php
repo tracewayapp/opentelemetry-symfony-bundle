@@ -9,7 +9,7 @@ use Doctrine\DBAL\Driver\Statement;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\TestCase;
-use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableStatement;
+use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableStatementDbal4;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
 final class TraceableStatementTest extends TestCase
@@ -32,7 +32,7 @@ final class TraceableStatementTest extends TestCase
         $inner = $this->createStub(Statement::class);
         $inner->method('execute')->willReturn($innerResult);
 
-        $statement = new TraceableStatement(
+        $statement = new TraceableStatementDbal4(
             $inner,
             'test-tracer',
             true,
@@ -70,7 +70,7 @@ final class TraceableStatementTest extends TestCase
         $inner = $this->createStub(Statement::class);
         $inner->method('execute')->willThrowException(new \RuntimeException('Deadlock'));
 
-        $statement = new TraceableStatement(
+        $statement = new TraceableStatementDbal4(
             $inner,
             'test-tracer',
             false,
@@ -97,7 +97,7 @@ final class TraceableStatementTest extends TestCase
         $inner = $this->createStub(Statement::class);
         $inner->method('execute')->willReturn($this->createStub(Result::class));
 
-        $statement = new TraceableStatement(
+        $statement = new TraceableStatementDbal4(
             $inner,
             'test-tracer',
             true,
@@ -122,7 +122,7 @@ final class TraceableStatementTest extends TestCase
         $inner = $this->createStub(Statement::class);
         $inner->method('execute')->willReturn($this->createStub(Result::class));
 
-        $statement = new TraceableStatement(
+        $statement = new TraceableStatementDbal4(
             $inner,
             'test-tracer',
             false,
@@ -146,7 +146,7 @@ final class TraceableStatementTest extends TestCase
         $inner = $this->createStub(Statement::class);
         $inner->method('execute')->willReturn($this->createStub(Result::class));
 
-        $statement = new TraceableStatement(
+        $statement = new TraceableStatementDbal4(
             $inner,
             'test-tracer',
             false,

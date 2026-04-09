@@ -26,7 +26,7 @@ jobs:
         run: vendor/bin/phpstan analyse
 
   tests:
-    name: PHP ${{ matrix.php }} / Symfony ${{ matrix.symfony }}
+    name: PHP ${{ matrix.php }} / Symfony ${{ matrix.symfony }} / DBAL ${{ matrix.dbal }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -34,12 +34,19 @@ jobs:
         include:
           - php: '8.1'
             symfony: '6.4.*'
+            dbal: '^4.0'
             coverage: false
           - php: '8.2'
             symfony: '7.4.*'
+            dbal: '^4.0'
             coverage: true
+          - php: '8.2'
+            symfony: '7.4.*'
+            dbal: '^3.6'
+            coverage: false
           - php: '8.4'
             symfony: '8.0.*'
+            dbal: '^4.0'
             coverage: false
     steps:
       - uses: actions/checkout@v4
@@ -58,6 +65,9 @@ jobs:
           composer require --no-update symfony/http-foundation:${{ matrix.symfony }}
           composer require --no-update symfony/http-kernel:${{ matrix.symfony }}
           composer require --no-update symfony/yaml:${{ matrix.symfony }}
+
+      - name: Restrict DBAL version
+        run: composer require --no-update --dev doctrine/dbal:${{ matrix.dbal }}
 
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist

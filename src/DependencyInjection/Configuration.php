@@ -13,20 +13,6 @@ final class Configuration implements ConfigurationInterface
     {
         $treeBuilder = new TreeBuilder('open_telemetry');
 
-        $isDbalCompatible = static function (): bool {
-            if (!class_exists(\Composer\InstalledVersions::class)) {
-                return true;
-            }
-
-            try {
-                $version = \Composer\InstalledVersions::getVersion('doctrine/dbal');
-            } catch (\OutOfBoundsException) {
-                return true; // doctrine/dbal not installed, Extension handle will disable it
-            }
-
-            return $version === null || version_compare($version, '4.0.0', '>=');
-        };
-
         $treeBuilder->getRootNode()
             ->children()
                 ->booleanNode('traces_enabled')
@@ -93,12 +79,8 @@ final class Configuration implements ConfigurationInterface
                     ->defaultFalse()
                 ->end()
                 ->booleanNode('doctrine_enabled')
-                    ->info('Instrument Doctrine DBAL: auto-create CLIENT spans for database queries. Requires doctrine/dbal ^4.0; auto-disabled when DBAL 3.x is installed.')
-                    ->defaultValue($isDbalCompatible())
-                    ->beforeNormalization()
-                        ->ifTrue(static fn ($v): bool => $v === true && !$isDbalCompatible())
-                        ->then(static fn () => false)
-                    ->end()
+                    ->info('Instrument Doctrine DBAL: auto-create CLIENT spans for database queries. Supports doctrine/dbal ^3.6 and ^4.0.')
+                    ->defaultTrue()
                 ->end()
                 ->booleanNode('doctrine_record_statements')
                     ->info('Record SQL on spans. Prepared statements use ? placeholders; query()/exec() record raw SQL which may contain literal values. Disable in production if raw SQL may contain sensitive data.')

@@ -33,7 +33,7 @@
         "open-telemetry/exporter-otlp": "Required to export traces via OTLP (the most common protocol for OpenTelemetry backends)",
         "php-http/guzzle7-adapter": "HTTP transport for the OTLP exporter (or use any PSR-18 client)",
         "ext-protobuf": "Significantly faster protobuf serialization for OTLP export (use with OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf)",
-        "doctrine/dbal": "Required for automatic Doctrine DBAL query tracing (^4.0)",
+        "doctrine/dbal": "Required for automatic Doctrine DBAL query tracing (^3.6 || ^4.0)",
         "symfony/cache": "Required for automatic cache pool tracing (get/delete/invalidateTags)",
         "symfony/http-client": "Required for automatic HttpClient outgoing request tracing",
         "symfony/messenger": "Required for automatic Messenger job/task tracing",

@@ -9,7 +9,7 @@ use Doctrine\DBAL\Driver\Connection;
 use OpenTelemetry\API\Trace\SpanKind;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableConnection;
+use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableConnectionDbal4;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableDriver;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
@@ -27,7 +27,7 @@ final class TraceableDriverTest extends TestCase
         $this->tearDownOTel();
     }
 
-    public function testConnectReturnsTraceableConnection(): void
+    public function testConnectReturnsVersionSpecificConnection(): void
     {
         $innerConnection = $this->createStub(Connection::class);
         $innerDriver = $this->createStub(DriverInterface::class);
@@ -36,7 +36,7 @@ final class TraceableDriverTest extends TestCase
         $driver = new TraceableDriver($innerDriver, 'test-tracer', false);
         $result = $driver->connect(['driver' => 'pdo_mysql', 'dbname' => 'shop', 'host' => 'db.local', 'port' => 3306]);
 
-        self::assertInstanceOf(TraceableConnection::class, $result);
+        self::assertInstanceOf(TraceableConnectionDbal4::class, $result);
     }
 
     #[DataProvider('dbSystemProvider')]

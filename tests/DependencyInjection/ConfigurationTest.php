@@ -29,7 +29,7 @@ final class ConfigurationTest extends TestCase
         self::assertTrue($config['record_client_ip']);
         self::assertSame(500, $config['error_status_threshold']);
         self::assertTrue($config['console_enabled']);
-        self::assertSame([], $config['console_excluded_commands']);
+        self::assertSame(['messenger:consume', 'messenger:consume-messages'], $config['console_excluded_commands']);
         self::assertTrue($config['http_client_enabled']);
         self::assertTrue($config['messenger_enabled']);
         self::assertFalse($config['messenger_root_spans']);

@@ -69,7 +69,6 @@ final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterfac
 
     public function reset(): void
     {
-        $this->drainSpans(suppressScopeNotice: true);
         $this->tracer = null;
         $this->enabled = null;
     }

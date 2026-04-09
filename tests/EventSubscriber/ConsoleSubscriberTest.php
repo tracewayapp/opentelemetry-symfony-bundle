@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\Tests\EventSubscriber;
 
+use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\TestCase;
@@ -270,6 +271,74 @@ final class ConsoleSubscriberTest extends TestCase
 
         $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
         self::assertArrayNotHasKey('process.command.args', $attributes);
+    }
+
+    public function testResetDoesNotDrainActiveSpans(): void
+    {
+        $command = new Command('app:long-running');
+        $input = new ArrayInput([]);
+        $output = new NullOutput();
+
+        $this->subscriber->onCommand(new ConsoleCommandEvent($command, $input, $output));
+
+        // Simulate Symfony's services_resetter calling reset() between messages
+        $this->subscriber->reset();
+
+        // Span must NOT be exported yet — the command is still running
+        self::assertEmpty($this->exporter->getSpans());
+
+        // onTerminate should still work after reset
+        $this->subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, Command::SUCCESS));
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame('app:long-running', $spans[0]->getName());
+    }
+
+    /**
+     * Proves the fix for issue #9: after reset(), the console span's scope
+     * must stay active so that child spans (e.g. DBAL polling queries) attach
+     * as children instead of becoming orphaned root spans.
+     */
+    public function testResetPreservesScopeForChildSpans(): void
+    {
+        $command = new Command('messenger:consume');
+        $input = new ArrayInput([]);
+        $output = new NullOutput();
+
+        // Exclude nothing — we want the console span active for this test
+        $subscriber = new ConsoleSubscriber(excludedCommands: []);
+
+        $subscriber->onCommand(new ConsoleCommandEvent($command, $input, $output));
+
+        // Simulate reset() called by services_resetter between messages
+        $subscriber->reset();
+
+        // Create a child span (simulates a DBAL polling query after reset)
+        $tracer = Globals::tracerProvider()->getTracer('test');
+        $childSpan = $tracer->spanBuilder('SELECT 1')->startSpan();
+        $childSpan->end();
+
+        // End the console span
+        $subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, Command::SUCCESS));
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(2, $spans);
+
+        // Child span (SELECT 1) was exported first (ended first)
+        $child = $spans[0];
+        // Parent span (messenger:consume) was exported second
+        $parent = $spans[1];
+
+        self::assertSame('SELECT 1', $child->getName());
+        self::assertSame('messenger:consume', $parent->getName());
+
+        // The child's parent must be the console span — NOT orphaned
+        self::assertSame(
+            $parent->getContext()->getSpanId(),
+            $child->getParentSpanId(),
+            'After reset(), child spans must still attach to the console span — not be orphaned root spans'
+        );
     }
 
     public function testSpanCleanedUpAfterTerminate(): void

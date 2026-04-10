@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-04-10
+
+### Added
+
+- **Doctrine DBAL 3 tracing support** — version-specific classes (`TraceableConnectionDbal3`/`Dbal4`, `TraceableStatementDbal3`/`Dbal4`) with runtime detection via `VersionAwarePlatformDriver` interface existence; DBAL 3 users now get full query tracing instead of auto-disabled Doctrine instrumentation ([#8](https://github.com/tracewayapp/opentelemetry-symfony-bundle/issues/8))
+- **`NamespacedPoolInterface` support** — `CacheTracingPass` now selects `TraceableNamespacedCachePool` for cache pools implementing `NamespacedPoolInterface` (Symfony 7.3+), fixing container compilation failures; guarded with `interface_exists()` so Symfony < 7.3 is unaffected ([#11](https://github.com/tracewayapp/opentelemetry-symfony-bundle/issues/11))
+
+### Fixed
+
+- **ConsoleSubscriber orphaned spans** — `ConsoleSubscriber::reset()` now properly detaches active spans before clearing storage, preventing orphaned spans in long-lived workers (Messenger, Swoole, RoadRunner) ([#9](https://github.com/tracewayapp/opentelemetry-symfony-bundle/issues/9))
+
 ## [1.4.4] - 2026-04-04
 
 ### Fixed
@@ -191,6 +202,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Messenger root spans for task-oriented backends (Traceway, Sentry)
 - 58 unit tests with 131 assertions
 
+[1.5.0]: https://github.com/tracewayapp/opentelemetry-symfony-bundle/compare/v1.4.4...v1.5.0
 [1.4.4]: https://github.com/tracewayapp/opentelemetry-symfony-bundle/compare/v1.4.3...v1.4.4
 [1.4.3]: https://github.com/tracewayapp/opentelemetry-symfony-bundle/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/tracewayapp/opentelemetry-symfony-bundle/compare/v1.4.1...v1.4.2

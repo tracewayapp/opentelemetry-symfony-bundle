@@ -8,8 +8,10 @@ use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Contracts\Cache\NamespacedPoolInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 use Traceway\OpenTelemetryBundle\Cache\TraceableCachePool;
+use Traceway\OpenTelemetryBundle\Cache\TraceableNamespacedCachePool;
 use Traceway\OpenTelemetryBundle\Cache\TraceableTagAwareCachePool;
 
 /**
@@ -52,8 +54,18 @@ final class CacheTracingPass implements CompilerPassInterface
             $class = $definition->getClass();
 
             $isTagAware = null !== $class && is_subclass_of($class, TagAwareCacheInterface::class);
+            $isNamespaced = !$isTagAware
+                && interface_exists(NamespacedPoolInterface::class)
+                && null !== $class
+                && is_subclass_of($class, NamespacedPoolInterface::class);
 
-            $decoratorClass = $isTagAware ? TraceableTagAwareCachePool::class : TraceableCachePool::class;
+            if ($isTagAware) {
+                $decoratorClass = TraceableTagAwareCachePool::class;
+            } elseif ($isNamespaced) {
+                $decoratorClass = TraceableNamespacedCachePool::class;
+            } else {
+                $decoratorClass = TraceableCachePool::class;
+            }
             $decoratorId = $id . '.otel';
             $innerId = $decoratorId . '.inner';
 

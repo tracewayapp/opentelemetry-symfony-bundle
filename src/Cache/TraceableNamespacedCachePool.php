@@ -13,8 +13,6 @@ use Symfony\Contracts\Cache\NamespacedPoolInterface;
  */
 final class TraceableNamespacedCachePool extends TraceableCachePool implements NamespacedPoolInterface
 {
-    private readonly NamespacedPoolInterface $namespacedPool;
-
     public function __construct(
         CacheItemPoolInterface $pool,
         string $tracerName,
@@ -25,14 +23,17 @@ final class TraceableNamespacedCachePool extends TraceableCachePool implements N
         }
 
         parent::__construct($pool, $tracerName, $poolName);
-        $this->namespacedPool = $pool;
     }
 
     public function withSubNamespace(string $namespace): static
     {
-        $inner = $this->namespacedPool->withSubNamespace($namespace);
+        if (!$this->pool instanceof NamespacedPoolInterface) {
+            throw new \BadMethodCallException(\sprintf('Cannot call "%s::withSubNamespace()": the inner pool doesn\'t implement "%s".', get_debug_type($this->pool), NamespacedPoolInterface::class));
+        }
 
-        /** @var static */
-        return new self($inner, $this->tracerName, $this->poolName);
+        $clone = clone $this;
+        $clone->pool = $this->pool->withSubNamespace($namespace);
+
+        return $clone;
     }
 }

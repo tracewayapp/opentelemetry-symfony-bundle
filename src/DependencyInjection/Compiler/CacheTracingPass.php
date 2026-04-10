@@ -17,7 +17,8 @@ use Traceway\OpenTelemetryBundle\Cache\TraceableTagAwareCachePool;
 /**
  * Decorates all services tagged with 'cache.pool' with our tracing wrapper.
  *
- * Tag-aware pools get {@see TraceableTagAwareCachePool}; others get
+ * Tag-aware pools get {@see TraceableTagAwareCachePool}, namespaced pools
+ * (Symfony 7.3+) get {@see TraceableNamespacedCachePool}, and others get
  * {@see TraceableCachePool}. Decoration priority -32 ensures we wrap
  * after Symfony's own TraceableAdapter (profiler) at -16.
  */

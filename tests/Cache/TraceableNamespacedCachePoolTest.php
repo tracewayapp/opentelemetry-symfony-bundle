@@ -51,7 +51,7 @@ final class TraceableNamespacedCachePoolTest extends TestCase
         $namespaced = $pool->withSubNamespace('users');
 
         $value = $namespaced->get('key', fn () => 'computed');
-        self::assertSame('cached', $value);
+        self::assertSame('namespaced', $value);
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
@@ -71,9 +71,10 @@ final class TraceableNamespacedCachePoolTest extends TestCase
     private function createNamespacedPool(): AdapterInterface&NamespacedPoolInterface
     {
         return new class implements AdapterInterface, CacheInterface, NamespacedPoolInterface {
-            public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed { return 'cached'; }
+            private string $value = 'cached';
+            public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed { return $this->value; }
             public function delete(string $key): bool { return true; }
-            public function withSubNamespace(string $namespace): static { return clone $this; }
+            public function withSubNamespace(string $namespace): static { $clone = clone $this; $clone->value = 'namespaced'; return $clone; }
             public function getItem(mixed $key): CacheItem { throw new \LogicException('Not implemented'); }
             public function getItems(array $keys = []): iterable { return []; }
             public function hasItem(mixed $key): bool { return false; }

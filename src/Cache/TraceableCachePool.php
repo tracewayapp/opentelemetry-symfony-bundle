@@ -30,7 +30,7 @@ class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInter
     private ?TracerInterface $tracer = null;
     private ?bool $enabled = null;
 
-    private readonly CacheItemPoolInterface $pool;
+    protected CacheItemPoolInterface $pool;
 
     public function __construct(
         CacheItemPoolInterface $pool,

@@ -9,7 +9,9 @@ use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Contracts\Cache\NamespacedPoolInterface;
 use Traceway\OpenTelemetryBundle\Cache\TraceableCachePool;
+use Traceway\OpenTelemetryBundle\Cache\TraceableNamespacedCachePool;
 use Traceway\OpenTelemetryBundle\Cache\TraceableTagAwareCachePool;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\CacheTracingPass;
 
@@ -31,7 +33,10 @@ final class CacheTracingPassTest extends TestCase
         self::assertTrue($container->hasDefinition('cache.app.otel'));
 
         $decorator = $container->getDefinition('cache.app.otel');
-        self::assertSame(TraceableCachePool::class, $decorator->getClass());
+        $expectedClass = interface_exists(NamespacedPoolInterface::class) && is_subclass_of(FilesystemAdapter::class, NamespacedPoolInterface::class)
+            ? TraceableNamespacedCachePool::class
+            : TraceableCachePool::class;
+        self::assertSame($expectedClass, $decorator->getClass());
         self::assertSame('test-tracer', $decorator->getArgument('$tracerName'));
         self::assertSame('cache.app', $decorator->getArgument('$poolName'));
     }

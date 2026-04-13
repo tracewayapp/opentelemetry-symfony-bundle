@@ -38,7 +38,8 @@
         "symfony/http-client": "Required for automatic HttpClient outgoing request tracing",
         "symfony/messenger": "Required for automatic Messenger job/task tracing",
         "twig/twig": "Required for automatic Twig template rendering tracing",
-        "monolog/monolog": "Required for automatic log-trace correlation (injects trace_id/span_id into log records)"
+        "monolog/monolog": "Required for log-trace correlation and OTel log export (trace_id/span_id injection + OTLP log shipping)",
+        "symfony/monolog-bundle": "Required when log_export_enabled is true — wires OtelLogHandler into Monolog's handler stack"
     },
     "require-dev": {
         "doctrine/dbal": "^4.0",
@@ -71,8 +72,8 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "1.5.x-dev",
-            "dev-master": "1.5.x-dev"
+            "dev-main": "1.6.x-dev",
+            "dev-master": "1.6.x-dev"
         }
     },
     "scripts": {

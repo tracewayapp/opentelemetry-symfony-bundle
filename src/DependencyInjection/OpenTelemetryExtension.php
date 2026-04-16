@@ -59,6 +59,15 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
                     ],
                 ],
             ]);
+
+            $handlerDef = new Definition(OtelLogHandler::class);
+            $handlerDef->setArgument('$level', $config['log_export_level']);
+            $handlerDef->setAutoconfigured(true);
+            $container->setDefinition(OtelLogHandler::class, $handlerDef);
+
+            $flushDef = new Definition(OtelLoggerFlushSubscriber::class);
+            $flushDef->setAutoconfigured(true);
+            $container->setDefinition(OtelLoggerFlushSubscriber::class, $flushDef);
         }
     }
 
@@ -139,16 +148,6 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->setDefinition(TraceContextProcessor::class, $monologDef);
         }
 
-        if ($config['log_export_enabled'] && $container->hasExtension('monolog')) {
-            $handlerDef = new Definition(OtelLogHandler::class);
-            $handlerDef->setArgument('$level', $config['log_export_level']);
-            $handlerDef->setAutoconfigured(true);
-            $container->setDefinition(OtelLogHandler::class, $handlerDef);
-
-            $flushDef = new Definition(OtelLoggerFlushSubscriber::class);
-            $flushDef->setAutoconfigured(true);
-            $container->setDefinition(OtelLoggerFlushSubscriber::class, $flushDef);
-        }
     }
 
     private function isConsoleAvailable(): bool

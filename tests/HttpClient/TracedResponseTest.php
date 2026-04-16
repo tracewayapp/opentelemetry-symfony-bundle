@@ -202,6 +202,46 @@ final class TracedResponseTest extends TestCase
         self::assertSame('exception', $spans[0]->getEvents()[0]->getName());
     }
 
+    public function testCancelEndsSpan(): void
+    {
+        $response = $this->makeResponse(200, 'OK');
+
+        $response->cancel();
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+    }
+
+    public function testToArrayThrowsOnErrorAndRecordsException(): void
+    {
+        $response = $this->makeResponse(500, '{"error":"fail"}', ['content-type' => 'application/json']);
+
+        try {
+            $response->toArray(true);
+            self::fail('Expected exception');
+        } catch (\Throwable) {
+        }
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
+        self::assertNotEmpty($spans[0]->getEvents());
+        self::assertSame('exception', $spans[0]->getEvents()[0]->getName());
+    }
+
+    public function testGetContentEmptyBodyDoesNotSetBodySize(): void
+    {
+        $response = $this->makeResponse(204, '');
+
+        $content = $response->getContent(false);
+
+        self::assertSame('', $content);
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertArrayNotHasKey('http.response.body.size', $spans[0]->getAttributes()->toArray());
+    }
+
     public function testDestructFinalizesSpanIfNotEnded(): void
     {
         $response = $this->makeResponse(200, 'OK');

@@ -239,6 +239,37 @@ final class OpenTelemetryMiddlewareTest extends TestCase
         self::assertSame(SpanKind::KIND_CONSUMER, $spans[0]->getKind());
     }
 
+    public function testResetClearsTracerCache(): void
+    {
+        $middleware = new OpenTelemetryMiddleware('test');
+        $envelope = new Envelope(new \stdClass());
+
+        $stack = new StackMiddleware();
+        $middleware->handle($envelope, $stack);
+
+        $middleware->reset();
+
+        $envelope2 = new Envelope(new \stdClass());
+        $stack2 = new StackMiddleware();
+        $middleware->handle($envelope2, $stack2);
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(2, $spans);
+    }
+
+    public function testConsumeWithoutReceivedStampOmitsDestination(): void
+    {
+        $middleware = new OpenTelemetryMiddleware('test');
+        $envelope = new Envelope(new \stdClass(), [new ConsumedByWorkerStamp()]);
+
+        $stack = new StackMiddleware();
+        $middleware->handle($envelope, $stack);
+
+        $spans = $this->exporter->getSpans();
+        $attributes = $spans[0]->getAttributes()->toArray();
+        self::assertArrayNotHasKey('messaging.destination.name', $attributes);
+    }
+
     public function testConsumeWithEmptyTraceContextStamp(): void
     {
         $middleware = new OpenTelemetryMiddleware('test', rootSpans: false);

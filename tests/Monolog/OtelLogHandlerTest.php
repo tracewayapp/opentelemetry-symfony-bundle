@@ -368,6 +368,75 @@ final class OtelLogHandlerTest extends TestCase
         self::assertTrue($emitting->getValue($handler));
     }
 
+    public function testMixedTypeListFallsBackToJsonEncoding(): void
+    {
+        $handler = new OtelLogHandler();
+
+        $record = new LogRecord(
+            datetime: new \DateTimeImmutable(),
+            channel: 'app',
+            level: Level::Info,
+            message: 'test',
+            context: ['items' => ['text', 42, ['nested' => true]]],
+        );
+
+        $handler->handle($record);
+
+        $logs = $this->logExporter->getStorage();
+        /** @var ReadableLogRecord $log */
+        $log = $logs[0];
+        $attrs = $log->getAttributes()->toArray();
+
+        self::assertIsString($attrs['monolog.context.items']);
+        $decoded = json_decode($attrs['monolog.context.items'], true);
+        self::assertSame('text', $decoded[0]);
+        self::assertSame(42, $decoded[1]);
+    }
+
+    public function testNullValueInContextIsPassedAsAttribute(): void
+    {
+        $handler = new OtelLogHandler();
+
+        $record = new LogRecord(
+            datetime: new \DateTimeImmutable(),
+            channel: 'app',
+            level: Level::Info,
+            message: 'test',
+            context: ['empty' => null, 'present' => 'yes'],
+        );
+
+        $handler->handle($record);
+
+        $logs = $this->logExporter->getStorage();
+        /** @var ReadableLogRecord $log */
+        $log = $logs[0];
+        $attrs = $log->getAttributes()->toArray();
+
+        self::assertSame('yes', $attrs['monolog.context.present']);
+    }
+
+    public function testListOfScalarsWithNullsPreserved(): void
+    {
+        $handler = new OtelLogHandler();
+
+        $record = new LogRecord(
+            datetime: new \DateTimeImmutable(),
+            channel: 'app',
+            level: Level::Info,
+            message: 'test',
+            context: ['ids' => [1, null, 3]],
+        );
+
+        $handler->handle($record);
+
+        $logs = $this->logExporter->getStorage();
+        /** @var ReadableLogRecord $log */
+        $log = $logs[0];
+        $attrs = $log->getAttributes()->toArray();
+
+        self::assertSame([1, null, 3], $attrs['monolog.context.ids']);
+    }
+
     public function testResetClearsCachedLogger(): void
     {
         $handler = new OtelLogHandler();

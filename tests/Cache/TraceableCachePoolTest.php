@@ -13,6 +13,7 @@ use Symfony\Component\Cache\Adapter\AdapterInterface;
 use Symfony\Component\Cache\CacheItem;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\Cache\TraceableCachePool;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
@@ -187,6 +188,91 @@ final class TraceableCachePoolTest extends TestCase
         $pool->get('key', fn () => 'value');
     }
 
+    public function testDeleteRejectsPoolWithoutCacheInterface(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('must implement');
+
+        $inner = $this->createMock(CacheItemPoolInterface::class);
+        $pool = new TraceableCachePool($inner, 'test-tracer', 'cache.app');
+        $pool->delete('key');
+    }
+
+    public function testPsr6DelegationMethods(): void
+    {
+        $inner = $this->createCachePool('value', true);
+        $pool = new TraceableCachePool($inner, 'test-tracer', 'cache.app');
+
+        self::assertTrue($pool->deleteItems(['a', 'b']));
+        self::assertTrue($pool->commit());
+        self::assertEmpty($pool->getItems(['a']));
+        self::assertEmpty($this->exporter->getSpans());
+    }
+
+    public function testSaveAndSaveDeferredDelegate(): void
+    {
+        $inner = $this->createCachePool('value', true);
+        $pool = new TraceableCachePool($inner, 'test-tracer', 'cache.app');
+
+        $item = $this->createStub(CacheItemInterface::class);
+        self::assertTrue($pool->save($item));
+        self::assertTrue($pool->saveDeferred($item));
+        self::assertEmpty($this->exporter->getSpans());
+    }
+
+    public function testResetClearsTracerAndResetsPool(): void
+    {
+        $inner = $this->createResettableCachePool('value', true);
+        $pool = new TraceableCachePool($inner, 'test-tracer', 'cache.app');
+
+        $pool->get('key', fn () => 'value');
+        self::assertCount(1, $this->exporter->getSpans());
+
+        $pool->reset();
+
+        $pool->get('key2', fn () => 'value');
+        self::assertCount(2, $this->exporter->getSpans());
+    }
+
+    public function testResetWithNonResettablePool(): void
+    {
+        $inner = $this->createCachePool('value', true);
+        $pool = new TraceableCachePool($inner, 'test-tracer', 'cache.app');
+
+        $pool->reset();
+
+        $pool->get('key', fn () => 'value');
+        self::assertCount(1, $this->exporter->getSpans());
+    }
+
+    public function testClearDelegatesToNonAdapterPool(): void
+    {
+        $inner = new class implements CacheItemPoolInterface, CacheInterface {
+            public bool $cleared = false;
+            public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed { return null; }
+            public function delete(string $key): bool { return true; }
+            public function getItem(mixed $key): CacheItem { throw new \LogicException('Not implemented'); }
+            public function getItems(array $keys = []): iterable { return []; }
+            public function hasItem(mixed $key): bool { return false; }
+            public function clear(): bool { $this->cleared = true; return true; }
+            public function deleteItem(string $key): bool { return true; }
+            public function deleteItems(array $keys): bool { return true; }
+            public function save(CacheItemInterface $item): bool { return true; }
+            public function saveDeferred(CacheItemInterface $item): bool { return true; }
+            public function commit(): bool { return true; }
+        };
+
+        $pool = new TraceableCachePool($inner, 'test-tracer', 'cache.app');
+        $result = $pool->clear();
+
+        self::assertTrue($result);
+        self::assertTrue($inner->cleared);
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame('cache.clear', $spans[0]->getName());
+    }
+
     public function testCustomTracerName(): void
     {
         $inner = $this->createCachePool('value', true);
@@ -240,6 +326,48 @@ final class TraceableCachePoolTest extends TestCase
             public function save(CacheItemInterface $item): bool { return true; }
             public function saveDeferred(CacheItemInterface $item): bool { return true; }
             public function commit(): bool { return true; }
+        };
+
+        return $mock;
+    }
+
+    private function createResettableCachePool(mixed $returnValue, bool $isHit): AdapterInterface&CacheInterface&ResetInterface
+    {
+        $mock = new class($returnValue, $isHit) implements AdapterInterface, CacheInterface, ResetInterface {
+            public bool $wasReset = false;
+            public function __construct(
+                private readonly mixed $returnValue,
+                private readonly bool $isHit,
+            ) {}
+
+            public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed
+            {
+                return $this->isHit ? $this->returnValue : $callback(
+                    new class implements ItemInterface {
+                        public function getKey(): string { return ''; }
+                        public function get(): mixed { return null; }
+                        public function isHit(): bool { return false; }
+                        public function set(mixed $value): static { return $this; }
+                        public function expiresAt(?\DateTimeInterface $expiration): static { return $this; }
+                        public function expiresAfter(\DateInterval|int|null $time): static { return $this; }
+                        public function tag(string|iterable $tags): static { return $this; }
+                        public function getMetadata(): array { return []; }
+                    },
+                    $save = true,
+                );
+            }
+
+            public function delete(string $key): bool { return true; }
+            public function getItem(mixed $key): CacheItem { throw new \LogicException('Not implemented'); }
+            public function getItems(array $keys = []): iterable { return []; }
+            public function hasItem(mixed $key): bool { return false; }
+            public function clear(string $prefix = ''): bool { return true; }
+            public function deleteItem(string $key): bool { return true; }
+            public function deleteItems(array $keys): bool { return true; }
+            public function save(CacheItemInterface $item): bool { return true; }
+            public function saveDeferred(CacheItemInterface $item): bool { return true; }
+            public function commit(): bool { return true; }
+            public function reset(): void { $this->wasReset = true; }
         };
 
         return $mock;

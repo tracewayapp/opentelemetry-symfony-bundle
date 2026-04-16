@@ -6,12 +6,16 @@ namespace Traceway\OpenTelemetryBundle\Tests\DependencyInjection;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Bundle\MonologBundle\MonologBundle;
 use Traceway\OpenTelemetryBundle\DependencyInjection\OpenTelemetryExtension;
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
+use Traceway\OpenTelemetryBundle\EventSubscriber\OtelLoggerFlushSubscriber;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableMiddleware as DoctrineTraceableMiddleware;
+use Traceway\OpenTelemetryBundle\Monolog\OtelLogHandler;
 use Traceway\OpenTelemetryBundle\Monolog\TraceContextProcessor;
+use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\TracingInterface;
 use Traceway\OpenTelemetryBundle\Twig\OpenTelemetryTwigExtension;
@@ -291,6 +295,32 @@ final class OpenTelemetryExtensionTest extends TestCase
         $container = $this->buildContainer(['monolog_enabled' => false]);
 
         self::assertFalse($container->hasDefinition(TraceContextProcessor::class));
+    }
+
+    public function testLogExportCompilesWithMonologBundleRegisteredFirst(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension(new \Symfony\Bundle\MonologBundle\DependencyInjection\MonologExtension());
+
+        $extension = new OpenTelemetryExtension();
+        $container->registerExtension($extension);
+        $container->loadFromExtension('open_telemetry', ['log_export_enabled' => true]);
+
+        $extension->prepend($container);
+
+        $monologConfigs = $container->getExtensionConfig('monolog');
+        self::assertNotEmpty($monologConfigs, 'OTel prepend should inject monolog handler config');
+
+        $handlerConfig = $monologConfigs[0]['handlers']['opentelemetry'] ?? null;
+        self::assertNotNull($handlerConfig, 'opentelemetry handler should be prepended');
+        self::assertSame('service', $handlerConfig['type']);
+        self::assertSame(OtelLogHandler::class, $handlerConfig['id']);
+
+        self::assertTrue(
+            $container->hasDefinition(OtelLogHandler::class),
+            'OtelLogHandler service must be registered in prepend() so it exists before MonologBundle compiles',
+        );
+        self::assertTrue($container->hasDefinition(OtelLoggerFlushSubscriber::class));
     }
 
     public function testLogExportEnabledThrowsWhenMonologBundleMissing(): void

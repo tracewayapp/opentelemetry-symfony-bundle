@@ -50,6 +50,7 @@
         "symfony/framework-bundle": "^6.4 || ^7.0 || ^8.0",
         "symfony/http-client": "^6.4 || ^7.0 || ^8.0",
         "symfony/messenger": "^6.4 || ^7.0 || ^8.0",
+        "symfony/monolog-bundle": "^3.10 || ^4.0",
         "symfony/phpunit-bridge": "^6.4 || ^7.0 || ^8.0",
         "twig/twig": "^3.0 || ^4.0"
     },

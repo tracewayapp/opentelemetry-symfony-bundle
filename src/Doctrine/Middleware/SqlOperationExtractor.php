@@ -23,25 +23,6 @@ final class SqlOperationExtractor
     }
 
     /**
-     * Truncates SQL to a reasonable span-name length.
-     *
-     * @return non-empty-string
-     */
-    public static function spanName(string $sql): string
-    {
-        $sql = ltrim($sql);
-        if ($sql === '') {
-            return 'SQL';
-        }
-
-        if (mb_strlen($sql, 'UTF-8') > 120) {
-            return mb_substr($sql, 0, 117, 'UTF-8') . '...';
-        }
-
-        return $sql;
-    }
-
-    /**
      * Builds a concise span name from the operation and optional db name.
      *
      * @param non-empty-string $operation

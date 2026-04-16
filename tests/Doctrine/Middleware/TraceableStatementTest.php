@@ -61,7 +61,7 @@ final class TraceableStatementTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('SELECT * FROM orders WHERE user_id = ?', $spans[0]->getName());
+        self::assertSame('SELECT my_db', $spans[0]->getName());
         self::assertSame(SpanKind::KIND_CLIENT, $spans[0]->getKind());
 
         $attributes = $spans[0]->getAttributes()->toArray();
@@ -104,7 +104,7 @@ final class TraceableStatementTest extends TestCase
         self::assertSame('Deadlock', $spans[0]->getStatus()->getDescription());
     }
 
-    public function testSpanNameIsSqlWhenRecordStatementsEnabled(): void
+    public function testSpanNameIsLowCardinalityWhenRecordStatementsEnabled(): void
     {
         $inner = $this->createStub(Statement::class);
         $inner->method('execute')->willReturn($this->createStub(Result::class));
@@ -123,7 +123,7 @@ final class TraceableStatementTest extends TestCase
         $statement->execute();
 
         $span = $this->exporter->getSpans()[0];
-        self::assertSame('UPDATE accounts SET balance = ? WHERE id = ?', $span->getName());
+        self::assertSame('UPDATE app', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('UPDATE accounts SET balance = ? WHERE id = ?', $attr['db.query.text']);
         self::assertSame('UPDATE accounts SET balance = ? WHERE id = ?', $attr['db.statement']);

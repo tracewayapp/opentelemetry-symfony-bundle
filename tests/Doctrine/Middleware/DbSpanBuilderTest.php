@@ -42,7 +42,7 @@ final class DbSpanBuilderTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('SELECT * FROM users WHERE id = ?', $spans[0]->getName());
+        self::assertSame('SELECT my_db', $spans[0]->getName());
         self::assertSame(SpanKind::KIND_CLIENT, $spans[0]->getKind());
 
         $attrs = $spans[0]->getAttributes()->toArray();

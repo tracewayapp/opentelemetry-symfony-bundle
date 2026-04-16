@@ -106,8 +106,8 @@ final class TraceableTagAwareCachePoolTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(2, $spans);
-        self::assertSame('cache.get key', $spans[0]->getName());
-        self::assertSame('cache.delete key', $spans[1]->getName());
+        self::assertSame('cache.get', $spans[0]->getName());
+        self::assertSame('cache.delete', $spans[1]->getName());
     }
 
     private function createTagAwarePool(): AdapterInterface&TagAwareCacheInterface

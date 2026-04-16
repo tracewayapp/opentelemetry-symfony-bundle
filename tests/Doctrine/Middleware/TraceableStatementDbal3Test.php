@@ -63,7 +63,7 @@ final class TraceableStatementDbal3Test extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('SELECT * FROM orders WHERE user_id = ?', $spans[0]->getName());
+        self::assertSame('SELECT my_db', $spans[0]->getName());
         self::assertSame(SpanKind::KIND_CLIENT, $spans[0]->getKind());
 
         $attributes = $spans[0]->getAttributes()->toArray();
@@ -96,7 +96,7 @@ final class TraceableStatementDbal3Test extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('SELECT * FROM users WHERE id = ?', $spans[0]->getName());
+        self::assertSame('SELECT app', $spans[0]->getName());
     }
 
     public function testExecuteRecordsException(): void

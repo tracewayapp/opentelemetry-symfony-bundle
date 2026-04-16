@@ -88,7 +88,7 @@ final class TraceableConnectionTest extends TestCase
         $connection->exec('INSERT INTO users (name) VALUES ("test")');
 
         $span = $this->exporter->getSpans()[0];
-        self::assertSame('INSERT INTO users (name) VALUES ("test")', $span->getName());
+        self::assertSame('INSERT app_db', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('INSERT INTO users (name) VALUES ("test")', $attr['db.query.text']);
         self::assertSame('INSERT INTO users (name) VALUES ("test")', $attr['db.statement']);
@@ -120,7 +120,7 @@ final class TraceableConnectionTest extends TestCase
         $connection->query('SELECT * FROM users WHERE id = 1');
 
         $span = $this->exporter->getSpans()[0];
-        self::assertSame('SELECT * FROM users WHERE id = 1', $span->getName());
+        self::assertSame('SELECT app_db', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('SELECT * FROM users WHERE id = 1', $attr['db.query.text']);
         self::assertSame('SELECT * FROM users WHERE id = 1', $attr['db.statement']);
@@ -184,7 +184,7 @@ final class TraceableConnectionTest extends TestCase
         }
 
         $span = $this->exporter->getSpans()[0];
-        self::assertSame('SELECT * FROM slow_table', $span->getName());
+        self::assertSame('SELECT app_db', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('SELECT * FROM slow_table', $attr['db.query.text']);
         self::assertSame('SELECT * FROM slow_table', $attr['db.statement']);
@@ -206,7 +206,7 @@ final class TraceableConnectionTest extends TestCase
         $connection->beginTransaction();
 
         $span = $this->exporter->getSpans()[0];
-        self::assertSame('BEGIN', $span->getName());
+        self::assertSame('BEGIN app_db', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('BEGIN', $attr['db.query.text']);
         self::assertSame('BEGIN', $attr['db.statement']);
@@ -228,7 +228,7 @@ final class TraceableConnectionTest extends TestCase
         $connection->commit();
 
         $span = $this->exporter->getSpans()[0];
-        self::assertSame('COMMIT', $span->getName());
+        self::assertSame('COMMIT app_db', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('COMMIT', $attr['db.query.text']);
         self::assertSame('COMMIT', $attr['db.statement']);
@@ -250,13 +250,13 @@ final class TraceableConnectionTest extends TestCase
         $connection->rollBack();
 
         $span = $this->exporter->getSpans()[0];
-        self::assertSame('ROLLBACK', $span->getName());
+        self::assertSame('ROLLBACK app_db', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('ROLLBACK', $attr['db.query.text']);
         self::assertSame('ROLLBACK', $attr['db.statement']);
     }
 
-    public function testSpanNameTruncatedForLongSql(): void
+    public function testSpanNameIsLowCardinalityForLongSql(): void
     {
         $connection = new \Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableConnectionDbal4(
             $this->inner,
@@ -273,9 +273,8 @@ final class TraceableConnectionTest extends TestCase
         $connection->exec($longSql);
 
         $spans = $this->exporter->getSpans();
-        self::assertSame(120, \strlen($spans[0]->getName()));
-        self::assertStringEndsWith('...', $spans[0]->getName());
-        self::assertStringStartsWith('SELECT id, name, email', $spans[0]->getName());
+        self::assertSame('SELECT app_db', $spans[0]->getName());
+        self::assertSame($longSql, $spans[0]->getAttributes()->toArray()['db.query.text']);
     }
 
     public function testSpanNameWithoutDbName(): void

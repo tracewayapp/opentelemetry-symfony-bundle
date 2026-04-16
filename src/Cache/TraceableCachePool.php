@@ -61,7 +61,7 @@ class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInter
         };
 
         $span = $this->getTracer()
-            ->spanBuilder(\sprintf('cache.get %s', $key))
+            ->spanBuilder('cache.get')
             ->setSpanKind(SpanKind::KIND_INTERNAL)
             ->setAttribute('cache.key', $key)
             ->setAttribute('cache.pool', $this->poolName)
@@ -93,7 +93,7 @@ class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInter
         }
 
         $span = $this->getTracer()
-            ->spanBuilder(\sprintf('cache.delete %s', $key))
+            ->spanBuilder('cache.delete')
             ->setSpanKind(SpanKind::KIND_INTERNAL)
             ->setAttribute('cache.key', $key)
             ->setAttribute('cache.pool', $this->poolName)

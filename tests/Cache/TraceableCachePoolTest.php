@@ -41,7 +41,7 @@ final class TraceableCachePoolTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('cache.get my_key', $spans[0]->getName());
+        self::assertSame('cache.get', $spans[0]->getName());
         self::assertSame(SpanKind::KIND_INTERNAL, $spans[0]->getKind());
 
         $attrs = $spans[0]->getAttributes()->toArray();
@@ -99,7 +99,7 @@ final class TraceableCachePoolTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('cache.delete old_key', $spans[0]->getName());
+        self::assertSame('cache.delete', $spans[0]->getName());
         self::assertSame(SpanKind::KIND_INTERNAL, $spans[0]->getKind());
 
         $attrs = $spans[0]->getAttributes()->toArray();
@@ -120,7 +120,7 @@ final class TraceableCachePoolTest extends TestCase
         } finally {
             $spans = $this->exporter->getSpans();
             self::assertCount(1, $spans);
-            self::assertSame('cache.delete key', $spans[0]->getName());
+            self::assertSame('cache.delete', $spans[0]->getName());
             self::assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
             self::assertSame('Delete failed', $spans[0]->getStatus()->getDescription());
 

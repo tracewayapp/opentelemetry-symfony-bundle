@@ -34,32 +34,27 @@ composer require traceway/opentelemetry-symfony
 
 Edit your FPM pool config (e.g. `/etc/php/<VERSION>/fpm/pool.d/www.conf`).
 
+Only `OTEL_PHP_AUTOLOAD_ENABLED` belongs here — it must be set in FPM because Symfony's `.env` loads too late for the OTel extension to read it. The remaining OTel variables should live in your application's `.env` (see step 4), so each server / environment can carry its own values without rewriting the FPM pool config.
+
 Add at the bottom:
 
 ```ini
 ; OpenTelemetry
 clear_env = no
 env[OTEL_PHP_AUTOLOAD_ENABLED] = "true"
-env[OTEL_SERVICE_NAME] = your-service-name
-env[OTEL_TRACES_EXPORTER] = otlp
-env[OTEL_EXPORTER_OTLP_ENDPOINT] = https://cloud.tracewayapp.com/api/otel
-env[OTEL_EXPORTER_OTLP_PROTOCOL] = http/protobuf
-env[OTEL_EXPORTER_OTLP_HEADERS] = "Authorization=Bearer <YOUR_TOKEN>"
 ```
 
 **Important notes:**
 
 - `OTEL_PHP_AUTOLOAD_ENABLED` MUST be quoted as `"true"`. Without quotes, FPM converts `true` to `1`, which the OTel SDK rejects.
-- `OTEL_EXPORTER_OTLP_PROTOCOL` MUST be `http/protobuf`. The `http/json` protocol is not supported by Traceway.
 - If `clear_env` is already set elsewhere in the file, don't add it again (FPM will fail to start with duplicate directives). Just uncomment or change the existing one.
 
-## 4. Add Variables to Symfony .env (Optional)
+## 4. Add Variables to Symfony .env
 
-You can also add the same variables to your Symfony `.env` file. However, `OTEL_PHP_AUTOLOAD_ENABLED` **must** be set in the FPM pool config because Symfony's `.env` loads too late for the OTel extension to read it.
+Set the remaining OTel variables in your Symfony `.env` (or `.env.local` / per-environment file). Keeping them at the application level means each deployed instance can use its own service name, endpoint, or token without touching the FPM pool config.
 
 ```env
 ###> opentelemetry ###
-OTEL_PHP_AUTOLOAD_ENABLED=true
 OTEL_SERVICE_NAME=your-service-name
 OTEL_TRACES_EXPORTER=otlp
 OTEL_EXPORTER_OTLP_ENDPOINT=https://cloud.tracewayapp.com/api/otel
@@ -67,6 +62,11 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <YOUR_TOKEN>"
 ###< opentelemetry ###
 ```
+
+**Important notes:**
+
+- `OTEL_EXPORTER_OTLP_PROTOCOL` MUST be `http/protobuf`. The `http/json` protocol is not supported by Traceway.
+- Do **not** put `OTEL_PHP_AUTOLOAD_ENABLED` here — it is read by the OTel extension before Symfony's `.env` loader runs.
 
 ## 5. Configure the Bundle
 

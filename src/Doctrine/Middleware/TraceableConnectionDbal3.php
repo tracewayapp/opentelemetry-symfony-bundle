@@ -12,6 +12,7 @@ use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\API\Trace\TracerInterface;
+use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 
 final class TraceableConnectionDbal3 extends AbstractConnectionMiddleware
 {
@@ -57,6 +58,7 @@ final class TraceableConnectionDbal3 extends AbstractConnectionMiddleware
         } catch (\Throwable $e) {
             $span->recordException($e);
             $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
+            $span->setAttribute(ErrorAttributes::ERROR_TYPE, $e::class);
 
             throw $e;
         } finally {
@@ -79,6 +81,7 @@ final class TraceableConnectionDbal3 extends AbstractConnectionMiddleware
         } catch (\Throwable $e) {
             $span->recordException($e);
             $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
+            $span->setAttribute(ErrorAttributes::ERROR_TYPE, $e::class);
 
             throw $e;
         } finally {
@@ -103,6 +106,7 @@ final class TraceableConnectionDbal3 extends AbstractConnectionMiddleware
         } catch (\Throwable $e) {
             $span->recordException($e);
             $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
+            $span->setAttribute(ErrorAttributes::ERROR_TYPE, $e::class);
 
             throw $e;
         } finally {
@@ -127,6 +131,7 @@ final class TraceableConnectionDbal3 extends AbstractConnectionMiddleware
         } catch (\Throwable $e) {
             $span->recordException($e);
             $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
+            $span->setAttribute(ErrorAttributes::ERROR_TYPE, $e::class);
 
             throw $e;
         } finally {
@@ -151,6 +156,7 @@ final class TraceableConnectionDbal3 extends AbstractConnectionMiddleware
         } catch (\Throwable $e) {
             $span->recordException($e);
             $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
+            $span->setAttribute(ErrorAttributes::ERROR_TYPE, $e::class);
 
             throw $e;
         } finally {

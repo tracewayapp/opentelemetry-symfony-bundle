@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-04-16
+
+### Fixed
+
+- **Bundle loading order crash with `log_export_enabled: true`** — `OtelLogHandler` and `OtelLoggerFlushSubscriber` service definitions are now registered in `prepend()` instead of `load()`, so they exist before `MonologBundle::load()` compiles its handler references regardless of bundle registration order in `bundles.php` ([#17](https://github.com/tracewayapp/opentelemetry-symfony-bundle/issues/17), [#18](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/18) — thanks @srekcud)
+
 ## [1.6.0] - 2026-04-13
 
 ### Added

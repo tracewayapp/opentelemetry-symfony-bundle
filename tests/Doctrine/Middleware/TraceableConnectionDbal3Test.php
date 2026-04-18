@@ -67,7 +67,7 @@ final class TraceableConnectionDbal3Test extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('INSERT app_db', $spans[0]->getName());
+        self::assertSame('INSERT users', $spans[0]->getName());
         self::assertSame(SpanKind::KIND_CLIENT, $spans[0]->getKind());
 
         $attributes = $spans[0]->getAttributes()->toArray();
@@ -86,7 +86,7 @@ final class TraceableConnectionDbal3Test extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('SELECT app_db', $spans[0]->getName());
+        self::assertSame('SELECT users', $spans[0]->getName());
         self::assertSame(SpanKind::KIND_CLIENT, $spans[0]->getKind());
     }
 

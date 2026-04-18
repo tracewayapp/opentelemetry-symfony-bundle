@@ -42,7 +42,7 @@ final class DbSpanBuilderTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('SELECT * FROM users WHERE id = ?', $spans[0]->getName());
+        self::assertSame('SELECT users', $spans[0]->getName());
         self::assertSame(SpanKind::KIND_CLIENT, $spans[0]->getKind());
 
         $attrs = $spans[0]->getAttributes()->toArray();
@@ -50,6 +50,8 @@ final class DbSpanBuilderTest extends TestCase
         self::assertSame('postgresql', $attrs['db.system']);
         self::assertSame('SELECT', $attrs['db.operation.name']);
         self::assertSame('SELECT', $attrs['db.operation']);
+        self::assertSame('SELECT users', $attrs['db.query.summary']);
+        self::assertSame('users', $attrs['db.collection.name']);
         self::assertSame('my_db', $attrs['db.namespace']);
         self::assertSame('my_db', $attrs['db.name']);
         self::assertSame('SELECT * FROM users WHERE id = ?', $attrs['db.query.text']);
@@ -75,9 +77,10 @@ final class DbSpanBuilderTest extends TestCase
         $span->end();
 
         $spans = $this->exporter->getSpans();
-        self::assertSame('DELETE app_db', $spans[0]->getName());
+        self::assertSame('DELETE sessions', $spans[0]->getName());
 
         $attrs = $spans[0]->getAttributes()->toArray();
+        self::assertSame('sessions', $attrs['db.collection.name']);
         self::assertArrayNotHasKey('db.query.text', $attrs);
         self::assertArrayNotHasKey('db.statement', $attrs);
     }
@@ -103,6 +106,7 @@ final class DbSpanBuilderTest extends TestCase
 
         $attrs = $spans[0]->getAttributes()->toArray();
         self::assertSame('sqlite', $attrs['db.system.name']);
+        self::assertArrayNotHasKey('db.collection.name', $attrs);
         self::assertArrayNotHasKey('db.namespace', $attrs);
         self::assertArrayNotHasKey('db.name', $attrs);
         self::assertArrayNotHasKey('server.address', $attrs);

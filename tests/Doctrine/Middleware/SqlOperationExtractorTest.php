@@ -37,51 +37,78 @@ final class SqlOperationExtractorTest extends TestCase
         yield 'whitespace only' => ['   ', 'UNKNOWN'];
     }
 
-    #[DataProvider('spanNameProvider')]
-    public function testSpanName(string $sql, string $expected): void
+    #[DataProvider('extractTargetProvider')]
+    public function testExtractTarget(string $sql, ?string $expected): void
     {
-        self::assertSame($expected, SqlOperationExtractor::spanName($sql));
+        self::assertSame($expected, SqlOperationExtractor::extractTarget($sql));
     }
 
     /**
-     * @return iterable<string, array{string, string}>
+     * @return iterable<string, array{string, ?string}>
+     */
+    public static function extractTargetProvider(): iterable
+    {
+        // INSERT
+        yield 'insert simple' => ['INSERT INTO items (name) VALUES (?)', 'items'];
+        yield 'insert lowercase' => ['insert into items values (?)', 'items'];
+        yield 'insert qualified' => ['INSERT INTO public.items (name) VALUES (?)', 'public.items'];
+        yield 'insert backticked' => ['INSERT INTO `items` VALUES (?)', 'items'];
+        yield 'insert double-quoted' => ['INSERT INTO "items" VALUES (?)', 'items'];
+        yield 'insert sqlite OR REPLACE' => ['INSERT OR REPLACE INTO items VALUES (?)', 'items'];
+
+        // UPDATE
+        yield 'update simple' => ['UPDATE items SET price = ?', 'items'];
+        yield 'update lowercase' => ['update items set price = ?', 'items'];
+        yield 'update qualified' => ['UPDATE public.items SET price = ?', 'public.items'];
+        yield 'update backticked' => ['UPDATE `items` SET price = ?', 'items'];
+        yield 'update sqlite OR FAIL' => ['UPDATE OR FAIL items SET price = ?', 'items'];
+        yield 'update with alias (no target)' => ['UPDATE items i SET price = ?', null];
+
+        // DELETE
+        yield 'delete simple' => ['DELETE FROM items WHERE id = ?', 'items'];
+        yield 'delete lowercase' => ['delete from items', 'items'];
+        yield 'delete qualified' => ['DELETE FROM public.items', 'public.items'];
+        yield 'delete bracketed' => ['DELETE FROM [items] WHERE id = 1', 'items'];
+
+        // SELECT
+        yield 'select star' => ['SELECT * FROM items', 'items'];
+        yield 'select with where' => ['SELECT id FROM items WHERE name = ?', 'items'];
+        yield 'select with join' => ['SELECT * FROM items JOIN orders ON items.id = orders.item_id', 'items'];
+        yield 'select with alias' => ['SELECT u.name FROM users u WHERE u.id = ?', 'users'];
+        yield 'select count' => ['SELECT COUNT(*) FROM items', 'items'];
+        yield 'select multiline' => ["SELECT *\n  FROM items\n  WHERE id = ?", 'items'];
+        yield 'select qualified' => ['SELECT * FROM public.items', 'public.items'];
+
+        // REPLACE (MySQL/SQLite)
+        yield 'replace into' => ['REPLACE INTO items VALUES (?)', 'items'];
+
+        // No target / unsupported
+        yield 'begin' => ['BEGIN', null];
+        yield 'commit' => ['COMMIT', null];
+        yield 'rollback' => ['ROLLBACK', null];
+        yield 'create table' => ['CREATE TABLE items (id INT)', null];
+        // Subquery in FROM: regex backtracks past the outer `(` to find the
+        // first FROM followed by a valid identifier, which is the inner table.
+        // Acceptable for span-naming since cardinality is still bounded.
+        yield 'select subquery captures inner table' => ['SELECT * FROM (SELECT id FROM users) sub', 'users'];
+        yield 'empty' => ['', null];
+        yield 'unknown' => ['EXPLAIN ANALYZE SELECT 1', null];
+    }
+
+    #[DataProvider('spanNameProvider')]
+    public function testSpanName(string $operation, ?string $target, ?string $dbName, string $expected): void
+    {
+        self::assertSame($expected, SqlOperationExtractor::spanName($operation, $target, $dbName));
+    }
+
+    /**
+     * @return iterable<string, array{string, ?string, ?string, string}>
      */
     public static function spanNameProvider(): iterable
     {
-        yield 'short sql' => ['SELECT * FROM users', 'SELECT * FROM users'];
-        yield 'exact 120 chars' => [str_repeat('x', 120), str_repeat('x', 120)];
-        yield 'over 120 chars' => [str_repeat('x', 121), str_repeat('x', 117) . '...'];
-        yield 'way over 120' => [str_repeat('A', 300), str_repeat('A', 117) . '...'];
-        yield 'empty string' => ['', 'SQL'];
-        yield 'whitespace only' => ['   ', 'SQL'];
-        yield 'leading whitespace preserved' => ['  SELECT 1', 'SELECT 1'];
-    }
-
-    public function testSpanNameWithMultibyteCharacters(): void
-    {
-        $sql = 'SELECT * FROM données WHERE clé = ?';
-        self::assertSame($sql, SqlOperationExtractor::spanName($sql));
-
-        $longUtf8 = 'SELECT ' . str_repeat('é', 120);
-        $result = SqlOperationExtractor::spanName($longUtf8);
-        self::assertStringEndsWith('...', $result);
-        self::assertTrue(mb_check_encoding($result, 'UTF-8'));
-    }
-
-    #[DataProvider('operationSpanNameProvider')]
-    public function testOperationSpanName(string $operation, ?string $dbName, string $expected): void
-    {
-        self::assertSame($expected, SqlOperationExtractor::operationSpanName($operation, $dbName));
-    }
-
-    /**
-     * @return iterable<string, array{string, ?string, string}>
-     */
-    public static function operationSpanNameProvider(): iterable
-    {
-        yield 'with db name' => ['SELECT', 'my_db', 'SELECT my_db'];
-        yield 'without db name' => ['INSERT', null, 'INSERT'];
-        yield 'begin with db' => ['BEGIN', 'app', 'BEGIN app'];
-        yield 'commit without db' => ['COMMIT', null, 'COMMIT'];
+        yield 'target wins over db' => ['SELECT', 'items', 'my_db', 'SELECT items'];
+        yield 'target only' => ['INSERT', 'items', null, 'INSERT items'];
+        yield 'db only' => ['SELECT', null, 'my_db', 'SELECT my_db'];
+        yield 'neither' => ['BEGIN', null, null, 'BEGIN'];
     }
 }

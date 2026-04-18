@@ -61,7 +61,7 @@ final class TraceableStatementTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('SELECT * FROM orders WHERE user_id = ?', $spans[0]->getName());
+        self::assertSame('SELECT orders', $spans[0]->getName());
         self::assertSame(SpanKind::KIND_CLIENT, $spans[0]->getKind());
 
         $attributes = $spans[0]->getAttributes()->toArray();
@@ -69,6 +69,7 @@ final class TraceableStatementTest extends TestCase
         self::assertSame('postgresql', $attributes['db.system']);
         self::assertSame('SELECT', $attributes['db.operation.name']);
         self::assertSame('SELECT', $attributes['db.operation']);
+        self::assertSame('orders', $attributes['db.collection.name']);
         self::assertSame('my_db', $attributes['db.namespace']);
         self::assertSame('my_db', $attributes['db.name']);
         self::assertSame('SELECT * FROM orders WHERE user_id = ?', $attributes['db.query.text']);
@@ -104,7 +105,7 @@ final class TraceableStatementTest extends TestCase
         self::assertSame('Deadlock', $spans[0]->getStatus()->getDescription());
     }
 
-    public function testSpanNameIsSqlWhenRecordStatementsEnabled(): void
+    public function testSpanNameIsLowCardinalityWhenRecordStatementsEnabled(): void
     {
         $inner = $this->createStub(Statement::class);
         $inner->method('execute')->willReturn($this->createStub(Result::class));
@@ -123,7 +124,7 @@ final class TraceableStatementTest extends TestCase
         $statement->execute();
 
         $span = $this->exporter->getSpans()[0];
-        self::assertSame('UPDATE accounts SET balance = ? WHERE id = ?', $span->getName());
+        self::assertSame('UPDATE accounts', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('UPDATE accounts SET balance = ? WHERE id = ?', $attr['db.query.text']);
         self::assertSame('UPDATE accounts SET balance = ? WHERE id = ?', $attr['db.statement']);
@@ -148,7 +149,7 @@ final class TraceableStatementTest extends TestCase
         $statement->execute();
 
         $span = $this->exporter->getSpans()[0];
-        self::assertSame('SELECT app', $span->getName());
+        self::assertSame('SELECT users', $span->getName());
         self::assertArrayNotHasKey('db.query.text', $span->getAttributes()->toArray());
         self::assertArrayNotHasKey('db.statement', $span->getAttributes()->toArray());
     }
@@ -172,7 +173,7 @@ final class TraceableStatementTest extends TestCase
         $statement->execute();
 
         $span = $this->exporter->getSpans()[0];
-        self::assertSame('INSERT', $span->getName());
+        self::assertSame('INSERT logs', $span->getName());
         self::assertArrayNotHasKey('db.query.text', $span->getAttributes()->toArray());
         self::assertArrayNotHasKey('db.statement', $span->getAttributes()->toArray());
     }

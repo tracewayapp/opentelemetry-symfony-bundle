@@ -25,17 +25,20 @@ final class DbSpanBuilder
         ?int $serverPort,
     ): SpanBuilderInterface {
         $operation = SqlOperationExtractor::extract($sql);
-
-        $spanName = $recordStatements
-            ? SqlOperationExtractor::spanName($sql)
-            : SqlOperationExtractor::operationSpanName($operation, $dbName);
+        $target = SqlOperationExtractor::extractTarget($sql);
+        $spanName = SqlOperationExtractor::spanName($operation, $target, $dbName);
 
         $builder = $tracer->spanBuilder($spanName)
             ->setSpanKind(SpanKind::KIND_CLIENT)
             ->setAttribute(DbAttributes::DB_SYSTEM_NAME, $dbSystem)
             ->setAttribute('db.system', $dbSystem)
             ->setAttribute(DbAttributes::DB_OPERATION_NAME, $operation)
-            ->setAttribute('db.operation', $operation);
+            ->setAttribute('db.operation', $operation)
+            ->setAttribute(DbAttributes::DB_QUERY_SUMMARY, $spanName);
+
+        if ($target !== null) {
+            $builder->setAttribute(DbAttributes::DB_COLLECTION_NAME, $target);
+        }
 
         if ($dbName !== null) {
             $builder->setAttribute(DbAttributes::DB_NAMESPACE, $dbName);

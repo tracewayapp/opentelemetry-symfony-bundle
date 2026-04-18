@@ -10,6 +10,7 @@ use Doctrine\DBAL\Driver\Statement;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\API\Trace\TracerInterface;
+use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 
 final class TraceableStatementDbal4 extends AbstractStatementMiddleware
 {
@@ -50,6 +51,7 @@ final class TraceableStatementDbal4 extends AbstractStatementMiddleware
         } catch (\Throwable $e) {
             $span->recordException($e);
             $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
+            $span->setAttribute(ErrorAttributes::ERROR_TYPE, $e::class);
 
             throw $e;
         } finally {

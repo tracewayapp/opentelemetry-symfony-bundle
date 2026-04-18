@@ -180,6 +180,34 @@ final class OpenTelemetryTwigExtensionTest extends TestCase
         self::assertSame('twig.render debug_page.html.twig', $spans[0]->getName());
     }
 
+    public function testResetDrainsOrphanedSpans(): void
+    {
+        $profile = new Profile('page.html.twig', Profile::TEMPLATE, 'page.html.twig');
+
+        $this->extension->enter($profile);
+        $this->extension->reset();
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame('twig.render page.html.twig', $spans[0]->getName());
+    }
+
+    public function testResetAllowsNewSpansAfterwards(): void
+    {
+        $first = new Profile('old.html.twig', Profile::TEMPLATE, 'old.html.twig');
+        $this->extension->enter($first);
+        $this->extension->reset();
+
+        $second = new Profile('new.html.twig', Profile::TEMPLATE, 'new.html.twig');
+        $this->extension->enter($second);
+        $this->extension->leave($second);
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(2, $spans);
+        self::assertSame('twig.render old.html.twig', $spans[0]->getName());
+        self::assertSame('twig.render new.html.twig', $spans[1]->getName());
+    }
+
     public function testSplObjectIdMatchingHandlesDuplicateTemplateNames(): void
     {
         $first = new Profile('partial.html.twig', Profile::TEMPLATE, 'partial.html.twig');

@@ -55,7 +55,7 @@ final class TraceableNamespacedCachePoolTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('cache.get key', $spans[0]->getName());
+        self::assertSame('cache.get', $spans[0]->getName());
     }
 
     public function testConstructorRejectsNonNamespacedPool(): void

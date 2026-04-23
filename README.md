@@ -8,7 +8,7 @@
 [![Symfony Version](https://img.shields.io/badge/symfony-%3E%3D6.4-000000.svg)](https://symfony.com)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Pure-PHP OpenTelemetry instrumentation for Symfony — automatic tracing for HTTP, Console, HttpClient, Messenger, Doctrine DBAL, Cache, and Twig, plus Monolog log-trace correlation and OpenTelemetry log export. No C extension required.
+Pure-PHP OpenTelemetry instrumentation for Symfony — automatic tracing for HTTP, Console, HttpClient, Messenger, Doctrine DBAL, Cache, and Twig, plus Monolog log-trace correlation, OpenTelemetry log export, and opt-in metrics for Messenger processing. No C extension required.
 
 Works with any OpenTelemetry-compatible backend: [Traceway](https://tracewayapp.com), [Jaeger](https://www.jaegertracing.io/), [Zipkin](https://zipkin.io/), [Datadog](https://www.datadoghq.com/), [Grafana Tempo](https://grafana.com/oss/tempo/), [Honeycomb](https://www.honeycomb.io/), and more.
 
@@ -91,6 +91,18 @@ open_telemetry:
 
     log_export_enabled: false        # export logs via OTel Logs API (requires symfony/monolog-bundle)
     log_export_level: debug          # debug | info | notice | warning | error | critical | alert | emergency
+
+    # `metrics` is intentionally nested. The rest of the bundle still uses
+    # flat keys for 1.x, but metrics landed nested from day one to align with
+    # the planned v2.0 config rework. Flat keys for tracing/logs will migrate
+    # to the nested shape in v2.0 — this is not an inconsistency, it is a
+    # forward-compatible choice.
+    metrics:
+        enabled: false                 # register MeterRegistry for manual instrumentation
+        meter_name: 'opentelemetry-symfony'
+        messenger:
+            enabled: false             # emit messaging.process.duration / messaging.client.consumed.messages
+            excluded_queues: []
 ```
 
 ### Environment Variables
@@ -132,6 +144,75 @@ class OrderService
 ```
 
 Mock in tests with `$this->createStub(TracingInterface::class)` and have `trace()` invoke the callback directly.
+
+## Metrics
+
+**Off by default.** Enable to export OpenTelemetry metrics alongside traces, with opt-in automatic instrumentation for Symfony Messenger.
+
+```yaml
+open_telemetry:
+    metrics:
+        enabled: true
+        meter_name: 'opentelemetry-symfony'
+        messenger:
+            enabled: true
+            excluded_queues: []
+```
+
+### What Gets Measured
+
+Emitted on the consume path of the Messenger bus:
+
+| Instrument | Kind | Unit | Attributes |
+|---|---|---|---|
+| `messaging.process.duration` | Histogram | `s` | `messaging.system`, `messaging.operation.name`, `messaging.operation.type`, `messaging.destination.name`, `error.type` on failure |
+| `messaging.client.consumed.messages` | Counter | `{message}` | Same as above |
+
+Names and attributes follow the [OTel messaging metrics semantic conventions](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-metrics/). All messaging metrics and attributes are currently **Development** in the spec. The general `error.type` attribute is Stable. Service identity (`service.name`, `service.namespace`, `service.version`) comes from the OTel resource, set via `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES`, not from metric name prefixing.
+
+`messenger.excluded_queues` is matched on `ReceivedStamp::getTransportName()` (consume path only). Dispatch-side exclusion and dispatch metrics (`messaging.client.sent.messages`, `messaging.client.operation.duration`) are out of scope for this first metrics drop.
+
+### Manual Instrumentation
+
+Inject `MeterRegistryInterface` to record your own counters, histograms, and up/down counters without touching the `MeterProvider` directly:
+
+```php
+use OpenTelemetry\API\Metrics\CounterInterface;
+use Traceway\OpenTelemetryBundle\Metrics\MeterRegistryInterface;
+
+final class MediaDownloader
+{
+    private readonly CounterInterface $downloads;
+
+    public function __construct(MeterRegistryInterface $metrics)
+    {
+        $this->downloads = $metrics->counter(
+            'media.download.count',
+            description: 'Media downloads by outcome',
+        );
+    }
+
+    public function download(string $url): void
+    {
+        try {
+            // ... download logic
+            $this->downloads->add(1, ['outcome' => 'success']);
+        } catch (\Throwable $e) {
+            $this->downloads->add(1, ['outcome' => 'error', 'error.type' => $e::class]);
+            throw $e;
+        }
+    }
+}
+```
+
+The registry caches instruments per name, so repeated `->counter('x')` calls return the same instance. When the OTel SDK is not configured, the NoOp meter provider returns no-op instruments and calls silently do nothing — safe to inject unconditionally.
+
+### Environment Variables
+
+| Variable | Example | Description |
+|---|---|---|
+| `OTEL_METRICS_EXPORTER` | `otlp` | Metrics exporter (`otlp`, `console`, `none`) — only used when `metrics.enabled: true` |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | `http://localhost:4318/v1/metrics` | Override the generic `OTEL_EXPORTER_OTLP_ENDPOINT` for metrics |
 
 ## Performance
 

@@ -13,3 +13,12 @@ services:
 
     Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware:
         autoconfigure: true
+
+    Traceway\OpenTelemetryBundle\Metrics\MeterRegistry:
+        autoconfigure: true
+
+    Traceway\OpenTelemetryBundle\Metrics\MeterRegistryInterface:
+        alias: Traceway\OpenTelemetryBundle\Metrics\MeterRegistry
+
+    Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMetricsMiddleware:
+        autoconfigure: true

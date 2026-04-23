@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace Traceway\OpenTelemetryBundle\Tests\Functional;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OtelLoggerFlushSubscriber;
+use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMetricsMiddleware;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
+use Traceway\OpenTelemetryBundle\Metrics\MeterRegistry;
+use Traceway\OpenTelemetryBundle\Metrics\MeterRegistryInterface;
 use Traceway\OpenTelemetryBundle\Monolog\OtelLogHandler;
 use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\TracingInterface;
@@ -147,6 +151,51 @@ final class BundleBootTest extends TestCase
         self::assertFalse(
             $this->kernel->getContainer()->getParameter('open_telemetry.cache_enabled'),
         );
+    }
+
+    public function testMetricsDisabledByDefault(): void
+    {
+        $container = $this->boot();
+
+        self::assertFalse($container->has(MeterRegistry::class));
+        self::assertFalse($container->has(MeterRegistryInterface::class));
+        self::assertFalse($container->has(OpenTelemetryMetricsMiddleware::class));
+    }
+
+    public function testMetricsEnabledRegistersMeterRegistry(): void
+    {
+        $container = $this->boot(['metrics' => ['enabled' => true]]);
+
+        self::assertInstanceOf(MeterRegistry::class, $container->get(MeterRegistry::class));
+        self::assertInstanceOf(MeterRegistry::class, $container->get(MeterRegistryInterface::class));
+        self::assertFalse($container->has(OpenTelemetryMetricsMiddleware::class));
+    }
+
+    public function testMessengerMetricsEnabledRegistersSubscriber(): void
+    {
+        $container = $this->boot([
+            'metrics' => [
+                'enabled' => true,
+                'messenger' => ['enabled' => true],
+            ],
+        ]);
+
+        self::assertInstanceOf(
+            OpenTelemetryMetricsMiddleware::class,
+            $container->get(OpenTelemetryMetricsMiddleware::class),
+        );
+    }
+
+    public function testMessengerMetricsWithoutMetricsEnabledFails(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('metrics.messenger.enabled');
+
+        $this->boot([
+            'metrics' => [
+                'messenger' => ['enabled' => true],
+            ],
+        ]);
     }
 
     /**

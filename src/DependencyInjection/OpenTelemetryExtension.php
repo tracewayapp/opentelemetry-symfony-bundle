@@ -17,7 +17,10 @@ use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableMiddleware as Doct
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OtelLoggerFlushSubscriber;
+use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMetricsMiddleware;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
+use Traceway\OpenTelemetryBundle\Metrics\MeterRegistry;
+use Traceway\OpenTelemetryBundle\Metrics\MeterRegistryInterface;
 use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\Monolog\OtelLogHandler;
 use Traceway\OpenTelemetryBundle\Monolog\TraceContextProcessor;
@@ -30,18 +33,27 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         $configs = $container->getExtensionConfig($this->getAlias());
         $config = $this->processConfiguration(new Configuration(), $configs);
 
-        if ($config['messenger_enabled'] && $this->isMessengerAvailable()) {
-            $container->prependExtensionConfig('framework', [
-                'messenger' => [
-                    'buses' => [
-                        'messenger.bus.default' => [
-                            'middleware' => [
-                                OpenTelemetryMiddleware::class,
+        if ($this->isMessengerAvailable()) {
+            $middlewares = [];
+            if ($config['messenger_enabled']) {
+                $middlewares[] = OpenTelemetryMiddleware::class;
+            }
+            /** @var array{enabled?: bool, messenger?: array{enabled?: bool}} $metrics */
+            $metrics = $config['metrics'] ?? [];
+            if (($metrics['enabled'] ?? false) && ($metrics['messenger']['enabled'] ?? false)) {
+                $middlewares[] = OpenTelemetryMetricsMiddleware::class;
+            }
+            if ([] !== $middlewares) {
+                $container->prependExtensionConfig('framework', [
+                    'messenger' => [
+                        'buses' => [
+                            'messenger.bus.default' => [
+                                'middleware' => $middlewares,
                             ],
                         ],
                     ],
-                ],
-            ]);
+                ]);
+            }
         }
 
         if ($config['log_export_enabled']) {
@@ -146,6 +158,26 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $monologDef = new Definition(TraceContextProcessor::class);
             $monologDef->addTag('monolog.processor');
             $container->setDefinition(TraceContextProcessor::class, $monologDef);
+        }
+
+        /** @var array{enabled: bool, meter_name: string, messenger: array{enabled: bool, excluded_queues: list<string>}} $metrics */
+        $metrics = $config['metrics'];
+        $meterName = $metrics['meter_name'];
+
+        if ($metrics['enabled']) {
+            $container->getDefinition(MeterRegistry::class)
+                ->setArgument('$meterName', $meterName);
+        } else {
+            $container->removeDefinition(MeterRegistry::class);
+            $container->removeAlias(MeterRegistryInterface::class);
+        }
+
+        if ($metrics['enabled'] && $metrics['messenger']['enabled'] && $this->isMessengerAvailable()) {
+            $container->getDefinition(OpenTelemetryMetricsMiddleware::class)
+                ->setArgument('$meterName', $meterName)
+                ->setArgument('$excludedQueues', $metrics['messenger']['excluded_queues']);
+        } else {
+            $container->removeDefinition(OpenTelemetryMetricsMiddleware::class);
         }
     }
 

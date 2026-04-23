@@ -103,6 +103,9 @@ open_telemetry:
         messenger:
             enabled: false             # emit messaging.process.duration / messaging.client.consumed.messages
             excluded_queues: []
+        http_server:
+            enabled: false             # emit http.server.request.duration / active_requests / body sizes
+            excluded_paths: []         # same path-prefix rules as the tracing excluded_paths
 ```
 
 ### Environment Variables
@@ -161,16 +164,29 @@ open_telemetry:
 
 ### What Gets Measured
 
-Emitted on the consume path of the Messenger bus:
+**Messenger** (consume path):
 
-| Instrument | Kind | Unit | Attributes |
-|---|---|---|---|
-| `messaging.process.duration` | Histogram | `s` | `messaging.system`, `messaging.operation.name`, `messaging.operation.type`, `messaging.destination.name`, `error.type` on failure |
-| `messaging.client.consumed.messages` | Counter | `{message}` | Same as above |
+| Instrument | Kind | Unit | Stability | Attributes |
+|---|---|---|---|---|
+| `messaging.process.duration` | Histogram | `s` | Development | `messaging.system`, `messaging.operation.name`, `messaging.operation.type`, `messaging.destination.name`, `error.type` on failure |
+| `messaging.client.consumed.messages` | Counter | `{message}` | Development | Same as above |
 
-Names and attributes follow the [OTel messaging metrics semantic conventions](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-metrics/). All messaging metrics and attributes are currently **Development** in the spec. The general `error.type` attribute is Stable. Service identity (`service.name`, `service.namespace`, `service.version`) comes from the OTel resource, set via `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES`, not from metric name prefixing.
+Names and attributes follow the [OTel messaging metrics semantic conventions](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-metrics/). Every messaging metric and messaging-specific attribute is currently **Development** in the spec; only `error.type` is Stable.
 
-`messenger.excluded_queues` is matched on `ReceivedStamp::getTransportName()` (consume path only). Dispatch-side exclusion and dispatch metrics (`messaging.client.sent.messages`, `messaging.client.operation.duration`) are out of scope for this first metrics drop.
+`messenger.excluded_queues` is matched on `ReceivedStamp::getTransportName()` (consume path only). Dispatch-side metrics (`messaging.client.sent.messages`, `messaging.client.operation.duration`) are out of scope for this first drop.
+
+**HTTP Server** (incoming requests):
+
+| Instrument | Kind | Unit | Stability | Attributes |
+|---|---|---|---|---|
+| `http.server.request.duration` | Histogram | `s` | **Stable** | `http.request.method`, `url.scheme`, `http.route` if matched, `http.response.status_code`, `server.address`, `server.port`, `error.type` on failure |
+| `http.server.active_requests` | UpDownCounter | `{request}` | Development | `http.request.method`, `url.scheme`, `server.address`, `server.port` |
+| `http.server.request.body.size` | Histogram | `By` | Development | Same as duration (emitted when `Content-Length` is set) |
+| `http.server.response.body.size` | Histogram | `By` | Development | Same as duration (emitted when `Content-Length` is set) |
+
+Names follow the [OTel HTTP metrics semantic conventions](https://opentelemetry.io/docs/specs/semconv/http/http-metrics/). Only main requests are measured; sub-requests are already covered by the main request duration. `http_server.excluded_paths` uses the same prefix-match rules as the tracing `excluded_paths`.
+
+Service identity (`service.name`, `service.namespace`, `service.version`) comes from the OTel resource, set via `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES`, not from metric name prefixing.
 
 ### Manual Instrumentation
 

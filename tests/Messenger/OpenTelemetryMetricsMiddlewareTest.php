@@ -39,7 +39,7 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
         $counter = $metrics['messaging.client.consumed.messages'];
         self::assertSame('{message}', $counter->unit);
 
-        $points = iterator_to_array($counter->data->dataPoints);
+        $points = [...$counter->data->dataPoints];
         self::assertCount(1, $points);
         self::assertSame(1, $points[0]->value);
 
@@ -53,7 +53,7 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
         self::assertArrayHasKey('messaging.process.duration', $metrics);
         $hist = $metrics['messaging.process.duration'];
         self::assertSame('s', $hist->unit);
-        $histPoints = iterator_to_array($hist->data->dataPoints);
+        $histPoints = [...$hist->data->dataPoints];
         self::assertCount(1, $histPoints);
         self::assertSame(1, $histPoints[0]->count);
         self::assertGreaterThanOrEqual(0.0, $histPoints[0]->sum);
@@ -78,7 +78,7 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
         }
 
         $metrics = $this->collectMetrics();
-        $points = iterator_to_array($metrics['messaging.client.consumed.messages']->data->dataPoints);
+        $points = [...$metrics['messaging.client.consumed.messages']->data->dataPoints];
         self::assertCount(1, $points);
         self::assertSame('RuntimeException', $points[0]->attributes->toArray()['error.type']);
 
@@ -114,7 +114,7 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
         $middleware->handle($envelope, new StackMiddleware());
 
         $metrics = $this->collectMetrics();
-        $points = iterator_to_array($metrics['messaging.client.consumed.messages']->data->dataPoints);
+        $points = [...$metrics['messaging.client.consumed.messages']->data->dataPoints];
         self::assertArrayNotHasKey('messaging.destination.name', $points[0]->attributes->toArray());
     }
 
@@ -128,7 +128,7 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
         $middleware->handle($envelope, new StackMiddleware());
 
         $metrics = $this->collectMetrics();
-        $points = iterator_to_array($metrics['messaging.client.consumed.messages']->data->dataPoints);
+        $points = [...$metrics['messaging.client.consumed.messages']->data->dataPoints];
         self::assertCount(1, $points);
         self::assertSame(2, $points[0]->value);
     }

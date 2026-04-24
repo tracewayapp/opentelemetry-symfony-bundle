@@ -198,6 +198,38 @@ final class BundleBootTest extends TestCase
         ]);
     }
 
+    public function testHttpClientMetricsDisabledByDefault(): void
+    {
+        $container = $this->boot(['metrics' => ['enabled' => true]]);
+
+        self::assertFalse($container->getParameter('open_telemetry.http_client_metrics_enabled'));
+    }
+
+    public function testHttpClientMetricsEnabledSetsParameter(): void
+    {
+        $container = $this->boot([
+            'metrics' => [
+                'enabled' => true,
+                'http_client' => ['enabled' => true, 'excluded_hosts' => ['cdn.example.com']],
+            ],
+        ]);
+
+        self::assertTrue($container->getParameter('open_telemetry.http_client_metrics_enabled'));
+        self::assertSame(['cdn.example.com'], $container->getParameter('open_telemetry.http_client_metrics_excluded_hosts'));
+    }
+
+    public function testHttpClientMetricsWithoutMetricsEnabledFails(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('metrics.http_client.enabled');
+
+        $this->boot([
+            'metrics' => [
+                'http_client' => ['enabled' => true],
+            ],
+        ]);
+    }
+
     /**
      * @param array<string, mixed> $otelConfig
      * @param list<\Symfony\Component\HttpKernel\Bundle\BundleInterface> $extraBundles

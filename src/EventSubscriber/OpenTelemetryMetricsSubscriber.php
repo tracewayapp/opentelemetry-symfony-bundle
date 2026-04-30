@@ -102,10 +102,16 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
             return;
         }
 
-        $this->getActiveRequestsCounter()->add(1, $this->baseAttributes($request));
+        $activeCounted = false;
+        try {
+            $this->getActiveRequestsCounter()->add(1, $this->baseAttributes($request));
+            $activeCounted = true;
+        } catch (\Throwable) {
+        }
+
         $this->requestData[$request] = [
             'start' => hrtime(true),
-            'active_counted' => true,
+            'active_counted' => $activeCounted,
         ];
     }
 
@@ -175,29 +181,32 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
             return;
         }
 
-        $attributes = $this->baseAttributes($request);
-        if (isset($data['route'])) {
-            $attributes[HttpAttributes::HTTP_ROUTE] = $data['route'];
-        }
+        try {
+            $attributes = $this->baseAttributes($request);
+            if (isset($data['route'])) {
+                $attributes[HttpAttributes::HTTP_ROUTE] = $data['route'];
+            }
 
-        $response = $event->getResponse();
-        $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE] = $response->getStatusCode();
+            $response = $event->getResponse();
+            $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE] = $response->getStatusCode();
 
-        if (isset($data['exception'])) {
-            $attributes[ErrorAttributes::ERROR_TYPE] = self::resolveErrorType($data['exception']);
-        }
+            if (isset($data['exception'])) {
+                $attributes[ErrorAttributes::ERROR_TYPE] = self::resolveErrorType($data['exception']);
+            }
 
-        $durationSeconds = (hrtime(true) - $data['start']) / 1_000_000_000;
-        $this->getDurationHistogram()->record($durationSeconds, $attributes);
+            $durationSeconds = (hrtime(true) - $data['start']) / 1_000_000_000;
+            $this->getDurationHistogram()->record($durationSeconds, $attributes);
 
-        $requestBodySize = $request->headers->get('Content-Length');
-        if (null !== $requestBodySize && ctype_digit($requestBodySize)) {
-            $this->getRequestBodySizeHistogram()->record((int) $requestBodySize, $attributes);
-        }
+            $requestBodySize = $request->headers->get('Content-Length');
+            if (null !== $requestBodySize && ctype_digit($requestBodySize)) {
+                $this->getRequestBodySizeHistogram()->record((int) $requestBodySize, $attributes);
+            }
 
-        $responseBodySize = $response->headers->get('Content-Length');
-        if (null !== $responseBodySize && ctype_digit($responseBodySize)) {
-            $this->getResponseBodySizeHistogram()->record((int) $responseBodySize, $attributes);
+            $responseBodySize = $response->headers->get('Content-Length');
+            if (null !== $responseBodySize && ctype_digit($responseBodySize)) {
+                $this->getResponseBodySizeHistogram()->record((int) $responseBodySize, $attributes);
+            }
+        } catch (\Throwable) {
         }
     }
 
@@ -214,7 +223,10 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
         }
 
         if ($data['active_counted']) {
-            $this->getActiveRequestsCounter()->add(-1, $this->baseAttributes($request));
+            try {
+                $this->getActiveRequestsCounter()->add(-1, $this->baseAttributes($request));
+            } catch (\Throwable) {
+            }
         }
 
         unset($this->requestData[$request]);

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\Tests\EventSubscriber;
 
+use OpenTelemetry\API\Metrics\HistogramInterface;
+use OpenTelemetry\API\Metrics\UpDownCounterInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -265,5 +267,56 @@ final class OpenTelemetryMetricsSubscriberTest extends TestCase
         self::assertArrayHasKey('http.server.request.duration', $metrics);
         $points = [...$metrics['http.server.request.duration']->data->dataPoints];
         self::assertSame(2, $points[0]->count);
+    }
+
+    public function testOnRequestSwallowsActiveCounterFailure(): void
+    {
+        $this->injectBrokenActiveRequestsCounter();
+
+        $request = Request::create('/api/items', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onResponse(new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new Response('', 200)));
+        $this->subscriber->onFinishRequest(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+
+        $metrics = $this->collectMetrics();
+        self::assertArrayHasKey('http.server.request.duration', $metrics);
+    }
+
+    public function testOnResponseSwallowsDurationRecordingFailure(): void
+    {
+        $this->injectBrokenDurationHistogram();
+
+        $request = Request::create('/api/items', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onResponse(new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new Response('', 200)));
+        $this->subscriber->onFinishRequest(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+
+        self::assertTrue(true);
+    }
+
+    private function injectBrokenActiveRequestsCounter(): void
+    {
+        $broken = $this->createMock(UpDownCounterInterface::class);
+        $broken->method('add')->willThrowException(new \RuntimeException('metrics down'));
+
+        $reflection = new \ReflectionClass($this->subscriber);
+        $property = $reflection->getProperty('activeRequests');
+        $property->setAccessible(true);
+        $property->setValue($this->subscriber, $broken);
+    }
+
+    private function injectBrokenDurationHistogram(): void
+    {
+        $broken = $this->createMock(HistogramInterface::class);
+        $broken->method('record')->willThrowException(new \RuntimeException('metrics down'));
+
+        $reflection = new \ReflectionClass($this->subscriber);
+        $property = $reflection->getProperty('duration');
+        $property->setAccessible(true);
+        $property->setValue($this->subscriber, $broken);
     }
 }

@@ -32,7 +32,7 @@ use Symfony\Contracts\Service\ResetInterface;
  *   - messaging.operation.name          (required) -> "process"
  *   - messaging.operation.type          (trace-correlation) -> "process"
  *   - messaging.destination.name        (conditional) -> ReceivedStamp::getTransportName()
- *   - error.type                        (conditional, on failure) -> short exception class
+ *   - error.type                        (conditional, on failure) -> exception FQCN (parent class for anonymous)
  *
  * excluded_queues matches on the transport name (consume side only), same
  * field the trace middleware uses for messaging.destination.name.
@@ -98,13 +98,24 @@ final class OpenTelemetryMetricsMiddleware implements MiddlewareInterface, Reset
             $attributes['messaging.destination.name'] = $destination;
         }
         if (null !== $exception) {
-            $attributes['error.type'] = (new \ReflectionClass($exception))->getShortName();
+            $attributes['error.type'] = self::resolveErrorType($exception);
         }
 
         $this->getMessagesCounter()->add(1, $attributes);
 
         $durationSeconds = (hrtime(true) - $start) / 1_000_000_000;
         $this->getDurationHistogram()->record($durationSeconds, $attributes);
+    }
+
+    private static function resolveErrorType(\Throwable $exception): string
+    {
+        $type = $exception::class;
+
+        if (str_contains($type, '@anonymous')) {
+            $type = get_parent_class($exception) ?: \Throwable::class;
+        }
+
+        return $type;
     }
 
     /**

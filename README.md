@@ -198,7 +198,11 @@ final class MediaDownloader
             // ... download logic
             $this->downloads->add(1, ['outcome' => 'success']);
         } catch (\Throwable $e) {
-            $this->downloads->add(1, ['outcome' => 'error', 'error.type' => $e::class]);
+            $type = $e::class;
+            if (str_contains($type, '@anonymous')) {
+                $type = get_parent_class($e) ?: \Throwable::class;
+            }
+            $this->downloads->add(1, ['outcome' => 'error', 'error.type' => $type]);
             throw $e;
         }
     }
@@ -206,6 +210,8 @@ final class MediaDownloader
 ```
 
 The registry caches instruments per name, so repeated `->counter('x')` calls return the same instance. When the OTel SDK is not configured, the NoOp meter provider returns no-op instruments and calls silently do nothing — safe to inject unconditionally.
+
+The `@anonymous` guard normalises anonymous class names to their parent: `$e::class` would otherwise embed a filesystem path (`class@anonymous\0/var/www/src/Foo.php:42$0`), which leaks code locations and explodes label cardinality.
 
 ### Environment Variables
 

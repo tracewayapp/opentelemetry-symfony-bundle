@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\Tests\HttpClient;
 
+use OpenTelemetry\API\Metrics\HistogramInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -295,5 +296,68 @@ final class MeteredHttpClientTest extends TestCase
             MeteredHttpClient::DURATION_BUCKET_BOUNDARIES,
             $points[0]->explicitBounds,
         );
+    }
+
+    public function testRecordResponseFailureIsSwallowed(): void
+    {
+        $mockClient = new MockHttpClient(new MockResponse('ok', ['http_code' => 200]));
+        $client = new MeteredHttpClient($mockClient, 'test');
+        $this->injectBrokenDurationHistogram($client);
+
+        $statusCode = $client->request('GET', 'https://api.example.com/data')->getStatusCode();
+
+        self::assertSame(200, $statusCode);
+    }
+
+    public function testRecordFailureDoesNotMaskTransportException(): void
+    {
+        $businessException = new \DomainException('connection refused');
+        $mockClient = new MockHttpClient(function () use ($businessException) {
+            throw $businessException;
+        });
+        $client = new MeteredHttpClient($mockClient, 'test');
+        $this->injectBrokenDurationHistogram($client);
+
+        try {
+            $client->request('GET', 'https://api.example.com/data')->getContent();
+            self::fail('Expected DomainException');
+        } catch (\DomainException $caught) {
+            self::assertSame($businessException, $caught);
+        }
+    }
+
+    public function testRequestBodySizeRecordingFailureIsSwallowed(): void
+    {
+        $mockClient = new MockHttpClient(new MockResponse('ok', ['http_code' => 200]));
+        $client = new MeteredHttpClient($mockClient, 'test');
+        $this->injectBrokenRequestBodySizeHistogram($client);
+
+        $statusCode = $client->request('POST', 'https://api.example.com/items', [
+            'body' => '{"name":"foo"}',
+        ])->getStatusCode();
+
+        self::assertSame(200, $statusCode);
+    }
+
+    private function injectBrokenDurationHistogram(MeteredHttpClient $client): void
+    {
+        $broken = $this->createMock(HistogramInterface::class);
+        $broken->method('record')->willThrowException(new \RuntimeException('metrics down'));
+
+        $reflection = new \ReflectionClass($client);
+        $duration = $reflection->getProperty('duration');
+        $duration->setAccessible(true);
+        $duration->setValue($client, $broken);
+    }
+
+    private function injectBrokenRequestBodySizeHistogram(MeteredHttpClient $client): void
+    {
+        $broken = $this->createMock(HistogramInterface::class);
+        $broken->method('record')->willThrowException(new \RuntimeException('metrics down'));
+
+        $reflection = new \ReflectionClass($client);
+        $requestBodySize = $reflection->getProperty('requestBodySize');
+        $requestBodySize->setAccessible(true);
+        $requestBodySize->setValue($client, $broken);
     }
 }

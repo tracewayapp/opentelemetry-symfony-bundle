@@ -82,7 +82,10 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
         $bodySize = $this->extractRequestBodySize($options);
 
         if (null !== $bodySize) {
-            $this->getRequestBodySizeHistogram()->record($bodySize, $attributes);
+            try {
+                $this->getRequestBodySizeHistogram()->record($bodySize, $attributes);
+            } catch (\Throwable) {
+            }
         }
 
         $start = hrtime(true);
@@ -92,12 +95,11 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
             $response = $this->client->request($method, $url, $options);
         } catch (\Throwable $e) {
             $this->recordFailure($start, $attributes, $e);
-            $this->inFlight = false;
 
             throw $e;
+        } finally {
+            $this->inFlight = false;
         }
-
-        $this->inFlight = false;
 
         return new MeteredResponse($response, $this, $start, $attributes);
     }
@@ -153,13 +155,16 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
      */
     public function recordResponse(int|float $start, array $attributes, int $statusCode, ?int $responseBodySize): void
     {
-        $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE] = $statusCode;
+        try {
+            $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE] = $statusCode;
 
-        $durationSeconds = (hrtime(true) - $start) / 1_000_000_000;
-        $this->getDurationHistogram()->record($durationSeconds, $attributes);
+            $durationSeconds = (hrtime(true) - $start) / 1_000_000_000;
+            $this->getDurationHistogram()->record($durationSeconds, $attributes);
 
-        if (null !== $responseBodySize) {
-            $this->getResponseBodySizeHistogram()->record($responseBodySize, $attributes);
+            if (null !== $responseBodySize) {
+                $this->getResponseBodySizeHistogram()->record($responseBodySize, $attributes);
+            }
+        } catch (\Throwable) {
         }
     }
 
@@ -170,10 +175,13 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
      */
     public function recordFailure(int|float $start, array $attributes, \Throwable $exception): void
     {
-        $attributes[ErrorAttributes::ERROR_TYPE] = self::resolveErrorType($exception);
+        try {
+            $attributes[ErrorAttributes::ERROR_TYPE] = self::resolveErrorType($exception);
 
-        $durationSeconds = (hrtime(true) - $start) / 1_000_000_000;
-        $this->getDurationHistogram()->record($durationSeconds, $attributes);
+            $durationSeconds = (hrtime(true) - $start) / 1_000_000_000;
+            $this->getDurationHistogram()->record($durationSeconds, $attributes);
+        } catch (\Throwable) {
+        }
     }
 
     private static function resolveErrorType(\Throwable $exception): string

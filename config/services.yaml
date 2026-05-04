@@ -22,3 +22,6 @@ services:
 
     Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMetricsMiddleware:
         autoconfigure: true
+
+    Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetryMetricsSubscriber:
+        autoconfigure: true

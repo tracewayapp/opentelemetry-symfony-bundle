@@ -148,6 +148,34 @@ final class Configuration implements ConfigurationInterface
                                 ->end()
                             ->end()
                         ->end()
+                        ->arrayNode('http_server')
+                            ->info('Automatic metrics for incoming HTTP requests.')
+                            ->addDefaultsIfNotSet()
+                            ->children()
+                                ->booleanNode('enabled')
+                                    ->info('Emit http.server.request.duration (histogram), http.server.active_requests (up/down counter), http.server.request.body.size and http.server.response.body.size (histograms). Requires metrics.enabled.')
+                                    ->defaultFalse()
+                                ->end()
+                                ->arrayNode('excluded_paths')
+                                    ->info('URL path prefixes to skip when emitting HTTP server metrics (e.g. /health, /_profiler).')
+                                    ->scalarPrototype()->end()
+                                    ->defaultValue([])
+                                    ->beforeNormalization()
+                                        ->ifArray()
+                                        ->then(static function (array $paths): array {
+                                            $normalized = [];
+                                            foreach ($paths as $p) {
+                                                if (!\is_string($p)) {
+                                                    continue;
+                                                }
+                                                $normalized[] = str_starts_with($p, '/') ? $p : '/' . $p;
+                                            }
+                                            return $normalized;
+                                        })
+                                    ->end()
+                                ->end()
+                            ->end()
+                        ->end()
                     ->end()
                     ->validate()
                         ->ifTrue(static function (array $c): bool {
@@ -155,6 +183,13 @@ final class Configuration implements ConfigurationInterface
                             return true === ($messenger['enabled'] ?? false) && true !== ($c['enabled'] ?? false);
                         })
                         ->thenInvalid('"open_telemetry.metrics.messenger.enabled" requires "open_telemetry.metrics.enabled" to be true.')
+                    ->end()
+                    ->validate()
+                        ->ifTrue(static function (array $c): bool {
+                            $httpServer = \is_array($c['http_server'] ?? null) ? $c['http_server'] : [];
+                            return true === ($httpServer['enabled'] ?? false) && true !== ($c['enabled'] ?? false);
+                        })
+                        ->thenInvalid('"open_telemetry.metrics.http_server.enabled" requires "open_telemetry.metrics.enabled" to be true.')
                     ->end()
                 ->end()
             ->end()

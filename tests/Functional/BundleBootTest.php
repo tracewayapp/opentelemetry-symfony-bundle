@@ -7,6 +7,7 @@ namespace Traceway\OpenTelemetryBundle\Tests\Functional;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
+use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetryMetricsSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OtelLoggerFlushSubscriber;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMetricsMiddleware;
@@ -194,6 +195,40 @@ final class BundleBootTest extends TestCase
         $this->boot([
             'metrics' => [
                 'messenger' => ['enabled' => true],
+            ],
+        ]);
+    }
+
+    public function testHttpServerMetricsDisabledByDefault(): void
+    {
+        $container = $this->boot(['metrics' => ['enabled' => true]]);
+
+        self::assertFalse($container->has(OpenTelemetryMetricsSubscriber::class));
+    }
+
+    public function testHttpServerMetricsEnabledRegistersSubscriber(): void
+    {
+        $container = $this->boot([
+            'metrics' => [
+                'enabled' => true,
+                'http_server' => ['enabled' => true],
+            ],
+        ]);
+
+        self::assertInstanceOf(
+            OpenTelemetryMetricsSubscriber::class,
+            $container->get(OpenTelemetryMetricsSubscriber::class),
+        );
+    }
+
+    public function testHttpServerMetricsWithoutMetricsEnabledFails(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('metrics.http_server.enabled');
+
+        $this->boot([
+            'metrics' => [
+                'http_server' => ['enabled' => true],
             ],
         ]);
     }

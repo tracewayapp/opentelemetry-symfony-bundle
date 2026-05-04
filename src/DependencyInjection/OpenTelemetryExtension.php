@@ -15,6 +15,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Doctrine\DBAL\Driver\Middleware as DoctrineMiddleware;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableMiddleware as DoctrineTraceableMiddleware;
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
+use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetryMetricsSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OtelLoggerFlushSubscriber;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMetricsMiddleware;
@@ -160,7 +161,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->setDefinition(TraceContextProcessor::class, $monologDef);
         }
 
-        /** @var array{enabled: bool, meter_name: string, messenger: array{enabled: bool, excluded_queues: list<string>}} $metrics */
+        /** @var array{enabled: bool, meter_name: string, messenger: array{enabled: bool, excluded_queues: list<string>}, http_server: array{enabled: bool, excluded_paths: list<string>}} $metrics */
         $metrics = $config['metrics'];
         $meterName = $metrics['meter_name'];
 
@@ -178,6 +179,14 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
                 ->setArgument('$excludedQueues', $metrics['messenger']['excluded_queues']);
         } else {
             $container->removeDefinition(OpenTelemetryMetricsMiddleware::class);
+        }
+
+        if ($metrics['enabled'] && $metrics['http_server']['enabled']) {
+            $container->getDefinition(OpenTelemetryMetricsSubscriber::class)
+                ->setArgument('$meterName', $meterName)
+                ->setArgument('$excludedPaths', $metrics['http_server']['excluded_paths']);
+        } else {
+            $container->removeDefinition(OpenTelemetryMetricsSubscriber::class);
         }
     }
 

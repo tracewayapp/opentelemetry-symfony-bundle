@@ -15,6 +15,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 use Symfony\Contracts\HttpClient\ResponseStreamInterface;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
  * Decorates any Symfony HttpClient to emit OpenTelemetry metrics for
@@ -176,23 +177,12 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
     public function recordFailure(int|float $start, array $attributes, \Throwable $exception): void
     {
         try {
-            $attributes[ErrorAttributes::ERROR_TYPE] = self::resolveErrorType($exception);
+            $attributes[ErrorAttributes::ERROR_TYPE] = ErrorTypeResolver::resolve($exception);
 
             $durationSeconds = (hrtime(true) - $start) / 1_000_000_000;
             $this->getDurationHistogram()->record($durationSeconds, $attributes);
         } catch (\Throwable) {
         }
-    }
-
-    private static function resolveErrorType(\Throwable $exception): string
-    {
-        $type = $exception::class;
-
-        if (str_contains($type, '@anonymous')) {
-            $type = get_parent_class($exception) ?: \Throwable::class;
-        }
-
-        return $type;
     }
 
     /**

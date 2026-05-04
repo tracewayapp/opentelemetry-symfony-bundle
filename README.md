@@ -103,6 +103,9 @@ open_telemetry:
         messenger:
             enabled: false             # emit messaging.process.duration / messaging.client.consumed.messages
             excluded_queues: []
+        http_client:
+            enabled: false             # emit http.client.request.duration and body size histograms
+            excluded_hosts: []         # OTLP endpoint is auto-excluded
 ```
 
 ### Environment Variables
@@ -171,6 +174,18 @@ Emitted on the consume path of the Messenger bus:
 Names and attributes follow the [OTel messaging metrics semantic conventions](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-metrics/). All messaging metrics and attributes are currently **Development** in the spec. The general `error.type` attribute is Stable. Service identity (`service.name`, `service.namespace`, `service.version`) comes from the OTel resource, set via `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES`, not from metric name prefixing.
 
 `messenger.excluded_queues` is matched on `ReceivedStamp::getTransportName()` (consume path only). Dispatch-side exclusion and dispatch metrics (`messaging.client.sent.messages`, `messaging.client.operation.duration`) are out of scope for this first metrics drop.
+
+**HTTP Client** (outgoing requests):
+
+| Instrument | Kind | Unit | Stability | Attributes |
+|---|---|---|---|---|
+| `http.client.request.duration` | Histogram | `s` | **Stable** | `http.request.method`, `server.address`, `server.port`, `url.scheme`, `http.response.status_code` on response, `error.type` on transport failure |
+| `http.client.request.body.size` | Histogram | `By` | Development | Same as duration (emitted when `Content-Length` header or a string body is present) |
+| `http.client.response.body.size` | Histogram | `By` | Development | Same as duration (emitted when response `Content-Length` is set or the body is fully read) |
+
+Names follow the [OTel HTTP metrics semantic conventions](https://opentelemetry.io/docs/specs/semconv/http/http-metrics/). `http_client.excluded_hosts` is a list of hostnames to skip; the OTLP endpoint (from `OTEL_EXPORTER_OTLP_ENDPOINT`) is always auto-excluded to prevent instrumentation loops.
+
+Connection-pool metrics (`http.client.open_connections`, `http.client.connection.duration`, `http.client.active_requests`) require low-level access to the HTTP client pool that Symfony HttpClient does not expose; they are out of scope for this drop.
 
 ### Manual Instrumentation
 

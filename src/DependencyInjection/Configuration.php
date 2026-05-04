@@ -148,6 +148,21 @@ final class Configuration implements ConfigurationInterface
                                 ->end()
                             ->end()
                         ->end()
+                        ->arrayNode('http_client')
+                            ->info('Automatic metrics for outgoing HTTP client requests.')
+                            ->addDefaultsIfNotSet()
+                            ->children()
+                                ->booleanNode('enabled')
+                                    ->info('Emit http.client.request.duration (histogram), http.client.request.body.size and http.client.response.body.size (histograms) on outgoing requests. Requires metrics.enabled and symfony/http-client.')
+                                    ->defaultFalse()
+                                ->end()
+                                ->arrayNode('excluded_hosts')
+                                    ->info('Hostnames to skip when emitting HTTP client metrics. The OTLP endpoint is auto-excluded.')
+                                    ->scalarPrototype()->end()
+                                    ->defaultValue([])
+                                ->end()
+                            ->end()
+                        ->end()
                     ->end()
                     ->validate()
                         ->ifTrue(static function (array $c): bool {
@@ -155,6 +170,13 @@ final class Configuration implements ConfigurationInterface
                             return true === ($messenger['enabled'] ?? false) && true !== ($c['enabled'] ?? false);
                         })
                         ->thenInvalid('"open_telemetry.metrics.messenger.enabled" requires "open_telemetry.metrics.enabled" to be true.')
+                    ->end()
+                    ->validate()
+                        ->ifTrue(static function (array $c): bool {
+                            $httpClient = \is_array($c['http_client'] ?? null) ? $c['http_client'] : [];
+                            return true === ($httpClient['enabled'] ?? false) && true !== ($c['enabled'] ?? false);
+                        })
+                        ->thenInvalid('"open_telemetry.metrics.http_client.enabled" requires "open_telemetry.metrics.enabled" to be true.')
                     ->end()
                 ->end()
             ->end()

@@ -7,6 +7,7 @@ namespace Traceway\OpenTelemetryBundle;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\CacheTracingPass;
+use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\HttpClientMetricsPass;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\HttpClientTracingPass;
 
 final class OpenTelemetryBundle extends Bundle
@@ -21,6 +22,7 @@ final class OpenTelemetryBundle extends Bundle
         parent::build($container);
 
         $container->addCompilerPass(new HttpClientTracingPass());
+        $container->addCompilerPass(new HttpClientMetricsPass());
         $container->addCompilerPass(new CacheTracingPass());
     }
 }

@@ -14,6 +14,7 @@ use Symfony\Component\Messenger\Middleware\StackInterface;
 use Symfony\Component\Messenger\Stamp\ConsumedByWorkerStamp;
 use Symfony\Component\Messenger\Stamp\ReceivedStamp;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
  * Emits OpenTelemetry metrics for Symfony Messenger consumer-side processing.
@@ -105,24 +106,13 @@ final class OpenTelemetryMetricsMiddleware implements MiddlewareInterface, Reset
             $attributes['messaging.destination.name'] = $destination;
         }
         if (null !== $exception) {
-            $attributes['error.type'] = self::resolveErrorType($exception);
+            $attributes['error.type'] = ErrorTypeResolver::resolve($exception);
         }
 
         $this->getMessagesCounter()->add(1, $attributes);
 
         $durationSeconds = (hrtime(true) - $start) / 1_000_000_000;
         $this->getDurationHistogram()->record($durationSeconds, $attributes);
-    }
-
-    private static function resolveErrorType(\Throwable $exception): string
-    {
-        $type = $exception::class;
-
-        if (str_contains($type, '@anonymous')) {
-            $type = get_parent_class($exception) ?: \Throwable::class;
-        }
-
-        return $type;
     }
 
     /**

@@ -21,6 +21,7 @@ use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
  * Emits OpenTelemetry metrics for Symfony HTTP server requests.
@@ -191,7 +192,7 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
             $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE] = $response->getStatusCode();
 
             if (isset($data['exception'])) {
-                $attributes[ErrorAttributes::ERROR_TYPE] = self::resolveErrorType($data['exception']);
+                $attributes[ErrorAttributes::ERROR_TYPE] = ErrorTypeResolver::resolve($data['exception']);
             }
 
             $durationSeconds = (hrtime(true) - $data['start']) / 1_000_000_000;
@@ -272,17 +273,6 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
         }
 
         return false;
-    }
-
-    private static function resolveErrorType(\Throwable $exception): string
-    {
-        $type = $exception::class;
-
-        if (str_contains($type, '@anonymous')) {
-            $type = get_parent_class($exception) ?: \Throwable::class;
-        }
-
-        return $type;
     }
 
     private function getMeter(): MeterInterface

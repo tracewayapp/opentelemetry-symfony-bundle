@@ -148,6 +148,16 @@ final class Configuration implements ConfigurationInterface
                                 ->end()
                             ->end()
                         ->end()
+                        ->arrayNode('doctrine')
+                            ->info('Automatic metrics for Doctrine DBAL connections.')
+                            ->addDefaultsIfNotSet()
+                            ->children()
+                                ->booleanNode('enabled')
+                                    ->info('Emit db.client.operation.duration (histogram) for every DBAL query, exec, prepared statement execution and transaction control. Requires metrics.enabled and doctrine/dbal.')
+                                    ->defaultFalse()
+                                ->end()
+                            ->end()
+                        ->end()
                     ->end()
                     ->validate()
                         ->ifTrue(static function (array $c): bool {
@@ -155,6 +165,13 @@ final class Configuration implements ConfigurationInterface
                             return true === ($messenger['enabled'] ?? false) && true !== ($c['enabled'] ?? false);
                         })
                         ->thenInvalid('"open_telemetry.metrics.messenger.enabled" requires "open_telemetry.metrics.enabled" to be true.')
+                    ->end()
+                    ->validate()
+                        ->ifTrue(static function (array $c): bool {
+                            $doctrine = \is_array($c['doctrine'] ?? null) ? $c['doctrine'] : [];
+                            return true === ($doctrine['enabled'] ?? false) && true !== ($c['enabled'] ?? false);
+                        })
+                        ->thenInvalid('"open_telemetry.metrics.doctrine.enabled" requires "open_telemetry.metrics.enabled" to be true.')
                     ->end()
                 ->end()
             ->end()

@@ -10,4 +10,6 @@ parameters:
         analyseAndScan:
             - src/Doctrine/Middleware/TraceableConnectionDbal3.php
             - src/Doctrine/Middleware/TraceableStatementDbal3.php
+            - src/Doctrine/Middleware/MeteredConnectionDbal3.php
+            - src/Doctrine/Middleware/MeteredStatementDbal3.php
     tmpDir: /tmp/phpstan

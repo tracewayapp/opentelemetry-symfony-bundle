@@ -13,6 +13,7 @@ use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\Messenger\Middleware\MiddlewareInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Doctrine\DBAL\Driver\Middleware as DoctrineMiddleware;
+use Traceway\OpenTelemetryBundle\Doctrine\Middleware\MeteredMiddleware as DoctrineMeteredMiddleware;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableMiddleware as DoctrineTraceableMiddleware;
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
@@ -178,6 +179,15 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
                 ->setArgument('$excludedQueues', $metrics['messenger']['excluded_queues']);
         } else {
             $container->removeDefinition(OpenTelemetryMetricsMiddleware::class);
+        }
+
+        /** @var array{doctrine?: array{enabled: bool}} $metricsTyped */
+        $metricsTyped = $metrics;
+        if ($metrics['enabled'] && ($metricsTyped['doctrine']['enabled'] ?? false) && $this->isDoctrineAvailable()) {
+            $definition = new Definition(DoctrineMeteredMiddleware::class);
+            $definition->setArgument('$meterName', $meterName);
+            $definition->addTag('doctrine.middleware');
+            $container->setDefinition(DoctrineMeteredMiddleware::class, $definition);
         }
     }
 

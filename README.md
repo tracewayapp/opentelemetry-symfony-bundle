@@ -161,16 +161,18 @@ open_telemetry:
 
 ### What Gets Measured
 
-Emitted on the consume path of the Messenger bus:
+Emitted on both sides of the Messenger bus:
 
-| Instrument | Kind | Unit | Attributes |
-|---|---|---|---|
-| `messaging.process.duration` | Histogram | `s` | `messaging.system`, `messaging.operation.name`, `messaging.operation.type`, `messaging.destination.name`, `error.type` on failure |
-| `messaging.client.consumed.messages` | Counter | `{message}` | Same as above |
+| Instrument | Kind | Unit | Side | Attributes |
+|---|---|---|---|---|
+| `messaging.process.duration` | Histogram | `s` | consume | `messaging.system`, `messaging.operation.name`, `messaging.operation.type`, `messaging.destination.name`, `error.type` on failure |
+| `messaging.client.consumed.messages` | Counter | `{message}` | consume | Same as above |
+| `messaging.client.operation.duration` | Histogram | `s` | dispatch | Same shape, `messaging.operation.{name,type}` = `send`, destination derived from `SentStamp::getSenderAlias()` (falls back to sender FQCN) |
+| `messaging.client.sent.messages` | Counter | `{message}` | dispatch | Same as above |
 
 Names and attributes follow the [OTel messaging metrics semantic conventions](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-metrics/). All messaging metrics and attributes are currently **Development** in the spec. The general `error.type` attribute is Stable. Service identity (`service.name`, `service.namespace`, `service.version`) comes from the OTel resource, set via `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES`, not from metric name prefixing.
 
-`messenger.excluded_queues` is matched on `ReceivedStamp::getTransportName()` (consume path only). Dispatch-side exclusion and dispatch metrics (`messaging.client.sent.messages`, `messaging.client.operation.duration`) are out of scope for this first metrics drop.
+`messenger.excluded_queues` matches the transport name on both sides — `ReceivedStamp::getTransportName()` on the consume path and `SentStamp::getSenderAlias()` on the dispatch path. A dispatched envelope landing on multiple transports emits one metric point per non-excluded transport.
 
 ### Manual Instrumentation
 

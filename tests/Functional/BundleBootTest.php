@@ -9,6 +9,7 @@ use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OtelLoggerFlushSubscriber;
+use Traceway\OpenTelemetryBundle\Doctrine\Middleware\MeteredMiddleware as DoctrineMeteredMiddleware;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMetricsMiddleware;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
 use Traceway\OpenTelemetryBundle\Metrics\MeterRegistry;
@@ -194,6 +195,37 @@ final class BundleBootTest extends TestCase
         $this->boot([
             'metrics' => [
                 'messenger' => ['enabled' => true],
+            ],
+        ]);
+    }
+
+    public function testDoctrineMetricsEnabledRegistersMiddleware(): void
+    {
+        $container = $this->boot([
+            'metrics' => [
+                'enabled' => true,
+                'doctrine' => ['enabled' => true],
+            ],
+        ]);
+
+        self::assertTrue($container->has(DoctrineMeteredMiddleware::class));
+    }
+
+    public function testDoctrineMetricsDisabledByDefault(): void
+    {
+        $container = $this->boot(['metrics' => ['enabled' => true]]);
+
+        self::assertFalse($container->has(DoctrineMeteredMiddleware::class));
+    }
+
+    public function testDoctrineMetricsWithoutMetricsEnabledFails(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('metrics.doctrine.enabled');
+
+        $this->boot([
+            'metrics' => [
+                'doctrine' => ['enabled' => true],
             ],
         ]);
     }

@@ -125,4 +125,64 @@ final class MeteredConnectionTest extends TestCase
             self::assertSame('app error', $caught->getMessage());
         }
     }
+
+    public function testExecFailureAddsErrorTypeAndRethrows(): void
+    {
+        $this->inner->method('exec')->willThrowException(new \RuntimeException('connection lost'));
+
+        try {
+            $this->connection->exec('DELETE FROM users');
+            self::fail('Expected RuntimeException');
+        } catch (\RuntimeException) {
+        }
+
+        $attr = [...$this->collectMetrics()['db.client.operation.duration']->data->dataPoints][0]->attributes->toArray();
+        self::assertSame('RuntimeException', $attr['error.type']);
+        self::assertSame('DELETE', $attr['db.operation.name']);
+    }
+
+    public function testBeginTransactionFailureAddsErrorTypeAndRethrows(): void
+    {
+        $this->inner->method('beginTransaction')->willThrowException(new \RuntimeException('cannot begin'));
+
+        try {
+            $this->connection->beginTransaction();
+            self::fail('Expected RuntimeException');
+        } catch (\RuntimeException) {
+        }
+
+        $attr = [...$this->collectMetrics()['db.client.operation.duration']->data->dataPoints][0]->attributes->toArray();
+        self::assertSame('RuntimeException', $attr['error.type']);
+        self::assertSame('BEGIN', $attr['db.operation.name']);
+    }
+
+    public function testCommitFailureAddsErrorTypeAndRethrows(): void
+    {
+        $this->inner->method('commit')->willThrowException(new \RuntimeException('commit failed'));
+
+        try {
+            $this->connection->commit();
+            self::fail('Expected RuntimeException');
+        } catch (\RuntimeException) {
+        }
+
+        $attr = [...$this->collectMetrics()['db.client.operation.duration']->data->dataPoints][0]->attributes->toArray();
+        self::assertSame('RuntimeException', $attr['error.type']);
+        self::assertSame('COMMIT', $attr['db.operation.name']);
+    }
+
+    public function testRollBackFailureAddsErrorTypeAndRethrows(): void
+    {
+        $this->inner->method('rollBack')->willThrowException(new \RuntimeException('rollback failed'));
+
+        try {
+            $this->connection->rollBack();
+            self::fail('Expected RuntimeException');
+        } catch (\RuntimeException) {
+        }
+
+        $attr = [...$this->collectMetrics()['db.client.operation.duration']->data->dataPoints][0]->attributes->toArray();
+        self::assertSame('RuntimeException', $attr['error.type']);
+        self::assertSame('ROLLBACK', $attr['db.operation.name']);
+    }
 }

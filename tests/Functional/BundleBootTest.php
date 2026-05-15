@@ -357,7 +357,7 @@ final class BundleBootTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('open-telemetry/contrib-aws');
 
-        $this->boot(['propagator' => 'xray']);
+        $this->boot(['traces' => ['propagator' => 'xray']]);
     }
 
     public function testXRayIdGeneratorWithoutPackageThrowsLogicException(): void
@@ -369,7 +369,7 @@ final class BundleBootTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('open-telemetry/contrib-aws');
 
-        $this->boot(['id_generator' => 'xray']);
+        $this->boot(['traces' => ['id_generator' => 'xray']]);
     }
 
     public function testXRayPropagatorRegistersBootstrapper(): void
@@ -378,7 +378,7 @@ final class BundleBootTest extends TestCase
             $this->markTestSkipped('open-telemetry/contrib-aws is required for this test.');
         }
 
-        $container = $this->boot(['propagator' => 'xray']);
+        $container = $this->boot(['traces' => ['propagator' => 'xray']]);
 
         self::assertInstanceOf(XRayBootstrapper::class, $container->get(XRayBootstrapper::class));
     }
@@ -389,7 +389,7 @@ final class BundleBootTest extends TestCase
             $this->markTestSkipped('open-telemetry/contrib-aws is required for this test.');
         }
 
-        $container = $this->boot(['propagator' => 'w3c+xray']);
+        $container = $this->boot(['traces' => ['propagator' => 'w3c+xray']]);
 
         self::assertInstanceOf(XRayBootstrapper::class, $container->get(XRayBootstrapper::class));
     }
@@ -400,7 +400,7 @@ final class BundleBootTest extends TestCase
             $this->markTestSkipped('open-telemetry/contrib-aws is required for this test.');
         }
 
-        $container = $this->boot(['id_generator' => 'xray']);
+        $container = $this->boot(['traces' => ['id_generator' => 'xray']]);
 
         self::assertInstanceOf(XRayBootstrapper::class, $container->get(XRayBootstrapper::class));
     }

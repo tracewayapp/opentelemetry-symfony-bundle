@@ -33,6 +33,7 @@ use Traceway\OpenTelemetryBundle\Metrics\MeterRegistryInterface;
 use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\Monolog\OtelLogHandler;
 use Traceway\OpenTelemetryBundle\Monolog\TraceContextProcessor;
+use Traceway\OpenTelemetryBundle\XRay\XRayBootstrapper;
 use Traceway\OpenTelemetryBundle\Twig\OpenTelemetryTwigExtension;
 
 final class OpenTelemetryExtension extends Extension implements PrependExtensionInterface
@@ -198,6 +199,22 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->setDefinition(TraceContextProcessor::class, $monologDef);
         }
 
+        $propagator = $config['traces']['propagator'];
+        $idGenerator = $config['traces']['id_generator'];
+
+        if ('w3c' !== $propagator || 'default' !== $idGenerator) {
+            if (!$this->isXRayAvailable()) {
+                throw new \LogicException(
+                    'X-Ray support requires "open-telemetry/contrib-aws". Run: composer require open-telemetry/contrib-aws'
+                );
+            }
+            $xrayDef = new Definition(XRayBootstrapper::class);
+            $xrayDef->setArgument('$propagator', $propagator);
+            $xrayDef->setArgument('$idGenerator', $idGenerator);
+            $xrayDef->setAutoconfigured(true);
+            $container->setDefinition(XRayBootstrapper::class, $xrayDef);
+        }
+
         $metrics = $config['metrics'];
         $meterName = $metrics['meter_name'];
 
@@ -292,5 +309,10 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     private function isMailerAvailable(): bool
     {
         return interface_exists(MailerInterface::class);
+    }
+
+    private function isXRayAvailable(): bool
+    {
+        return class_exists(\OpenTelemetry\Contrib\Aws\Xray\Propagator::class);
     }
 }

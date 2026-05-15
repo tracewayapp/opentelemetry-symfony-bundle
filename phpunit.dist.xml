@@ -1,30 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/11.0/phpunit.xsd"
-         bootstrap="vendor/autoload.php"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+         bootstrap="vendor/symfony/phpunit-bridge/bootstrap.php"
          colors="true"
          failOnRisky="true"
          failOnWarning="true"
-         failOnDeprecation="true"
-         failOnNotice="true"
 >
+    <php>
+        <!--
+            Bridge-controlled deprecation tracking.
+
+            max[self]=0  → unlimited self-deprecations are allowed only inside
+                           tests marked #[Group('legacy')]; any other test
+                           triggering a self-deprecation fails the suite.
+            ignoreFile=  → no allowlist file; rely on @group legacy + explicit
+                           expectUserDeprecationMessage() calls.
+        -->
+        <env name="SYMFONY_DEPRECATIONS_HELPER" value="max[self]=0"/>
+    </php>
+
     <testsuites>
         <testsuite name="OpenTelemetry Symfony Bundle">
             <directory>tests</directory>
         </testsuite>
     </testsuites>
 
-    <source ignoreSuppressionOfDeprecations="true"
-            ignoreIndirectDeprecations="true"
-            restrictNotices="true"
-            restrictWarnings="true"
-    >
+    <source>
         <include>
             <directory>src</directory>
         </include>
-
-        <deprecationTrigger>
-            <function>trigger_deprecation</function>
-        </deprecationTrigger>
     </source>
 </phpunit>

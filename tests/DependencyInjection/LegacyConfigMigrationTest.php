@@ -6,8 +6,8 @@ namespace Traceway\OpenTelemetryBundle\Tests\DependencyInjection;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\TestCase;
+use Symfony\Bridge\PhpUnit\ExpectUserDeprecationMessageTrait;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Configuration;
@@ -17,11 +17,19 @@ use Traceway\OpenTelemetryBundle\DependencyInjection\Configuration;
  * as their v2.0 nested equivalents, emit the documented deprecation message,
  * and hard-fail on same-block flat+nested conflicts.
  *
+ * Uses {@see ExpectUserDeprecationMessageTrait} from symfony/phpunit-bridge
+ * which polyfills `expectUserDeprecationMessage()` on PHPUnit < 11. The class
+ * is marked `#[Group('legacy')]` so the `SYMFONY_DEPRECATIONS_HELPER=max[self]=0`
+ * configured in phpunit.dist.xml lets equivalence tests trigger the deprecation
+ * without per-test plumbing.
+ *
  * Removed in v3.0 along with the BC layer in Configuration::migrateLegacyKeys().
  */
 #[Group('legacy')]
 final class LegacyConfigMigrationTest extends TestCase
 {
+    use ExpectUserDeprecationMessageTrait;
+
     private Processor $processor;
     private Configuration $configuration;
 
@@ -36,7 +44,6 @@ final class LegacyConfigMigrationTest extends TestCase
      * @param array<string, mixed> $nestedInput
      */
     #[DataProvider('legacyKeyProvider')]
-    #[IgnoreDeprecations]
     public function testFlatKeyProducesSameProcessedConfigAsNested(
         string $_oldKey,
         array $flatInput,
@@ -102,12 +109,12 @@ final class LegacyConfigMigrationTest extends TestCase
      * Users who explicitly set the legacy false get the SAME false in the
      * nested target — no surprise "default changed" behavior change for them.
      */
-    #[IgnoreDeprecations]
     public function testUnprefixedAttributesLegacyFalseSurvives(): void
     {
-        $config = $this->processor->processConfiguration($this->configuration, [
-            ['log_export_unprefixed_attributes' => false],
-        ]);
+        $config = $this->processor->processConfiguration(
+            $this->configuration,
+            [['log_export_unprefixed_attributes' => false]],
+        );
 
         self::assertFalse($config['logs']['export']['unprefixed_attributes']);
     }

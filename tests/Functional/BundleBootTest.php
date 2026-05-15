@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Traceway\OpenTelemetryBundle\Tests\Functional;
 
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
@@ -345,9 +344,11 @@ final class BundleBootTest extends TestCase
      * BC coverage for the load() path: legacy flat `traces_enabled` should
      * still disable the subscriber via the deprecation migration layer.
      * Remove in v3.0 alongside the BC layer in Configuration::migrateLegacyKeys().
+     *
+     * #[Group('legacy')] + SYMFONY_DEPRECATIONS_HELPER=max[self]=0 in phpunit.dist.xml
+     * lets the bridge tolerate the self-deprecation without per-test assertions.
      */
     #[Group('legacy')]
-    #[IgnoreDeprecations]
     public function testLegacyTracesDisabledRemovesSubscriber(): void
     {
         $container = $this->boot(['traces_enabled' => false]);
@@ -361,7 +362,6 @@ final class BundleBootTest extends TestCase
      * Remove in v3.0 alongside the BC layer.
      */
     #[Group('legacy')]
-    #[IgnoreDeprecations]
     public function testLegacyMessengerDisabledRemovesMiddleware(): void
     {
         $container = $this->boot(['messenger_enabled' => false]);

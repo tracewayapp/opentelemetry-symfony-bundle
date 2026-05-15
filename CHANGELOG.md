@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`logs:` configuration node** — groups Monolog correlation (`logs.correlation.enabled`, formerly `monolog_enabled`) and native OTel log export (`logs.export.*`, formerly `log_export_*`) under one signal-aligned section.
+- **Instrumentation scope version + schema URL** — every `Tracer`, `Meter`, and `Logger` the bundle obtains from the OTel SDK now reports the full `(name, version, schemaUrl)` tuple required by the OTel instrumentation-scope spec (a SHOULD-level recommendation we previously missed). Version is resolved at runtime via Composer's `InstalledVersions::getPrettyVersion()` so it always reflects the actual installed release. Schema URL is pinned to `https://opentelemetry.io/schemas/1.32.0` (the version of `open-telemetry/sem-conv` we target). Backends like Tempo, Datadog, and Honeycomb can now filter by `otel.scope.version` to slice telemetry per bundle release.
 
 ## [1.9.0] - 2026-05-15
 

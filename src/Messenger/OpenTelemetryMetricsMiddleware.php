@@ -16,6 +16,7 @@ use Symfony\Component\Messenger\Stamp\ReceivedStamp;
 use Symfony\Component\Messenger\Stamp\SentStamp;
 use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\Metrics\DurationBoundaries;
+use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
@@ -211,7 +212,11 @@ final class OpenTelemetryMetricsMiddleware implements MiddlewareInterface, Reset
 
     private function getMeter(): MeterInterface
     {
-        return $this->meter ??= Globals::meterProvider()->getMeter($this->meterName);
+        return $this->meter ??= Globals::meterProvider()->getMeter(
+            $this->meterName,
+            OpenTelemetryBundle::version(),
+            OpenTelemetryBundle::SCHEMA_URL,
+        );
     }
 
     private function getDurationHistogram(): HistogramInterface

@@ -10,6 +10,7 @@ use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\Context\ScopeInterface;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Twig\Extension\AbstractExtension;
 use Twig\Profiler\NodeVisitor\ProfilerNodeVisitor;
 use Twig\Profiler\Profile;
@@ -129,6 +130,10 @@ final class OpenTelemetryTwigExtension extends AbstractExtension implements Rese
 
     private function getTracer(): TracerInterface
     {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer($this->tracerName);
+        return $this->tracer ??= Globals::tracerProvider()->getTracer(
+            $this->tracerName,
+            OpenTelemetryBundle::version(),
+            OpenTelemetryBundle::SCHEMA_URL,
+        );
     }
 }

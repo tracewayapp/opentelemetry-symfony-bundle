@@ -10,6 +10,7 @@ use OpenTelemetry\API\Metrics\HistogramInterface;
 use OpenTelemetry\API\Metrics\MeterInterface;
 use OpenTelemetry\API\Metrics\UpDownCounterInterface;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
 /**
  * Lazily creates and caches OpenTelemetry instruments bound to a single meter.
@@ -65,6 +66,10 @@ final class MeterRegistry implements MeterRegistryInterface, ResetInterface
 
     private function getMeter(): MeterInterface
     {
-        return $this->meter ??= Globals::meterProvider()->getMeter($this->meterName);
+        return $this->meter ??= Globals::meterProvider()->getMeter(
+            $this->meterName,
+            OpenTelemetryBundle::version(),
+            OpenTelemetryBundle::SCHEMA_URL,
+        );
     }
 }

@@ -17,6 +17,7 @@ use Symfony\Component\Console\Event\ConsoleErrorEvent;
 use Symfony\Component\Console\Event\ConsoleTerminateEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
 /**
  * Automatic console command instrumentation for Symfony using OpenTelemetry.
@@ -205,7 +206,11 @@ final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterfac
 
     private function getTracer(): TracerInterface
     {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer($this->tracerName);
+        return $this->tracer ??= Globals::tracerProvider()->getTracer(
+            $this->tracerName,
+            OpenTelemetryBundle::version(),
+            OpenTelemetryBundle::SCHEMA_URL,
+        );
     }
 
     private function isExcluded(string $commandName): bool

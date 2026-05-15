@@ -15,6 +15,7 @@ use Symfony\Component\Cache\CacheItem;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
 /**
  * Decorates a Symfony cache pool to create INTERNAL spans for cache operations.
@@ -204,6 +205,10 @@ class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInter
 
     protected function getTracer(): TracerInterface
     {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer($this->tracerName);
+        return $this->tracer ??= Globals::tracerProvider()->getTracer(
+            $this->tracerName,
+            OpenTelemetryBundle::version(),
+            OpenTelemetryBundle::SCHEMA_URL,
+        );
     }
 }

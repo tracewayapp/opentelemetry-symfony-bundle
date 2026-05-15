@@ -274,7 +274,11 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
 
     private function getTracer(): TracerInterface
     {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer($this->tracerName);
+        return $this->tracer ??= Globals::tracerProvider()->getTracer(
+            $this->tracerName,
+            OpenTelemetryBundle::version(),
+            OpenTelemetryBundle::SCHEMA_URL,
+        );
     }
 
     private function isExcluded(Request $request): bool

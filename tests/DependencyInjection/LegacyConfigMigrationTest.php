@@ -72,7 +72,14 @@ final class LegacyConfigMigrationTest extends TestCase
             $expectedNewPath,
         ));
 
-        $this->processor->processConfiguration($this->configuration, [$flatInput]);
+        $result = $this->processor->processConfiguration($this->configuration, [$flatInput]);
+
+        // Sanity assertion: prevents PHPUnit 10's risky-test flag when the bridge's
+        // ExpectDeprecationTrait polyfill tracks the deprecation via a side channel
+        // (DeprecationErrorHandler at teardown) without bumping the assertion counter.
+        // On PHPUnit 11+ the native expectUserDeprecationMessage() already counts;
+        // this assertion is harmless on those versions and useful on both.
+        self::assertIsArray($result);
     }
 
     public function testSameBlockFlatAndNestedConflictThrows(): void

@@ -169,6 +169,22 @@ block. Use the nested form only.
 
 **Across separate files** (e.g. `config/packages/open_telemetry.yaml` vs `config/packages/dev/open_telemetry.yaml`), Symfony processes each block independently and then merges. The bundle cannot detect the conflict in this case; standard Symfony merge semantics will pick one deterministically (typically the later file wins). **Don't split flat and nested for the same setting across files.**
 
+## Dependency floors raised
+
+The v1.x `composer.json` declared `^1.0` floors for the OpenTelemetry PHP packages, which let `composer update --prefer-lowest` resolve to combinations (e.g. SDK 1.0 + sem-conv 1.0) that don't match any real-world install and break under modern SDK code paths. v2.0 aligns floors with the tested baseline:
+
+| Package | v1.x floor | v2.0 floor |
+|---|---|---|
+| `open-telemetry/api` | `^1.0` | `^1.9` |
+| `open-telemetry/context` | `^1.0` | `^1.5` |
+| `open-telemetry/sdk` | `^1.0` | `^1.14` |
+| `open-telemetry/sem-conv` | `^1.0` | `^1.38` |
+| `symfony/phpunit-bridge` (dev) | `^6.4 \|\| ^7.0 \|\| ^8.0` | `^7.2 \|\| ^8.0` |
+
+In practice, anyone running `composer require traceway/opentelemetry-symfony` against a project on modern Symfony (6.4 LTS / 7.x / 8.x) since late 2024 is already on versions well above these floors — `composer update` did the right thing automatically. If you pin OpenTelemetry PHP packages explicitly in your own `composer.json` to a version below these new floors, run `composer require open-telemetry/sdk:^1.14 open-telemetry/sem-conv:^1.38` to update.
+
+The `symfony/phpunit-bridge` bump only affects bundle developers running the test suite — its floor moved because `ExpectUserDeprecationMessageTrait` (the cross-version polyfill we use for legacy-key deprecation tests) was added in bridge 7.2. The bundle's runtime is unaffected.
+
 ## Migration recipe
 
 1. Upgrade to v2.0 — your existing config keeps working.

@@ -20,7 +20,7 @@
         "open-telemetry/api": "^1.0",
         "open-telemetry/context": "^1.0",
         "open-telemetry/sdk": "^1.0",
-        "open-telemetry/sem-conv": "^1.0",
+        "open-telemetry/sem-conv": "^1.32",
         "symfony/config": "^6.4 || ^7.0 || ^8.0",
         "symfony/console": "^6.4 || ^7.0 || ^8.0",
         "symfony/dependency-injection": "^6.4 || ^7.0 || ^8.0",

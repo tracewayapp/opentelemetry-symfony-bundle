@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\Tests\Functional;
 
+use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
@@ -61,7 +63,7 @@ final class BundleBootTest extends TestCase
 
     public function testTracesDisabledRemovesSubscriber(): void
     {
-        $container = $this->boot(['traces_enabled' => false]);
+        $container = $this->boot(['traces' => ['enabled' => false]]);
 
         self::assertFalse($container->has(OpenTelemetrySubscriber::class));
         self::assertInstanceOf(Tracing::class, $container->get(TracingInterface::class));
@@ -69,21 +71,21 @@ final class BundleBootTest extends TestCase
 
     public function testConsoleDisabledRemovesSubscriber(): void
     {
-        $container = $this->boot(['console_enabled' => false]);
+        $container = $this->boot(['traces' => ['console' => ['enabled' => false]]]);
 
         self::assertFalse($container->has(ConsoleSubscriber::class));
     }
 
     public function testMessengerDisabledRemovesMiddleware(): void
     {
-        $container = $this->boot(['messenger_enabled' => false]);
+        $container = $this->boot(['traces' => ['messenger' => ['enabled' => false]]]);
 
         self::assertFalse($container->has(OpenTelemetryMiddleware::class));
     }
 
     public function testCustomTracerNameWired(): void
     {
-        $this->boot(['tracer_name' => 'my-app']);
+        $this->boot(['traces' => ['tracer_name' => 'my-app']]);
 
         self::assertSame(
             'my-app',
@@ -94,15 +96,19 @@ final class BundleBootTest extends TestCase
     public function testAllFeaturesDisabledStillBoots(): void
     {
         $container = $this->boot([
-            'traces_enabled' => false,
-            'console_enabled' => false,
-            'messenger_enabled' => false,
-            'http_client_enabled' => false,
-            'doctrine_enabled' => false,
-            'cache_enabled' => false,
-            'twig_enabled' => false,
-            'monolog_enabled' => false,
-            'log_export_enabled' => false,
+            'traces' => [
+                'enabled' => false,
+                'console' => ['enabled' => false],
+                'messenger' => ['enabled' => false],
+                'http_client' => ['enabled' => false],
+                'doctrine' => ['enabled' => false],
+                'cache' => ['enabled' => false],
+                'twig' => ['enabled' => false],
+            ],
+            'logs' => [
+                'correlation' => ['enabled' => false],
+                'export' => ['enabled' => false],
+            ],
         ]);
 
         self::assertInstanceOf(Tracing::class, $container->get(TracingInterface::class));
@@ -111,7 +117,7 @@ final class BundleBootTest extends TestCase
     public function testLogExportBootsWithMonologBundle(): void
     {
         $container = $this->boot(
-            ['log_export_enabled' => true],
+            ['logs' => ['export' => ['enabled' => true]]],
             [new \Symfony\Bundle\MonologBundle\MonologBundle()],
         );
 
@@ -124,15 +130,17 @@ final class BundleBootTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('symfony/monolog-bundle');
 
-        $this->boot(['log_export_enabled' => true]);
+        $this->boot(['logs' => ['export' => ['enabled' => true]]]);
     }
 
     public function testLogExportCaptureCodeAttributesFlagFlowsToHandler(): void
     {
         $container = $this->boot(
             [
-                'log_export_enabled' => true,
-                'log_export_capture_code_attributes' => true,
+                'logs' => ['export' => [
+                    'enabled' => true,
+                    'capture_code_attributes' => true,
+                ]],
             ],
             [new \Symfony\Bundle\MonologBundle\MonologBundle()],
         );
@@ -148,8 +156,10 @@ final class BundleBootTest extends TestCase
     {
         $container = $this->boot(
             [
-                'log_export_enabled' => true,
-                'log_export_unprefixed_attributes' => true,
+                'logs' => ['export' => [
+                    'enabled' => true,
+                    'unprefixed_attributes' => true,
+                ]],
             ],
             [new \Symfony\Bundle\MonologBundle\MonologBundle()],
         );
@@ -163,7 +173,7 @@ final class BundleBootTest extends TestCase
 
     public function testHttpClientExcludedHostsParameter(): void
     {
-        $this->boot(['http_client_excluded_hosts' => ['collector.local']]);
+        $this->boot(['traces' => ['http_client' => ['excluded_hosts' => ['collector.local']]]]);
 
         self::assertSame(
             ['collector.local'],
@@ -182,7 +192,7 @@ final class BundleBootTest extends TestCase
 
     public function testCacheDisabledParameter(): void
     {
-        $this->boot(['cache_enabled' => false]);
+        $this->boot(['traces' => ['cache' => ['enabled' => false]]]);
 
         self::assertFalse(
             $this->kernel->getContainer()->getParameter('open_telemetry.cache_enabled'),
@@ -329,6 +339,34 @@ final class BundleBootTest extends TestCase
                 'http_client' => ['enabled' => true],
             ],
         ]);
+    }
+
+    /**
+     * BC coverage for the load() path: legacy flat `traces_enabled` should
+     * still disable the subscriber via the deprecation migration layer.
+     * Remove in v3.0 alongside the BC layer in Configuration::migrateLegacyKeys().
+     */
+    #[Group('legacy')]
+    #[IgnoreDeprecations]
+    public function testLegacyTracesDisabledRemovesSubscriber(): void
+    {
+        $container = $this->boot(['traces_enabled' => false]);
+
+        self::assertFalse($container->has(OpenTelemetrySubscriber::class));
+    }
+
+    /**
+     * BC coverage for the prepend() path: legacy flat `messenger_enabled`
+     * should still skip the framework.messenger middleware injection.
+     * Remove in v3.0 alongside the BC layer.
+     */
+    #[Group('legacy')]
+    #[IgnoreDeprecations]
+    public function testLegacyMessengerDisabledRemovesMiddleware(): void
+    {
+        $container = $this->boot(['messenger_enabled' => false]);
+
+        self::assertFalse($container->has(OpenTelemetryMiddleware::class));
     }
 
     /**

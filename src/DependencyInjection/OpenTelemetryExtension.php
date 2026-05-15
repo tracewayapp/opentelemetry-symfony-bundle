@@ -40,16 +40,16 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     public function prepend(ContainerBuilder $container): void
     {
         $configs = $container->getExtensionConfig($this->getAlias());
+        /** @var array{traces: array{messenger: array{enabled: bool}}, metrics: array{enabled: bool, messenger: array{enabled: bool}}, logs: array{export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}} $config */
         $config = $this->processConfiguration(new Configuration(), $configs);
 
         if ($this->isMessengerAvailable()) {
             $middlewares = [];
-            if ($config['messenger_enabled']) {
+            if ($config['traces']['messenger']['enabled']) {
                 $middlewares[] = OpenTelemetryMiddleware::class;
             }
-            /** @var array{enabled?: bool, messenger?: array{enabled?: bool}} $metrics */
-            $metrics = $config['metrics'] ?? [];
-            if (($metrics['enabled'] ?? false) && ($metrics['messenger']['enabled'] ?? false)) {
+            $metrics = $config['metrics'];
+            if ($metrics['enabled'] && $metrics['messenger']['enabled']) {
                 $middlewares[] = OpenTelemetryMetricsMiddleware::class;
             }
             if ([] !== $middlewares) {
@@ -65,10 +65,10 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             }
         }
 
-        if ($config['log_export_enabled']) {
+        if ($config['logs']['export']['enabled']) {
             if (!$container->hasExtension('monolog')) {
                 throw new \LogicException(
-                    'The "open_telemetry.log_export_enabled" option requires symfony/monolog-bundle to be installed and enabled. Run "composer require symfony/monolog-bundle" or set "log_export_enabled: false".'
+                    'The "open_telemetry.logs.export.enabled" option requires symfony/monolog-bundle to be installed and enabled. Run "composer require symfony/monolog-bundle" or set "logs.export.enabled: false".'
                 );
             }
 
@@ -82,9 +82,9 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             ]);
 
             $handlerDef = new Definition(OtelLogHandler::class);
-            $handlerDef->setArgument('$level', $config['log_export_level']);
-            $handlerDef->setArgument('$captureCodeAttributes', $config['log_export_capture_code_attributes']);
-            $handlerDef->setArgument('$unprefixedAttributes', $config['log_export_unprefixed_attributes']);
+            $handlerDef->setArgument('$level', $config['logs']['export']['level']);
+            $handlerDef->setArgument('$captureCodeAttributes', $config['logs']['export']['capture_code_attributes']);
+            $handlerDef->setArgument('$unprefixedAttributes', $config['logs']['export']['unprefixed_attributes']);
             $handlerDef->setAutoconfigured(true);
             $container->setDefinition(OtelLogHandler::class, $handlerDef);
 
@@ -97,48 +97,50 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     public function load(array $configs, ContainerBuilder $container): void
     {
         $configuration = new Configuration();
+        /** @var array{traces: array{enabled: bool, tracer_name: string, excluded_paths: list<string>, record_client_ip: bool, error_status_threshold: int, console: array{enabled: bool, excluded_commands: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, messenger: array{enabled: bool, root_spans: bool}, doctrine: array{enabled: bool, record_statements: bool}, cache: array{enabled: bool, excluded_pools: list<string>}, twig: array{enabled: bool, excluded_templates: list<string>}, scheduler: array{enabled: bool}, mailer: array{enabled: bool, record_subject: bool}}, metrics: array{enabled: bool, meter_name: string, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}}, logs: array{correlation: array{enabled: bool}, export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}} $config */
         $config = $this->processConfiguration($configuration, $configs);
 
         $loader = new YamlFileLoader($container, new FileLocator(\dirname(__DIR__, 2) . '/config'));
         $loader->load('services.yaml');
 
-        $tracerName = \is_string($config['tracer_name']) ? $config['tracer_name'] : 'opentelemetry-symfony';
+        $traces = $config['traces'];
+        $tracerName = $traces['tracer_name'];
 
         $container->getDefinition(Tracing::class)
             ->setArgument('$tracerName', $tracerName);
 
-        $httpClientEnabled = $config['http_client_enabled'] && $this->isHttpClientAvailable();
+        $httpClientEnabled = $traces['http_client']['enabled'] && $this->isHttpClientAvailable();
         $container->setParameter('open_telemetry.http_client_enabled', $httpClientEnabled);
         $container->setParameter('open_telemetry.tracer_name', $tracerName);
 
         /** @var string[] $httpExcludedHosts */
-        $httpExcludedHosts = $config['http_client_excluded_hosts'];
+        $httpExcludedHosts = $traces['http_client']['excluded_hosts'];
         $container->setParameter('open_telemetry.http_client_excluded_hosts', $httpExcludedHosts);
 
-        if ($config['traces_enabled']) {
+        if ($traces['enabled']) {
             $container->getDefinition(OpenTelemetrySubscriber::class)
                 ->setArgument('$tracerName', $tracerName)
-                ->setArgument('$excludedPaths', $config['excluded_paths'])
-                ->setArgument('$recordClientIp', $config['record_client_ip'])
-                ->setArgument('$errorStatusThreshold', $config['error_status_threshold']);
+                ->setArgument('$excludedPaths', $traces['excluded_paths'])
+                ->setArgument('$recordClientIp', $traces['record_client_ip'])
+                ->setArgument('$errorStatusThreshold', $traces['error_status_threshold']);
         } else {
             $container->removeDefinition(OpenTelemetrySubscriber::class);
         }
 
-        if ($config['console_enabled'] && $this->isConsoleAvailable()) {
+        if ($traces['console']['enabled'] && $this->isConsoleAvailable()) {
             $container->getDefinition(ConsoleSubscriber::class)
                 ->setArgument('$tracerName', $tracerName)
-                ->setArgument('$excludedCommands', $config['console_excluded_commands']);
+                ->setArgument('$excludedCommands', $traces['console']['excluded_commands']);
         } else {
             $container->removeDefinition(ConsoleSubscriber::class);
         }
 
-        $schedulerEnabled = $config['scheduler_enabled'] && $this->isSchedulerAvailable();
+        $schedulerEnabled = $traces['scheduler']['enabled'] && $this->isSchedulerAvailable();
 
-        if ($config['messenger_enabled'] && $this->isMessengerAvailable()) {
+        if ($traces['messenger']['enabled'] && $this->isMessengerAvailable()) {
             $container->getDefinition(OpenTelemetryMiddleware::class)
                 ->setArgument('$tracerName', $tracerName)
-                ->setArgument('$rootSpans', $config['messenger_root_spans'])
+                ->setArgument('$rootSpans', $traces['messenger']['root_spans'])
                 ->setArgument('$excludeScheduledMessages', $schedulerEnabled);
         } else {
             $container->removeDefinition(OpenTelemetryMiddleware::class);
@@ -151,23 +153,23 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->setDefinition(SchedulerSubscriber::class, $schedulerDef);
         }
 
-        if ($config['doctrine_enabled'] && $this->isDoctrineAvailable()) {
+        if ($traces['doctrine']['enabled'] && $this->isDoctrineAvailable()) {
             $definition = new Definition(DoctrineTraceableMiddleware::class);
             $definition->setArgument('$tracerName', $tracerName);
-            $definition->setArgument('$recordStatements', $config['doctrine_record_statements']);
+            $definition->setArgument('$recordStatements', $traces['doctrine']['record_statements']);
             $definition->addTag('doctrine.middleware');
             $container->setDefinition(DoctrineTraceableMiddleware::class, $definition);
         }
 
-        $cacheEnabled = $config['cache_enabled'] && $this->isCacheAvailable();
+        $cacheEnabled = $traces['cache']['enabled'] && $this->isCacheAvailable();
         $container->setParameter('open_telemetry.cache_enabled', $cacheEnabled);
         /** @var string[] $cacheExcludedPools */
-        $cacheExcludedPools = $config['cache_excluded_pools'];
+        $cacheExcludedPools = $traces['cache']['excluded_pools'];
         $container->setParameter('open_telemetry.cache_excluded_pools', $cacheExcludedPools);
 
-        if ($config['twig_enabled'] && $this->isTwigAvailable()) {
+        if ($traces['twig']['enabled'] && $this->isTwigAvailable()) {
             /** @var string[] $twigExcluded */
-            $twigExcluded = $config['twig_excluded_templates'];
+            $twigExcluded = $traces['twig']['excluded_templates'];
             $twigExtDef = new Definition(OpenTelemetryTwigExtension::class);
             $twigExtDef->setArgument('$tracerName', $tracerName);
             $twigExtDef->setArgument('$excludedTemplates', $twigExcluded);
@@ -175,12 +177,12 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->setDefinition(OpenTelemetryTwigExtension::class, $twigExtDef);
         }
 
-        if ($config['mailer_enabled'] && $this->isMailerAvailable()) {
+        if ($traces['mailer']['enabled'] && $this->isMailerAvailable()) {
             $mailerDef = new Definition(TraceableMailer::class);
             $mailerDef->setDecoratedService('mailer.mailer', null, 0, ContainerInterface::IGNORE_ON_INVALID_REFERENCE);
             $mailerDef->setArgument('$decorated', new Reference('.inner'));
             $mailerDef->setArgument('$tracerName', $tracerName);
-            $mailerDef->setArgument('$recordSubject', $config['mailer_record_subject']);
+            $mailerDef->setArgument('$recordSubject', $traces['mailer']['record_subject']);
             $container->setDefinition(TraceableMailer::class, $mailerDef);
 
             $transportsDef = new Definition(TraceableTransports::class);
@@ -190,13 +192,12 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->setDefinition(TraceableTransports::class, $transportsDef);
         }
 
-        if ($config['monolog_enabled'] && $this->isMonologAvailable()) {
+        if ($config['logs']['correlation']['enabled'] && $this->isMonologAvailable()) {
             $monologDef = new Definition(TraceContextProcessor::class);
             $monologDef->addTag('monolog.processor');
             $container->setDefinition(TraceContextProcessor::class, $monologDef);
         }
 
-        /** @var array{enabled: bool, meter_name: string, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}} $metrics */
         $metrics = $config['metrics'];
         $meterName = $metrics['meter_name'];
 

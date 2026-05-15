@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-05-15
+
+### Changed (breaking)
+
+- **Config restructured to nested, signal-grouped shape** — every top-level flat key migrates under `traces:`, `metrics:` (unchanged), or `logs:`. Aligns with the OpenTelemetry specification, the `OTEL_*` env-var convention, and the existing nested `metrics:` node we've shipped since v1.7.0. Existing v1.x flat config **keeps working** with a deprecation per key; flat keys are scheduled for removal in v3.0. Setting both a legacy flat key and its nested equivalent in the same configuration block throws `InvalidConfigurationException`. See [UPGRADE-2.0.md](UPGRADE-2.0.md) for the complete flat→nested mapping.
+- **`log_export_unprefixed_attributes` default flipped from `false` to `true`** — Monolog `context` and `extra` fields are now emitted as flat OTel attributes by default, matching the cross-ecosystem norm (Java logback, Python `LoggingHandler`, .NET `OpenTelemetryLogger`, JS Winston). The new path is `logs.export.unprefixed_attributes`. If your dashboards depend on the v1.x `monolog.context.*` / `monolog.extra.*` prefixed shape, set it explicitly to `false`. The knob has existed since v1.8.0 ([#39](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/39)) so users have had a release cycle to migrate before the default change.
+
+### Deprecated
+
+- **All v1.x flat config keys** — every key triggers a Symfony deprecation pointing at its new nested location. Removal scheduled for v3.0. Run `bin/console cache:clear` after upgrading to surface the deprecations in the dev log. Full mapping in [UPGRADE-2.0.md](UPGRADE-2.0.md).
+
+### Added
+
+- **`logs:` configuration node** — groups Monolog correlation (`logs.correlation.enabled`, formerly `monolog_enabled`) and native OTel log export (`logs.export.*`, formerly `log_export_*`) under one signal-aligned section.
+
 ## [1.9.0] - 2026-05-15
 
 ### Added

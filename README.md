@@ -71,43 +71,46 @@ All options are optional — the bundle works out of the box with zero configura
 
 ```yaml
 open_telemetry:
-    traces_enabled: true
-    tracer_name: 'opentelemetry-symfony'
+    traces:
+        enabled: true
+        tracer_name: 'opentelemetry-symfony'
 
-    excluded_paths: [/health, /_profiler, /_wdt]
-    record_client_ip: true           # disable for GDPR
-    error_status_threshold: 500      # 400-599
+        excluded_paths: [/health, /_profiler, /_wdt]
+        record_client_ip: true                # disable for GDPR
+        error_status_threshold: 500           # 400-599
 
-    console_enabled: true
-    console_excluded_commands: [cache:clear, assets:install]
+        console:
+            enabled: true
+            excluded_commands: [cache:clear, assets:install]
 
-    http_client_enabled: true
-    http_client_excluded_hosts: []   # OTLP endpoint is auto-excluded
+        http_client:
+            enabled: true
+            excluded_hosts: []                # OTLP endpoint is auto-excluded
 
-    messenger_enabled: true
-    messenger_root_spans: false      # true = standalone traces per consumed message
+        messenger:
+            enabled: true
+            root_spans: false                 # true = standalone traces per consumed message
 
-    scheduler_enabled: true          # suppresses parallel Messenger spans for scheduled tasks
-    mailer_enabled: true
-    mailer_record_subject: false     # subjects can be PII
+        scheduler:
+            enabled: true                     # suppresses parallel Messenger spans for scheduled tasks
 
-    doctrine_enabled: true
-    doctrine_record_statements: true # false = hide SQL from spans
+        mailer:
+            enabled: true
+            record_subject: false             # subjects can be PII
 
-    cache_enabled: true
-    cache_excluded_pools: [cache.system, cache.validator, cache.serializer]
+        doctrine:
+            enabled: true
+            record_statements: true           # false = hide SQL from spans
 
-    twig_enabled: true
-    twig_excluded_templates: ['@WebProfiler/', '@Debug/']
+        cache:
+            enabled: true
+            excluded_pools: [cache.system, cache.validator, cache.serializer]
 
-    monolog_enabled: true            # inject trace_id/span_id into log records
+        twig:
+            enabled: true
+            excluded_templates: ['@WebProfiler/', '@Debug/']
 
-    log_export_enabled: false        # OTel Logs API export (requires symfony/monolog-bundle)
-    log_export_level: debug
-    log_export_capture_code_attributes: false  # fallback debug_backtrace when IntrospectionProcessor is absent
-    log_export_unprefixed_attributes: false    # emit context/extra as flat attributes (default flips in v2.0)
-
-    metrics:                           # nested today; flat keys above migrate to nested in v2.0
+    metrics:
         enabled: false
         meter_name: 'opentelemetry-symfony'
         messenger:
@@ -117,13 +120,25 @@ open_telemetry:
             enabled: false
         http_server:
             enabled: false
-            excluded_paths: []         # same prefix-match rules as tracing excluded_paths
+            excluded_paths: []                # same prefix-match rules as tracing excluded_paths
         http_client:
             enabled: false
-            excluded_hosts: []         # OTLP endpoint is auto-excluded
+            excluded_hosts: []                # OTLP endpoint is auto-excluded
         mailer:
             enabled: false
+
+    logs:
+        correlation:
+            enabled: true                     # inject trace_id/span_id into log records
+
+        export:
+            enabled: false                    # OTel Logs API export (requires symfony/monolog-bundle)
+            level: debug
+            capture_code_attributes: false    # fallback debug_backtrace when IntrospectionProcessor is absent
+            unprefixed_attributes: true       # flat context/extra attributes (matches Java/Python/.NET/JS)
 ```
+
+> Upgrading from v1.x? See [UPGRADE-2.0.md](UPGRADE-2.0.md) for the flat→nested mapping and migration notes.
 
 ### Environment Variables
 

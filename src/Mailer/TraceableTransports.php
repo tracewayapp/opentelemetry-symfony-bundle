@@ -14,6 +14,7 @@ use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Mime\Message;
 use Symfony\Component\Mime\RawMessage;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
@@ -117,6 +118,10 @@ final class TraceableTransports implements TransportInterface, ResetInterface
 
     private function getTracer(): TracerInterface
     {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer($this->tracerName);
+        return $this->tracer ??= Globals::tracerProvider()->getTracer(
+            $this->tracerName,
+            OpenTelemetryBundle::version(),
+            OpenTelemetryBundle::SCHEMA_URL,
+        );
     }
 }

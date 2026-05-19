@@ -13,6 +13,7 @@ use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
+use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
 final class TraceableConnectionDbal4 extends AbstractConnectionMiddleware
 {
@@ -167,7 +168,11 @@ final class TraceableConnectionDbal4 extends AbstractConnectionMiddleware
 
     private function getTracer(): TracerInterface
     {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer($this->tracerName);
+        return $this->tracer ??= Globals::tracerProvider()->getTracer(
+            $this->tracerName,
+            OpenTelemetryBundle::version(),
+            OpenTelemetryBundle::SCHEMA_URL,
+        );
     }
 
     private function startSpan(string $sql): SpanInterface

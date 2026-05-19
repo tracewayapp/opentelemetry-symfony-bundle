@@ -21,6 +21,7 @@ use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\Metrics\DurationBoundaries;
+use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
@@ -273,7 +274,11 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
 
     private function getMeter(): MeterInterface
     {
-        return $this->meter ??= Globals::meterProvider()->getMeter($this->meterName);
+        return $this->meter ??= Globals::meterProvider()->getMeter(
+            $this->meterName,
+            OpenTelemetryBundle::version(),
+            OpenTelemetryBundle::SCHEMA_URL,
+        );
     }
 
     private function getDurationHistogram(): HistogramInterface

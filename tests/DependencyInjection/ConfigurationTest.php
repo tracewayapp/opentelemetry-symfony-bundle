@@ -25,93 +25,182 @@ final class ConfigurationTest extends TestCase
     {
         $config = $this->process([]);
 
-        self::assertTrue($config['traces_enabled']);
-        self::assertSame('opentelemetry-symfony', $config['tracer_name']);
-        self::assertSame([], $config['excluded_paths']);
-        self::assertTrue($config['record_client_ip']);
-        self::assertSame(500, $config['error_status_threshold']);
-        self::assertTrue($config['console_enabled']);
-        self::assertSame(['messenger:consume', 'messenger:consume-messages'], $config['console_excluded_commands']);
-        self::assertTrue($config['http_client_enabled']);
-        self::assertTrue($config['messenger_enabled']);
-        self::assertFalse($config['messenger_root_spans']);
-        self::assertTrue($config['doctrine_enabled']);
-        self::assertTrue($config['doctrine_record_statements']);
-        self::assertTrue($config['cache_enabled']);
-        self::assertSame([], $config['cache_excluded_pools']);
-        self::assertTrue($config['twig_enabled']);
-        self::assertSame([], $config['twig_excluded_templates']);
+        // traces
+        self::assertTrue($config['traces']['enabled']);
+        self::assertSame('opentelemetry-symfony', $config['traces']['tracer_name']);
+        self::assertSame([], $config['traces']['excluded_paths']);
+        self::assertTrue($config['traces']['record_client_ip']);
+        self::assertSame(500, $config['traces']['error_status_threshold']);
+        self::assertTrue($config['traces']['console']['enabled']);
+        self::assertSame(['messenger:consume', 'messenger:consume-messages'], $config['traces']['console']['excluded_commands']);
+        self::assertTrue($config['traces']['http_client']['enabled']);
+        self::assertSame([], $config['traces']['http_client']['excluded_hosts']);
+        self::assertTrue($config['traces']['messenger']['enabled']);
+        self::assertFalse($config['traces']['messenger']['root_spans']);
+        self::assertTrue($config['traces']['doctrine']['enabled']);
+        self::assertTrue($config['traces']['doctrine']['record_statements']);
+        self::assertTrue($config['traces']['cache']['enabled']);
+        self::assertSame([], $config['traces']['cache']['excluded_pools']);
+        self::assertTrue($config['traces']['twig']['enabled']);
+        self::assertSame([], $config['traces']['twig']['excluded_templates']);
+        self::assertTrue($config['traces']['scheduler']['enabled']);
+        self::assertTrue($config['traces']['mailer']['enabled']);
+        self::assertFalse($config['traces']['mailer']['record_subject']);
+
+        // logs
+        self::assertTrue($config['logs']['correlation']['enabled']);
+        self::assertFalse($config['logs']['export']['enabled']);
+        self::assertSame('debug', $config['logs']['export']['level']);
+        self::assertFalse($config['logs']['export']['capture_code_attributes']);
+        // Flipped from false in v2.0 — cross-ecosystem norm.
+        self::assertTrue($config['logs']['export']['unprefixed_attributes']);
     }
 
     public function testCustomValues(): void
     {
         $config = $this->process([
             [
-                'traces_enabled' => false,
-                'tracer_name' => 'my-app',
-                'excluded_paths' => ['/health', '/_profiler'],
-                'record_client_ip' => false,
-                'error_status_threshold' => 400,
-                'console_enabled' => false,
-                'console_excluded_commands' => ['cache:clear', 'assets:install'],
-                'http_client_enabled' => false,
-                'messenger_enabled' => false,
-                'messenger_root_spans' => true,
-                'doctrine_enabled' => false,
-                'doctrine_record_statements' => false,
-                'cache_enabled' => false,
-                'cache_excluded_pools' => ['cache.system', 'cache.validator'],
-                'twig_enabled' => false,
-                'twig_excluded_templates' => ['@WebProfiler/', '@Debug/'],
+                'traces' => [
+                    'enabled' => false,
+                    'tracer_name' => 'my-app',
+                    'excluded_paths' => ['/health', '/_profiler'],
+                    'record_client_ip' => false,
+                    'error_status_threshold' => 400,
+                    'console' => [
+                        'enabled' => false,
+                        'excluded_commands' => ['cache:clear', 'assets:install'],
+                    ],
+                    'http_client' => [
+                        'enabled' => false,
+                        'excluded_hosts' => ['collector.local'],
+                    ],
+                    'messenger' => [
+                        'enabled' => false,
+                        'root_spans' => true,
+                    ],
+                    'doctrine' => [
+                        'enabled' => false,
+                        'record_statements' => false,
+                    ],
+                    'cache' => [
+                        'enabled' => false,
+                        'excluded_pools' => ['cache.system', 'cache.validator'],
+                    ],
+                    'twig' => [
+                        'enabled' => false,
+                        'excluded_templates' => ['@WebProfiler/', '@Debug/'],
+                    ],
+                    'scheduler' => ['enabled' => false],
+                    'mailer' => [
+                        'enabled' => false,
+                        'record_subject' => true,
+                    ],
+                ],
+                'logs' => [
+                    'correlation' => ['enabled' => false],
+                    'export' => [
+                        'enabled' => true,
+                        'level' => 'warning',
+                        'capture_code_attributes' => true,
+                        'unprefixed_attributes' => false,
+                    ],
+                ],
             ],
         ]);
 
-        self::assertFalse($config['traces_enabled']);
-        self::assertSame('my-app', $config['tracer_name']);
-        self::assertSame(['/health', '/_profiler'], $config['excluded_paths']);
-        self::assertFalse($config['record_client_ip']);
-        self::assertSame(400, $config['error_status_threshold']);
-        self::assertFalse($config['console_enabled']);
-        self::assertSame(['cache:clear', 'assets:install'], $config['console_excluded_commands']);
-        self::assertFalse($config['http_client_enabled']);
-        self::assertFalse($config['messenger_enabled']);
-        self::assertTrue($config['messenger_root_spans']);
-        self::assertFalse($config['doctrine_enabled']);
-        self::assertFalse($config['doctrine_record_statements']);
-        self::assertFalse($config['cache_enabled']);
-        self::assertSame(['cache.system', 'cache.validator'], $config['cache_excluded_pools']);
-        self::assertFalse($config['twig_enabled']);
-        self::assertSame(['@WebProfiler/', '@Debug/'], $config['twig_excluded_templates']);
+        self::assertFalse($config['traces']['enabled']);
+        self::assertSame('my-app', $config['traces']['tracer_name']);
+        self::assertSame(['/health', '/_profiler'], $config['traces']['excluded_paths']);
+        self::assertFalse($config['traces']['record_client_ip']);
+        self::assertSame(400, $config['traces']['error_status_threshold']);
+        self::assertFalse($config['traces']['console']['enabled']);
+        self::assertSame(['cache:clear', 'assets:install'], $config['traces']['console']['excluded_commands']);
+        self::assertFalse($config['traces']['http_client']['enabled']);
+        self::assertSame(['collector.local'], $config['traces']['http_client']['excluded_hosts']);
+        self::assertFalse($config['traces']['messenger']['enabled']);
+        self::assertTrue($config['traces']['messenger']['root_spans']);
+        self::assertFalse($config['traces']['doctrine']['enabled']);
+        self::assertFalse($config['traces']['doctrine']['record_statements']);
+        self::assertFalse($config['traces']['cache']['enabled']);
+        self::assertSame(['cache.system', 'cache.validator'], $config['traces']['cache']['excluded_pools']);
+        self::assertFalse($config['traces']['twig']['enabled']);
+        self::assertSame(['@WebProfiler/', '@Debug/'], $config['traces']['twig']['excluded_templates']);
+        self::assertFalse($config['traces']['scheduler']['enabled']);
+        self::assertFalse($config['traces']['mailer']['enabled']);
+        self::assertTrue($config['traces']['mailer']['record_subject']);
+
+        self::assertFalse($config['logs']['correlation']['enabled']);
+        self::assertTrue($config['logs']['export']['enabled']);
+        self::assertSame('warning', $config['logs']['export']['level']);
+        self::assertTrue($config['logs']['export']['capture_code_attributes']);
+        self::assertFalse($config['logs']['export']['unprefixed_attributes']);
     }
 
     public function testExcludedPathsNormalization(): void
     {
         $config = $this->process([
-            ['excluded_paths' => ['health', '/metrics', '_profiler']],
+            ['traces' => ['excluded_paths' => ['health', '/metrics', '_profiler']]],
         ]);
 
-        self::assertSame(['/health', '/metrics', '/_profiler'], $config['excluded_paths']);
+        self::assertSame(['/health', '/metrics', '/_profiler'], $config['traces']['excluded_paths']);
     }
 
     public function testTracerNameCannotBeEmpty(): void
     {
-        $this->expectException(\Symfony\Component\Config\Definition\Exception\InvalidConfigurationException::class);
+        $this->expectException(InvalidConfigurationException::class);
 
-        $this->process([['tracer_name' => '']]);
+        $this->process([['traces' => ['tracer_name' => '']]]);
     }
 
     public function testErrorStatusThresholdBounds(): void
     {
-        $this->expectException(\Symfony\Component\Config\Definition\Exception\InvalidConfigurationException::class);
+        $this->expectException(InvalidConfigurationException::class);
 
-        $this->process([['error_status_threshold' => 399]]);
+        $this->process([['traces' => ['error_status_threshold' => 399]]]);
     }
 
     public function testErrorStatusThresholdUpperBound(): void
     {
-        $this->expectException(\Symfony\Component\Config\Definition\Exception\InvalidConfigurationException::class);
+        $this->expectException(InvalidConfigurationException::class);
 
-        $this->process([['error_status_threshold' => 600]]);
+        $this->process([['traces' => ['error_status_threshold' => 600]]]);
+    }
+
+    public function testLogExportLevelEnumValidated(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+
+        $this->process([['logs' => ['export' => ['level' => 'verbose']]]]);
+    }
+
+    /**
+     * canBeDisabled() on traces sub-nodes enables the `subsystem: false` shorthand
+     * (Symfony's standard pattern, see FrameworkBundle.csrf_protection).
+     */
+    public function testTracesSubsystemShorthandFalse(): void
+    {
+        $config = $this->process([
+            ['traces' => ['console' => false, 'doctrine' => false]],
+        ]);
+
+        self::assertFalse($config['traces']['console']['enabled']);
+        self::assertFalse($config['traces']['doctrine']['enabled']);
+        self::assertTrue($config['traces']['cache']['enabled'], 'untouched subsystem keeps default');
+        // Subsystem defaults still fill in even when shorthand is used
+        self::assertSame(['messenger:consume', 'messenger:consume-messages'], $config['traces']['console']['excluded_commands']);
+    }
+
+    /**
+     * canBeEnabled() on metrics sub-nodes enables the `subsystem: true` shorthand.
+     */
+    public function testMetricsSubsystemShorthandTrue(): void
+    {
+        $config = $this->process([
+            ['metrics' => ['enabled' => true, 'doctrine' => true]],
+        ]);
+
+        self::assertTrue($config['metrics']['doctrine']['enabled']);
+        self::assertFalse($config['metrics']['mailer']['enabled'], 'untouched subsystem keeps default-off');
     }
 
     public function testHttpServerExcludedPathsAreNormalized(): void
@@ -141,16 +230,6 @@ final class ConfigurationTest extends TestCase
         self::assertSame([], $config['metrics']['http_server']['excluded_paths']);
     }
 
-    /**
-     * Each per-subsystem metrics toggle should fail validation when the master
-     * metrics.enabled flag is false. The rule lives in Configuration's validate()
-     * chain and is structurally identical across all five subsystems, so we run
-     * the same assertion against each via DataProvider.
-     *
-     * Forward-compatible with PHPUnit 13 (attribute syntax). Docblock
-     * @ dataProvider would also work on PHPUnit 11 but is removed in 13 — see
-     * the PHPUnit 13 migration item in CLAUDE.md.
-     */
     #[DataProvider('metricsSubsystemProvider')]
     public function testMetricsSubsystemRequiresMetricsEnabled(string $subsystem): void
     {

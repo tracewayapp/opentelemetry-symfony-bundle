@@ -15,6 +15,7 @@ use Symfony\Component\Mime\Message;
 use Symfony\Component\Mime\RawMessage;
 use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\Metrics\DurationBoundaries;
+use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
@@ -135,7 +136,11 @@ final class MeteredTransports implements TransportInterface, ResetInterface
 
     private function getMeter(): MeterInterface
     {
-        return $this->meter ??= Globals::meterProvider()->getMeter($this->meterName);
+        return $this->meter ??= Globals::meterProvider()->getMeter(
+            $this->meterName,
+            OpenTelemetryBundle::version(),
+            OpenTelemetryBundle::SCHEMA_URL,
+        );
     }
 
     private function getDurationHistogram(): HistogramInterface

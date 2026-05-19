@@ -308,7 +308,10 @@ final class TraceableCachePoolTest extends TestCase
                     public function set(mixed $value): static { return $this; }
                     public function expiresAt(?\DateTimeInterface $expiration): static { return $this; }
                     public function expiresAfter(\DateInterval|int|null $time): static { return $this; }
-                    public function tag(string|iterable $tags): static { return $this; }
+                    // Param is untyped so this mock works against both cache-contracts v2
+                    // (untyped param) and v3+ (`string|iterable $tags`). PHP contravariance
+                    // allows widening parameter types in subclasses; narrowing is rejected.
+                    public function tag($tags): static { return $this; }
                     public function getMetadata(): array { return []; }
                 };
 
@@ -350,7 +353,10 @@ final class TraceableCachePoolTest extends TestCase
                         public function set(mixed $value): static { return $this; }
                         public function expiresAt(?\DateTimeInterface $expiration): static { return $this; }
                         public function expiresAfter(\DateInterval|int|null $time): static { return $this; }
-                        public function tag(string|iterable $tags): static { return $this; }
+                        // Param is untyped so this mock works against both cache-contracts v2
+                    // (untyped param) and v3+ (`string|iterable $tags`). PHP contravariance
+                    // allows widening parameter types in subclasses; narrowing is rejected.
+                    public function tag($tags): static { return $this; }
                         public function getMetadata(): array { return []; }
                     },
                     $save = true,

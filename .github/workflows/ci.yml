@@ -26,16 +26,26 @@ jobs:
         run: vendor/bin/phpstan analyse
 
   tests:
-    name: PHP ${{ matrix.php }} / Symfony ${{ matrix.symfony }} / DBAL ${{ matrix.dbal }}
+    name: PHP ${{ matrix.php }} / Symfony ${{ matrix.symfony }} / DBAL ${{ matrix.dbal }}${{ matrix.prefer_lowest && ' (lowest)' || '' }}
     runs-on: ubuntu-latest
+    env:
+      # Symfony's recommendation for bundle CI: zero tolerance for direct use
+      # of deprecated Symfony APIs. Our phpunit.dist.xml separately enforces
+      # max[self]=0 (self-deprecations only inside @group legacy via the
+      # symfony/phpunit-bridge bootstrap).
+      SYMFONY_DEPRECATIONS_HELPER: 'max[direct]=0'
     strategy:
       fail-fast: false
       matrix:
         include:
+          # Lowest supported combo with --prefer-lowest --prefer-stable so the
+          # dependency floor declared in composer.json (open-telemetry/api ^1.0,
+          # symfony/config ^6.4, etc.) is actually exercised.
           - php: '8.1'
             symfony: '6.4.*'
             dbal: '^4.0'
             phpunit: '^10.0'
+            prefer_lowest: true
             coverage: false
           - php: '8.2'
             symfony: '7.4.*'
@@ -45,6 +55,12 @@ jobs:
           - php: '8.2'
             symfony: '7.4.*'
             dbal: '^3.6'
+            phpunit: '^11.0'
+            coverage: false
+          # Most-used current stable PHP version per Packagist stats.
+          - php: '8.3'
+            symfony: '7.4.*'
+            dbal: '^4.0'
             phpunit: '^11.0'
             coverage: false
           - php: '8.4'
@@ -76,7 +92,12 @@ jobs:
       - name: Pin PHPUnit version
         run: composer require --no-update --dev phpunit/phpunit:${{ matrix.phpunit }}
 
+      - name: Install dependencies (lowest)
+        if: ${{ matrix.prefer_lowest }}
+        run: composer update --prefer-lowest --prefer-stable --no-interaction --prefer-dist
+
       - name: Install dependencies
+        if: ${{ !matrix.prefer_lowest }}
         run: composer install --no-interaction --prefer-dist
 
       - name: Run PHPUnit

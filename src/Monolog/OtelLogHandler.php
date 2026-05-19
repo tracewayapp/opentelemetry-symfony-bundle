@@ -12,6 +12,7 @@ use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Logs\LoggerInterface;
 use OpenTelemetry\API\Logs\Severity;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
 /**
  * Monolog handler that exports log records via the OpenTelemetry Logs API.
@@ -117,7 +118,11 @@ final class OtelLogHandler extends AbstractProcessingHandler implements ResetInt
 
     private function getLogger(string $channel): LoggerInterface
     {
-        return $this->loggers[$channel] ??= Globals::loggerProvider()->getLogger($channel);
+        return $this->loggers[$channel] ??= Globals::loggerProvider()->getLogger(
+            $channel,
+            OpenTelemetryBundle::version(),
+            OpenTelemetryBundle::SCHEMA_URL,
+        );
     }
 
     /**

@@ -43,7 +43,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
     public function testHttpClientDisabled(): void
     {
-        $container = $this->buildContainer(['http_client_enabled' => false]);
+        $container = $this->buildContainer(['traces' => ['http_client' => ['enabled' => false]]]);
 
         self::assertFalse($container->getParameter('open_telemetry.http_client_enabled'));
     }
@@ -51,7 +51,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     public function testTracerNameWiredToAllServices(): void
     {
         $container = $this->buildContainer([
-            'tracer_name' => 'custom-tracer',
+            'traces' => ['tracer_name' => 'custom-tracer'],
         ]);
 
         $tracingDef = $container->getDefinition(Tracing::class);
@@ -69,7 +69,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
     public function testSubscriberRemovedWhenTracesDisabled(): void
     {
-        $container = $this->buildContainer(['traces_enabled' => false]);
+        $container = $this->buildContainer(['traces' => ['enabled' => false]]);
 
         self::assertFalse($container->hasDefinition(OpenTelemetrySubscriber::class));
         self::assertTrue($container->hasDefinition(Tracing::class));
@@ -77,7 +77,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
     public function testConsoleSubscriberRemovedWhenDisabled(): void
     {
-        $container = $this->buildContainer(['console_enabled' => false]);
+        $container = $this->buildContainer(['traces' => ['console' => ['enabled' => false]]]);
 
         self::assertFalse($container->hasDefinition(ConsoleSubscriber::class));
         self::assertTrue($container->hasDefinition(OpenTelemetrySubscriber::class));
@@ -86,7 +86,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     public function testConsoleSubscriberReceivesExcludedCommands(): void
     {
         $container = $this->buildContainer([
-            'console_excluded_commands' => ['cache:clear', 'assets:install'],
+            'traces' => ['console' => ['excluded_commands' => ['cache:clear', 'assets:install']]],
         ]);
 
         $def = $container->getDefinition(ConsoleSubscriber::class);
@@ -95,7 +95,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
     public function testMiddlewareRemovedWhenMessengerDisabled(): void
     {
-        $container = $this->buildContainer(['messenger_enabled' => false]);
+        $container = $this->buildContainer(['traces' => ['messenger' => ['enabled' => false]]]);
 
         self::assertFalse($container->hasDefinition(OpenTelemetryMiddleware::class));
         self::assertTrue($container->hasDefinition(OpenTelemetrySubscriber::class));
@@ -104,9 +104,11 @@ final class OpenTelemetryExtensionTest extends TestCase
     public function testSubscriberReceivesConfig(): void
     {
         $container = $this->buildContainer([
-            'excluded_paths' => ['/health'],
-            'record_client_ip' => false,
-            'error_status_threshold' => 400,
+            'traces' => [
+                'excluded_paths' => ['/health'],
+                'record_client_ip' => false,
+                'error_status_threshold' => 400,
+            ],
         ]);
 
         $def = $container->getDefinition(OpenTelemetrySubscriber::class);
@@ -118,7 +120,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
     public function testMiddlewareReceivesRootSpansConfig(): void
     {
-        $container = $this->buildContainer(['messenger_root_spans' => true]);
+        $container = $this->buildContainer(['traces' => ['messenger' => ['root_spans' => true]]]);
 
         $def = $container->getDefinition(OpenTelemetryMiddleware::class);
         self::assertTrue($def->getArgument('$rootSpans'));
@@ -151,7 +153,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     public function testPrependSkippedWhenMessengerDisabled(): void
     {
         $container = new ContainerBuilder();
-        $container->prependExtensionConfig('open_telemetry', ['messenger_enabled' => false]);
+        $container->prependExtensionConfig('open_telemetry', ['traces' => ['messenger' => ['enabled' => false]]]);
 
         $extension = new OpenTelemetryExtension();
         $extension->prepend($container);
@@ -162,7 +164,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
     public function testDoctrineMiddlewareRegisteredWhenEnabled(): void
     {
-        $container = $this->buildContainer(['doctrine_enabled' => true]);
+        $container = $this->buildContainer(['traces' => ['doctrine' => ['enabled' => true]]]);
 
         self::assertTrue($container->hasDefinition(DoctrineTraceableMiddleware::class));
 
@@ -173,7 +175,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
     public function testDoctrineMiddlewareNotRegisteredWhenDisabled(): void
     {
-        $container = $this->buildContainer(['doctrine_enabled' => false]);
+        $container = $this->buildContainer(['traces' => ['doctrine' => ['enabled' => false]]]);
 
         self::assertFalse($container->hasDefinition(DoctrineTraceableMiddleware::class));
     }
@@ -181,8 +183,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     public function testDoctrineRecordStatementsConfigured(): void
     {
         $container = $this->buildContainer([
-            'doctrine_enabled' => true,
-            'doctrine_record_statements' => false,
+            'traces' => ['doctrine' => ['enabled' => true, 'record_statements' => false]],
         ]);
 
         $def = $container->getDefinition(DoctrineTraceableMiddleware::class);
@@ -192,8 +193,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     public function testDoctrineTracerNameWired(): void
     {
         $container = $this->buildContainer([
-            'tracer_name' => 'my-tracer',
-            'doctrine_enabled' => true,
+            'traces' => ['tracer_name' => 'my-tracer', 'doctrine' => ['enabled' => true]],
         ]);
 
         $def = $container->getDefinition(DoctrineTraceableMiddleware::class);
@@ -210,7 +210,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     public function testCacheExcludedPoolsParameterSet(): void
     {
         $container = $this->buildContainer([
-            'cache_excluded_pools' => ['cache.system', 'cache.validator'],
+            'traces' => ['cache' => ['excluded_pools' => ['cache.system', 'cache.validator']]],
         ]);
 
         self::assertSame(
@@ -228,14 +228,14 @@ final class OpenTelemetryExtensionTest extends TestCase
 
     public function testCacheDisabledParameter(): void
     {
-        $container = $this->buildContainer(['cache_enabled' => false]);
+        $container = $this->buildContainer(['traces' => ['cache' => ['enabled' => false]]]);
 
         self::assertFalse($container->getParameter('open_telemetry.cache_enabled'));
     }
 
     public function testTwigExtensionRegisteredWhenEnabled(): void
     {
-        $container = $this->buildContainer(['twig_enabled' => true]);
+        $container = $this->buildContainer(['traces' => ['twig' => ['enabled' => true]]]);
 
         self::assertTrue($container->hasDefinition(OpenTelemetryTwigExtension::class));
 
@@ -245,7 +245,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
     public function testTwigExtensionNotRegisteredWhenDisabled(): void
     {
-        $container = $this->buildContainer(['twig_enabled' => false]);
+        $container = $this->buildContainer(['traces' => ['twig' => ['enabled' => false]]]);
 
         self::assertFalse($container->hasDefinition(OpenTelemetryTwigExtension::class));
     }
@@ -253,8 +253,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     public function testTwigExtensionTracerNameWired(): void
     {
         $container = $this->buildContainer([
-            'tracer_name' => 'my-tracer',
-            'twig_enabled' => true,
+            'traces' => ['tracer_name' => 'my-tracer', 'twig' => ['enabled' => true]],
         ]);
 
         $def = $container->getDefinition(OpenTelemetryTwigExtension::class);
@@ -264,8 +263,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     public function testTwigExtensionExcludedTemplatesWired(): void
     {
         $container = $this->buildContainer([
-            'twig_enabled' => true,
-            'twig_excluded_templates' => ['@WebProfiler/', '@Debug/'],
+            'traces' => ['twig' => ['enabled' => true, 'excluded_templates' => ['@WebProfiler/', '@Debug/']]],
         ]);
 
         $def = $container->getDefinition(OpenTelemetryTwigExtension::class);
@@ -274,7 +272,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
     public function testTwigExtensionExcludedTemplatesDefaultEmpty(): void
     {
-        $container = $this->buildContainer(['twig_enabled' => true]);
+        $container = $this->buildContainer(['traces' => ['twig' => ['enabled' => true]]]);
 
         $def = $container->getDefinition(OpenTelemetryTwigExtension::class);
         self::assertSame([], $def->getArgument('$excludedTemplates'));
@@ -292,7 +290,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
     public function testMonologProcessorNotRegisteredWhenDisabled(): void
     {
-        $container = $this->buildContainer(['monolog_enabled' => false]);
+        $container = $this->buildContainer(['logs' => ['correlation' => ['enabled' => false]]]);
 
         self::assertFalse($container->hasDefinition(TraceContextProcessor::class));
     }
@@ -304,7 +302,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
         $extension = new OpenTelemetryExtension();
         $container->registerExtension($extension);
-        $container->loadFromExtension('open_telemetry', ['log_export_enabled' => true]);
+        $container->loadFromExtension('open_telemetry', ['logs' => ['export' => ['enabled' => true]]]);
 
         $extension->prepend($container);
 
@@ -328,7 +326,7 @@ final class OpenTelemetryExtensionTest extends TestCase
         $container = new ContainerBuilder();
         $extension = new OpenTelemetryExtension();
         $container->registerExtension($extension);
-        $container->loadFromExtension('open_telemetry', ['log_export_enabled' => true]);
+        $container->loadFromExtension('open_telemetry', ['logs' => ['export' => ['enabled' => true]]]);
 
         self::expectException(\LogicException::class);
         self::expectExceptionMessage('symfony/monolog-bundle');

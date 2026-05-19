@@ -113,17 +113,22 @@ open_telemetry:
     metrics:
         enabled: false
         meter_name: 'opentelemetry-symfony'
+
         messenger:
             enabled: false
             excluded_queues: []
+
         doctrine:
             enabled: false
+
         http_server:
             enabled: false
             excluded_paths: []                # same prefix-match rules as tracing excluded_paths
+
         http_client:
             enabled: false
             excluded_hosts: []                # OTLP endpoint is auto-excluded
+
         mailer:
             enabled: false
 
@@ -147,7 +152,7 @@ open_telemetry:
 | `OTEL_PHP_AUTOLOAD_ENABLED` | `true` | Enable SDK auto-initialization |
 | `OTEL_SERVICE_NAME` | `my-symfony-app` | Service name shown in your backend |
 | `OTEL_TRACES_EXPORTER` | `otlp` | Traces exporter (`otlp`, `zipkin`, `console`, `none`) |
-| `OTEL_LOGS_EXPORTER` | `otlp` | Logs exporter (`otlp`, `console`, `none`) — only used when `log_export_enabled: true` |
+| `OTEL_LOGS_EXPORTER` | `otlp` | Logs exporter (`otlp`, `console`, `none`) — only used when `logs.export.enabled: true` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` | Collector/backend endpoint |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/json` | Protocol (`http/json`, `http/protobuf`, `grpc`) |
 
@@ -291,7 +296,7 @@ For high-traffic apps:
 
 - Run a local OTel Collector at `localhost:4318` (sub-ms latency) and let it forward asynchronously.
 - Enable head sampling: `OTEL_TRACES_SAMPLER=parentbased_traceidratio` + `OTEL_TRACES_SAMPLER_ARG=0.1`.
-- Use `excluded_paths` / `cache_excluded_pools` to drop noisy spans.
+- Use `traces.excluded_paths` / `traces.cache.excluded_pools` to drop noisy spans.
 
 ## Contributing
 

@@ -110,12 +110,12 @@ final class SchedulerSubscriber implements EventSubscriberInterface, ResetInterf
         }
 
         $message = $event->getMessage();
-        if (!$this->spans->contains($message)) {
+        if (!$this->spans->offsetExists($message)) {
             return;
         }
 
         [$span, $scope] = $this->spans[$message];
-        $this->spans->detach($message);
+        $this->spans->offsetUnset($message);
 
         $span->setAttribute('scheduler.cancelled', true);
         $span->setStatus(StatusCode::STATUS_OK);
@@ -126,12 +126,12 @@ final class SchedulerSubscriber implements EventSubscriberInterface, ResetInterf
     public function onPostRun(PostRunEvent $event): void
     {
         $message = $event->getMessage();
-        if (!$this->spans->contains($message)) {
+        if (!$this->spans->offsetExists($message)) {
             return;
         }
 
         [$span, $scope] = $this->spans[$message];
-        $this->spans->detach($message);
+        $this->spans->offsetUnset($message);
 
         $span->setStatus(StatusCode::STATUS_OK);
         $scope->detach();
@@ -141,12 +141,12 @@ final class SchedulerSubscriber implements EventSubscriberInterface, ResetInterf
     public function onFailure(FailureEvent $event): void
     {
         $message = $event->getMessage();
-        if (!$this->spans->contains($message)) {
+        if (!$this->spans->offsetExists($message)) {
             return;
         }
 
         [$span, $scope] = $this->spans[$message];
-        $this->spans->detach($message);
+        $this->spans->offsetUnset($message);
 
         $error = $event->getError();
         $span->recordException($error);

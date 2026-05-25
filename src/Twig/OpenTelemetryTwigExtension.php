@@ -101,12 +101,12 @@ final class OpenTelemetryTwigExtension extends AbstractExtension implements Rese
 
     public function leave(Profile $profile): void
     {
-        if (!$this->spans->contains($profile)) {
+        if (!$this->spans->offsetExists($profile)) {
             return;
         }
 
         [$span, $scope] = $this->spans[$profile];
-        $this->spans->detach($profile);
+        $this->spans->offsetUnset($profile);
 
         $span->end();
         $scope->detach();

@@ -77,7 +77,7 @@ final class OpenTelemetryBundle extends Bundle
         if ($sdkConfig['autoload_enabled'] && !Configuration::getBoolean(Variables::OTEL_PHP_AUTOLOAD_ENABLED) && InstalledVersions::isInstalled('open-telemetry/sdk')) {
             $this->setEnvVariable(Variables::OTEL_PHP_AUTOLOAD_ENABLED, 'true', $usePutEnv);
 
-            require_once sprintf('%1$s/_autoload.php', InstalledVersions::getInstallPath('open-telemetry/sdk'));
+            require sprintf('%1$s/_autoload.php', InstalledVersions::getInstallPath('open-telemetry/sdk'));
         }
 
         $this->mergeEnvVariable(Variables::OTEL_RESOURCE_ATTRIBUTES, $sdkConfig['resource_attributes'], $usePutEnv);
@@ -90,10 +90,15 @@ final class OpenTelemetryBundle extends Bundle
             return;
         }
 
-        $existing = Configuration::has($name) ? explode(',', Configuration::getString($name)) : [];
+        $existing = Configuration::has($name) ? (Configuration::getMap($name) ?? []) : [];
         $combined = array_replace($existing, $values);
 
-        $this->setEnvVariable($name, implode(',', $combined), $usePutEnv);
+        $new = [];
+        foreach ($combined as $key => $value) {
+            $new[] = sprintf('%1$s=%2$s', $key, $value);
+        }
+
+        $this->setEnvVariable($name, implode(',', $new), $usePutEnv);
     }
 
     private function setEnvVariable(string $name, string $value, bool $usePutEnv): void

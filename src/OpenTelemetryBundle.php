@@ -65,7 +65,7 @@ final class OpenTelemetryBundle extends Bundle
         $this->bootSdkConfig();
     }
 
-    public function autoloadSdk($autoloadEnabled, bool $usePutEnv): void
+    public function autoloadSdk(bool $autoloadEnabled, bool $usePutEnv): void
     {
         if ($autoloadEnabled &&
             !Configuration::getBoolean(Variables::OTEL_PHP_AUTOLOAD_ENABLED) &&
@@ -80,7 +80,7 @@ final class OpenTelemetryBundle extends Bundle
 
     private function bootSdkConfig(): void
     {
-        if (!$this->container->hasParameter('open_telemetry.sdk.config')) {
+        if (null === $this->container || !$this->container->hasParameter('open_telemetry.sdk.config')) {
             return;
         }
 
@@ -108,6 +108,7 @@ final class OpenTelemetryBundle extends Bundle
             return;
         }
 
+        /** @var array<string, string> $existing */
         $existing = Configuration::has($name) ? Configuration::getMap($name) : [];
         $combined = array_replace($existing, $values);
 

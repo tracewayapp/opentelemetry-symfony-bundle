@@ -137,6 +137,48 @@ final class OpenTelemetryBundleTest extends TestCase
         self::assertNotSame([], $reflection->getStaticPropertyValue('initializers'));
     }
 
+    public function testOpenTelemetryWasNotAutoloadedIfAutoloadWasAlreadyEnabledUsingServerGlobalBeforeBundleBoot(): void
+    {
+        $_SERVER[Variables::OTEL_PHP_AUTOLOAD_ENABLED] = 'true';
+
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.sdk.config', [
+            'enabled' => true,
+            'autoload_enabled' => true,
+            'use_putenv' => false,
+            'resource_attributes' => [],
+            'exporter_otlp_headers' => [],
+        ]);
+
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
+
+        $reflection = new \ReflectionClass(Globals::class);
+        self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
+    }
+
+    public function testOpenTelemetryWasNotAutoloadedIfAutoloadWasAlreadyEnabledUsingPutenvBeforeBundleBoot(): void
+    {
+        putenv(sprintf('%1$s=%2$s', Variables::OTEL_PHP_AUTOLOAD_ENABLED, 'true'));
+
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.sdk.config', [
+            'enabled' => true,
+            'autoload_enabled' => true,
+            'use_putenv' => false,
+            'resource_attributes' => [],
+            'exporter_otlp_headers' => [],
+        ]);
+
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
+
+        $reflection = new \ReflectionClass(Globals::class);
+        self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
+    }
+
     public function testOpenTelemetryConfigurationWasUsedWithPutEnv(): void
     {
         $container = new ContainerBuilder();

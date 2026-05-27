@@ -54,6 +54,13 @@ final class ConfigurationTest extends TestCase
         self::assertFalse($config['logs']['export']['capture_code_attributes']);
         // Flipped from false in v2.0 — cross-ecosystem norm.
         self::assertTrue($config['logs']['export']['unprefixed_attributes']);
+
+        // sdk
+        self::assertFalse($config['sdk']['enabled']);
+        self::assertFalse($config['sdk']['autoload_enabled']);
+        self::assertFalse($config['sdk']['use_putenv']);
+        self::assertSame([], $config['sdk']['resource_attributes']);
+        self::assertSame([], $config['sdk']['exporter_otlp_headers']);
     }
 
     public function testCustomValues(): void
@@ -228,6 +235,48 @@ final class ConfigurationTest extends TestCase
         ]]);
 
         self::assertSame([], $config['metrics']['http_server']['excluded_paths']);
+    }
+
+    public function testSdkPConfigCanBeSupplied(): void
+    {
+        $expected = [
+            'enabled' => true,
+            'autoload_enabled' => true,
+            'use_putenv' => true,
+            'resource_attributes' => ['service.version' => '1.0', 'deployment.environment' => 'dev'],
+            'exporter_otlp_headers' => ['other-config-value' => 'abc', 'Authorization' => 'api-key'],
+        ];
+
+        $config = $this->process([['sdk' => $expected]]);
+
+        self::assertSame($expected, $config['sdk']);
+    }
+
+    public function testSdkHasUntouchedDefaultValuesIfEnabled()
+    {
+        $config = $this->process([['sdk' => ['enabled' => true]]]);
+
+        self::assertTrue($config['sdk']['enabled']);
+        self::assertFalse($config['sdk']['autoload_enabled']);
+        self::assertFalse($config['sdk']['use_putenv']);
+        self::assertSame([], $config['sdk']['resource_attributes']);
+        self::assertSame([], $config['sdk']['exporter_otlp_headers']);
+    }
+
+    public function testSdkCanImplicitlyBeEnabled()
+    {
+        $config = $this->process([['sdk' => ['autoload_enabled' => true]]]);
+
+        self::assertTrue($config['sdk']['enabled']);
+        self::assertTrue($config['sdk']['autoload_enabled']);
+    }
+
+    public function testSdkCanExplicitlyBeDisabled()
+    {
+        $config = $this->process([['sdk' => ['enabled' => false, 'autoload_enabled' => true]]]);
+
+        self::assertFalse($config['sdk']['enabled']);
+        self::assertTrue($config['sdk']['autoload_enabled']);
     }
 
     #[DataProvider('metricsSubsystemProvider')]

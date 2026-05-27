@@ -42,6 +42,8 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http/json
 # Optional: OTEL_RESOURCE_ATTRIBUTES=service.version=1.0
 ```
 
+It is also possible to use Symfony's DotEnv component in combination with the `open_telemetry.sdk` bundle configuration section for `OTEL_PHP_AUTOLOAD_ENABLED`,  `OTEL_RESOURCE_ATTRIBUTES` and `OTEL_EXPORTER_OTLP_HEADERS` to set the relevant SDK configuration, see [Configuration](#configuration) for more details. Using configuration setting `open_telemetry.sdk.autoload_enabled` registers the OpenTelemetry SDK without needing to set `OTEL_PHP_AUTOLOAD_ENABLED` before Composer's autoload is loaded. Furthermore, using `open_telemetry.sdk.resource_attributes` allows `OTEL_RESOURCE_ATTRIBUTES` to be set more conveniently and also supports the use of Symfony Secrets and the same applies with `open_telemetry.sdk.exporter_otlp_headers` for `OTEL_EXPORTER_OTLP_HEADERS`.   
+
 > Use `http/json` unless you have `ext-protobuf` installed — see [Performance](#performance).
 
 With Symfony Flex the bundle auto-registers; without Flex, add `Traceway\OpenTelemetryBundle\OpenTelemetryBundle::class => ['all' => true]` to `config/bundles.php`.

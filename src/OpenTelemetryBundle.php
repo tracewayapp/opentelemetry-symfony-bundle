@@ -94,6 +94,9 @@ final class OpenTelemetryBundle extends Bundle
         $this->mergeEnvVariable(Variables::OTEL_EXPORTER_OTLP_HEADERS, $sdkConfig['exporter_otlp_headers'], $usePutEnv);
     }
 
+    /**
+     * @param array<string, string> $values
+     */
     private function mergeEnvVariable(string $name, array $values, bool $usePutEnv): void
     {
         if ([] === $values) {

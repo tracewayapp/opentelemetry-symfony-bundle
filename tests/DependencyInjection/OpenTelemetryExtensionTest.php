@@ -334,6 +334,65 @@ final class OpenTelemetryExtensionTest extends TestCase
         $extension->prepend($container);
     }
 
+    public function testSdkParameterNotAddedWhenNotEnabled(): void
+    {
+        $container = $this->buildContainer([]);
+
+        self::assertFalse($container->hasParameter('open_telemetry.sdk.config'));
+    }
+
+    public function testSdkParameterDefaultValuesAddedWhenEnabled(): void
+    {
+        $container = $this->buildContainer(['sdk' => ['enabled' => true]]);
+
+        self::assertTrue($container->hasParameter('open_telemetry.sdk.config'));
+
+        $config = $container->getParameter('open_telemetry.sdk.config');
+        self::assertIsArray($config);
+        self::assertIsArray($config['resource_attributes']);
+        self::assertIsArray($config['exporter_otlp_headers']);
+        self::assertFalse($config['use_putenv']);
+        self::assertFalse($config['autoload_enabled']);
+    }
+
+    public function testSdkParameterAreAddedIfConfiguredAndAutomaticallyEnabled(): void
+    {
+        $container = $this->buildContainer(['sdk' => ['autoload_enabled' => true]]);
+
+        self::assertTrue($container->hasParameter('open_telemetry.sdk.config'));
+
+        $config = $container->getParameter('open_telemetry.sdk.config');
+        self::assertIsArray($config);
+        self::assertIsArray($config['resource_attributes']);
+        self::assertIsArray($config['exporter_otlp_headers']);
+        self::assertFalse($config['use_putenv']);
+        self::assertTrue($config['autoload_enabled']);
+    }
+
+    public function testSdkParameterNotAddedIfExplicitlyDisabledWithOtherConfigurationValues(): void
+    {
+        $container = $this->buildContainer(['sdk' => ['enabled' => false, 'autoload_enabled' => true]]);
+
+        self::assertFalse($container->hasParameter('open_telemetry.sdk.config'));
+    }
+
+    public function testSdkParameterConfigIsSetAsParameter(): void
+    {
+        $expected = [
+            'enabled' => true,
+            'autoload_enabled' => true,
+            'use_putenv' => true,
+            'resource_attributes' => ['service.version' => '1.0', 'deployment.environment' => 'dev'],
+            'exporter_otlp_headers' => ['other-config-value' => 'abc', 'Authorization' => 'api-key'],
+        ];
+
+        $container = $this->buildContainer(['sdk' => $expected]);
+
+        self::assertTrue($container->hasParameter('open_telemetry.sdk.config'));
+
+        self::assertSame($expected, $container->getParameter('open_telemetry.sdk.config'));
+    }
+
     private function buildContainer(array $config): ContainerBuilder
     {
         $container = new ContainerBuilder();

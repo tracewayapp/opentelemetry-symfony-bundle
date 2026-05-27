@@ -103,6 +103,8 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         $loader = new YamlFileLoader($container, new FileLocator(\dirname(__DIR__, 2) . '/config'));
         $loader->load('services.yaml');
 
+        $sdk = $config['sdk'];
+
         $traces = $config['traces'];
         $tracerName = $traces['tracer_name'];
 
@@ -116,6 +118,10 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         /** @var string[] $httpExcludedHosts */
         $httpExcludedHosts = $traces['http_client']['excluded_hosts'];
         $container->setParameter('open_telemetry.http_client_excluded_hosts', $httpExcludedHosts);
+
+        if ($sdk['enabled']) {
+            $container->setParameter('open_telemetry.sdk.config', $sdk);
+        }
 
         if ($traces['enabled']) {
             $container->getDefinition(OpenTelemetrySubscriber::class)
@@ -288,7 +294,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     {
         return interface_exists(\Symfony\Component\Scheduler\ScheduleProviderInterface::class);
     }
-    
+
     private function isMailerAvailable(): bool
     {
         return interface_exists(MailerInterface::class);

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Traceway\OpenTelemetryBundle;
 
 use Composer\InstalledVersions;
+use OpenTelemetry\SDK\Common\Configuration\Configuration;
+use OpenTelemetry\SDK\Common\Configuration\Variables;
 use OpenTelemetry\SemConv\TraceAttributes;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
@@ -54,5 +56,52 @@ final class OpenTelemetryBundle extends Bundle
         $container->addCompilerPass(new HttpClientTracingPass());
         $container->addCompilerPass(new HttpClientMetricsPass());
         $container->addCompilerPass(new CacheTracingPass());
+    }
+
+    public function boot(): void
+    {
+        parent::boot();
+
+        $this->bootSdkConfig();
+    }
+
+    private function bootSdkConfig(): void
+    {
+        if (!$this->container->hasParameter('open_telemetry.sdk.config')) {
+            return;
+        }
+
+        $sdkConfig = $this->container->getParameter('open_telemetry.sdk.config');
+        $usePutEnv = $sdkConfig['use_putenv'];
+
+        if ($sdkConfig['autoload_enabled'] && !Configuration::getBoolean(Variables::OTEL_PHP_AUTOLOAD_ENABLED) && InstalledVersions::isInstalled('open-telemetry/sdk')) {
+            $this->setEnvVariable(Variables::OTEL_PHP_AUTOLOAD_ENABLED, 'true', $usePutEnv);
+
+            require_once sprintf('%1$s/_autoload.php', InstalledVersions::getInstallPath('open-telemetry/sdk'));
+        }
+
+        $this->mergeEnvVariable(Variables::OTEL_RESOURCE_ATTRIBUTES, $sdkConfig['resource_attributes'], $usePutEnv);
+        $this->mergeEnvVariable(Variables::OTEL_EXPORTER_OTLP_HEADERS, $sdkConfig['exporter_otlp_headers'], $usePutEnv);
+    }
+
+    private function mergeEnvVariable(string $name, array $values, bool $usePutEnv): void
+    {
+        if ([] === $values) {
+            return;
+        }
+
+        $existing = Configuration::has($name) ? explode(',', Configuration::getString($name)) : [];
+        $combined = array_replace($existing, $values);
+
+        $this->setEnvVariable($name, implode(',', $combined), $usePutEnv);
+    }
+
+    private function setEnvVariable(string $name, string $value, bool $usePutEnv): void
+    {
+        $_SERVER[$name] = $_ENV[$name] = $value;
+
+        if ($usePutEnv) {
+            putenv(sprintf('%1$s=%2$s', $name, $value));
+        }
     }
 }

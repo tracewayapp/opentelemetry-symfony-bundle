@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\DependencyInjection;
 
+use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -60,6 +61,7 @@ final class Configuration implements ConfigurationInterface
                 ->append($this->buildTracesNode())
                 ->append($this->buildMetricsNode())
                 ->append($this->buildLogsNode())
+                ->append($this->buildSkdNode())
             ->end()
         ;
 
@@ -126,10 +128,10 @@ final class Configuration implements ConfigurationInterface
         return $config;
     }
 
-    private function buildTracesNode(): \Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition
+    private function buildTracesNode(): ArrayNodeDefinition
     {
         $builder = new TreeBuilder('traces');
-        /** @var \Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition $node */
+        /** @var ArrayNodeDefinition $node */
         $node = $builder->getRootNode();
 
         $node
@@ -257,10 +259,10 @@ final class Configuration implements ConfigurationInterface
         return $node;
     }
 
-    private function buildMetricsNode(): \Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition
+    private function buildMetricsNode(): ArrayNodeDefinition
     {
         $builder = new TreeBuilder('metrics');
-        /** @var \Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition $node */
+        /** @var ArrayNodeDefinition $node */
         $node = $builder->getRootNode();
 
         $node
@@ -371,10 +373,10 @@ final class Configuration implements ConfigurationInterface
         return $node;
     }
 
-    private function buildLogsNode(): \Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition
+    private function buildLogsNode(): ArrayNodeDefinition
     {
         $builder = new TreeBuilder('logs');
-        /** @var \Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition $node */
+        /** @var ArrayNodeDefinition $node */
         $node = $builder->getRootNode();
 
         $node
@@ -403,6 +405,45 @@ final class Configuration implements ConfigurationInterface
                             ->defaultTrue()
                         ->end()
                     ->end()
+                ->end()
+            ->end()
+        ;
+
+        return $node;
+    }
+
+    private function buildSkdNode(): ArrayNodeDefinition
+    {
+        $builder = new TreeBuilder('sdk');
+        /** @var ArrayNodeDefinition $node */
+        $node = $builder->getRootNode();
+
+         $node
+            ->info('It can be used to configure OpenTelemetry SDK variables easier and adds support for Symfony Secrets. It sets environment variables during bundle boot method to ensure they are set on a compiled container.')
+            ->addDefaultsIfNotSet()
+             ->canBeEnabled()
+            ->children()
+                ->booleanNode('autoload_enabled')
+                    ->info('If `true` OTEL_PHP_AUTOLOAD_ENABLED will be set automatically and load `_autoload.php`, if and only if Configuration::getBoolean(Variables::OTEL_PHP_AUTOLOAD_ENABLED) returns false to avoid duplicate initialization. It defaults to `false`.')
+                    ->defaultFalse()
+                ->end()
+                ->booleanNode('use_putenv')
+                    ->info('If `true` environment variables set by the SDK section will also use putenv(). Otherwise, only $_SERVER and $_ENV is used. Beware that putenv() is not thread safe, that\'s why it\'s not enabled by default.')
+                    ->defaultFalse()
+                ->end()
+                ->arrayNode('resource_attributes')
+                    ->info('Merged/replaced key and value pairs with existing OTEL_RESOURCE_ATTRIBUTES variable. It defaults to an empty array.')
+                    ->useAttributeAsKey('name')
+                    ->normalizeKeys(false)
+                    ->scalarPrototype()->end()
+                    ->defaultValue([])
+                ->end()
+                ->arrayNode('exporter_otlp_headers')
+                    ->info('Merged/replaced key and value pairs with existing OTEL_EXPORTER_OTLP_HEADERS variable. It defaults to an empty array.')
+                    ->useAttributeAsKey('name')
+                    ->normalizeKeys(false)
+                    ->scalarPrototype()->end()
+                    ->defaultValue([])
                 ->end()
             ->end()
         ;

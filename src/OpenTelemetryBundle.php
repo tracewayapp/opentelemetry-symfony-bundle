@@ -65,6 +65,19 @@ final class OpenTelemetryBundle extends Bundle
         $this->bootSdkConfig();
     }
 
+    public function autoloadSdk($autoloadEnabled, bool $usePutEnv): void
+    {
+        if ($autoloadEnabled &&
+            !Configuration::getBoolean(Variables::OTEL_PHP_AUTOLOAD_ENABLED) &&
+            InstalledVersions::isInstalled('open-telemetry/sdk')
+        ) {
+            $this->setEnvVariable(Variables::OTEL_PHP_AUTOLOAD_ENABLED, 'true', $usePutEnv);
+
+            // Using require instead of require_once as open-telemetry/sdk already loaded the file once but without autoload enabled, it did not register anything.
+            require sprintf('%1$s/_autoload.php', InstalledVersions::getInstallPath('open-telemetry/sdk'));
+        }
+    }
+
     private function bootSdkConfig(): void
     {
         if (!$this->container->hasParameter('open_telemetry.sdk.config')) {
@@ -74,11 +87,7 @@ final class OpenTelemetryBundle extends Bundle
         $sdkConfig = $this->container->getParameter('open_telemetry.sdk.config');
         $usePutEnv = $sdkConfig['use_putenv'];
 
-        if ($sdkConfig['autoload_enabled'] && !Configuration::getBoolean(Variables::OTEL_PHP_AUTOLOAD_ENABLED) && InstalledVersions::isInstalled('open-telemetry/sdk')) {
-            $this->setEnvVariable(Variables::OTEL_PHP_AUTOLOAD_ENABLED, 'true', $usePutEnv);
-
-            require sprintf('%1$s/_autoload.php', InstalledVersions::getInstallPath('open-telemetry/sdk'));
-        }
+        $this->autoloadSdk($sdkConfig['autoload_enabled'], $usePutEnv);
 
         $this->mergeEnvVariable(Variables::OTEL_RESOURCE_ATTRIBUTES, $sdkConfig['resource_attributes'], $usePutEnv);
         $this->mergeEnvVariable(Variables::OTEL_EXPORTER_OTLP_HEADERS, $sdkConfig['exporter_otlp_headers'], $usePutEnv);

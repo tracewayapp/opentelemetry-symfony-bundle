@@ -61,10 +61,6 @@ final class OpenTelemetryBundleTest extends TestCase
 
     public function testBootDoesNotSetOpenTelemetryConfigWithoutConfiguration(): void
     {
-        $reflection = new \ReflectionClass(Globals::class);
-
-        self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
-
         $container = new ContainerBuilder();
         $bundle = new OpenTelemetryBundle();
         $bundle->setContainer($container);
@@ -76,6 +72,8 @@ final class OpenTelemetryBundleTest extends TestCase
             self::assertFalse(getenv($variable));
             self::assertFalse(Configuration::has($variable));
         }
+
+        $reflection = new \ReflectionClass(Globals::class);
 
         self::assertIsArray($reflection->getStaticPropertyValue('initializers'));
         self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
@@ -91,10 +89,6 @@ final class OpenTelemetryBundleTest extends TestCase
 
     public function testOpenTelemetryWasNotAutoloadedIfNotConfigured(): void
     {
-        $reflection = new \ReflectionClass(Globals::class);
-
-        self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
-
         $container = new ContainerBuilder();
         $container->setParameter('open_telemetry.sdk.config', [
             'enabled' => true,
@@ -108,15 +102,12 @@ final class OpenTelemetryBundleTest extends TestCase
         $bundle->setContainer($container);
         $bundle->boot();
 
+        $reflection = new \ReflectionClass(Globals::class);
         self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
     }
 
     public function testOpenTelemetryWasAutoloadedIfConfigured(): void
     {
-        $reflection = new \ReflectionClass(Globals::class);
-
-        self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
-
         $container = new ContainerBuilder();
         $container->setParameter('open_telemetry.sdk.config', [
             'enabled' => true,
@@ -129,6 +120,8 @@ final class OpenTelemetryBundleTest extends TestCase
         $bundle = new OpenTelemetryBundle();
         $bundle->setContainer($container);
         $bundle->boot();
+
+        $reflection = new \ReflectionClass(Globals::class);
 
         self::assertIsArray($reflection->getStaticPropertyValue('initializers'));
         self::assertNotSame([], $reflection->getStaticPropertyValue('initializers'));

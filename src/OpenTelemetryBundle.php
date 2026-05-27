@@ -84,6 +84,15 @@ final class OpenTelemetryBundle extends Bundle
             return;
         }
 
+        /**
+         * @var array{
+         *     enabled: bool,
+         *     autoload_enabled: bool,
+         *     use_putenv: bool,
+         *     resource_attributes: array<string, string>,
+         *     exporter_otlp_headers: array<string, string>
+         * } $sdkConfig
+         */
         $sdkConfig = $this->container->getParameter('open_telemetry.sdk.config');
         $usePutEnv = $sdkConfig['use_putenv'];
 
@@ -99,7 +108,7 @@ final class OpenTelemetryBundle extends Bundle
             return;
         }
 
-        $existing = Configuration::has($name) ? (Configuration::getMap($name) ?? []) : [];
+        $existing = Configuration::has($name) ? Configuration::getMap($name) : [];
         $combined = array_replace($existing, $values);
 
         $new = [];

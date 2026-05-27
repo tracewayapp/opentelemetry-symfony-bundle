@@ -80,7 +80,7 @@ final class OpenTelemetryBundle extends Bundle
 
     private function bootSdkConfig(): void
     {
-        if (null === $this->container || !$this->container->hasParameter('open_telemetry.sdk.config')) {
+        if (!isset($this->container) || !$this->container->hasParameter('open_telemetry.sdk.config')) {
             return;
         }
 

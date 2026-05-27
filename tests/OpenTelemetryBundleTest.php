@@ -79,12 +79,22 @@ final class OpenTelemetryBundleTest extends TestCase
         self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
     }
 
-    public function testBootDoesThrowsErrorIfContainerIsMissing(): void
+    public function testBootDoesNotSetOpenTelemetryConfigIfContainerIsMissing(): void
     {
-        self::expectException(\Error::class);
-
         $bundle = new OpenTelemetryBundle();
         $bundle->boot();
+
+        foreach ([Variables::OTEL_EXPORTER_OTLP_HEADERS, Variables::OTEL_RESOURCE_ATTRIBUTES, Variables::OTEL_PHP_AUTOLOAD_ENABLED] as $variable) {
+            self::assertArrayNotHasKey($variable, $_SERVER);
+            self::assertArrayNotHasKey($variable, $_ENV);
+            self::assertFalse(getenv($variable));
+            self::assertFalse(Configuration::has($variable));
+        }
+
+        $reflection = new \ReflectionClass(Globals::class);
+
+        self::assertIsArray($reflection->getStaticPropertyValue('initializers'));
+        self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
     }
 
     public function testOpenTelemetryWasNotAutoloadedIfNotConfigured(): void

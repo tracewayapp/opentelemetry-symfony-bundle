@@ -128,7 +128,6 @@ final class DbMetricRecorderTest extends TestCase
 
         $reflection = new \ReflectionClass($recorder);
         $duration = $reflection->getProperty('duration');
-        $duration->setAccessible(true);
         $duration->setValue($recorder, $broken);
 
         $recorder->record('SELECT 1', hrtime(true), null);

@@ -323,7 +323,6 @@ final class OpenTelemetryMetricsSubscriberTest extends TestCase
 
         $reflection = new \ReflectionClass($this->subscriber);
         $property = $reflection->getProperty('activeRequests');
-        $property->setAccessible(true);
         $property->setValue($this->subscriber, $broken);
     }
 
@@ -334,7 +333,6 @@ final class OpenTelemetryMetricsSubscriberTest extends TestCase
 
         $reflection = new \ReflectionClass($this->subscriber);
         $property = $reflection->getProperty('duration');
-        $property->setAccessible(true);
         $property->setValue($this->subscriber, $broken);
     }
 }

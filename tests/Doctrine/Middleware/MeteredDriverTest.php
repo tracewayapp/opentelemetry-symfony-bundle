@@ -54,7 +54,6 @@ final class MeteredDriverTest extends TestCase
 
         $reflection = new \ReflectionClass(MeteredDriver::class);
         $method = $reflection->getMethod('resolveDbSystem');
-        $method->setAccessible(true);
 
         $driver = new MeteredDriver($inner, 'test');
         self::assertSame($expectedSystem, $method->invoke($driver, ['driver' => $driverName]));
@@ -67,7 +66,6 @@ final class MeteredDriverTest extends TestCase
 
         $reflection = new \ReflectionClass(MeteredDriver::class);
         $method = $reflection->getMethod('resolveDbSystem');
-        $method->setAccessible(true);
 
         $driver = new MeteredDriver($inner, 'test');
         self::assertSame('other_sql', $method->invoke($driver, []));

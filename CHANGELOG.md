@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-05-29
+
 ### Added
 
-- **Native AWS X-Ray support** — new `traces.propagator` config key (`w3c` default, `xray`, `w3c+xray`) swaps the global `TextMapPropagator` for AWS X-Ray's `X-Amzn-Trace-Id` header format; all context injection and extraction across HTTP, HttpClient, and Messenger updates automatically. New `traces.id_generator` config key (`default`, `xray`) builds a `TracerProvider` using the SDK's env-var auto-configuration factories plus `XRayIdGenerator`, producing epoch-prefixed trace IDs that X-Ray's UI renders as request timestamps. Both options require `open-telemetry/contrib-aws` (added to `suggest`); a clear `LogicException` is thrown at container boot if the package is absent. The `w3c+xray` propagator mode writes both `traceparent` and `X-Amzn-Trace-Id` simultaneously via `MultiTextMapPropagator`, useful during a gradual migration ([#46](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/46)).
+- **Native AWS X-Ray support** — new `traces.propagator` config key (`w3c` default, `xray`, `w3c+xray`) swaps the global `TextMapPropagator` for AWS X-Ray's `X-Amzn-Trace-Id` header format; all context injection and extraction across HTTP, HttpClient, and Messenger updates automatically. New `traces.id_generator` config key (`default`, `xray`) builds a `TracerProvider` using the SDK's env-var auto-configuration factories plus `XRayIdGenerator`, producing epoch-prefixed trace IDs that X-Ray's UI renders as request timestamps. Both options require `open-telemetry/contrib-aws` (added to `suggest`); a clear `LogicException` is thrown at container boot if the package is absent. The `w3c+xray` propagator mode writes both `traceparent` and `X-Amzn-Trace-Id` simultaneously via `MultiTextMapPropagator`, useful during a gradual migration ([#46](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/46) — thanks @FrameAutomata).
+
+### Fixed
+
+- **PHP 8.5 deprecations** — replaced `SplObjectStorage::contains()` / `detach()` (deprecated in 8.5) with `offsetExists()` / `offsetUnset()` in the Console, Scheduler, and Twig instrumentation ([#48](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/48) — thanks @MrYamous). Removed `ReflectionProperty::setAccessible()` / `ReflectionMethod::setAccessible()` calls from the test suite (no-op since PHP 8.1, deprecated in 8.5).
 
 ## [2.0.0] - 2026-05-15
 

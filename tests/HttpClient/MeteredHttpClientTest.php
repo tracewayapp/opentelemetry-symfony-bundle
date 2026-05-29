@@ -371,7 +371,6 @@ final class MeteredHttpClientTest extends TestCase
 
         $reflection = new \ReflectionClass($client);
         $duration = $reflection->getProperty('duration');
-        $duration->setAccessible(true);
         $duration->setValue($client, $broken);
     }
 
@@ -382,7 +381,6 @@ final class MeteredHttpClientTest extends TestCase
 
         $reflection = new \ReflectionClass($client);
         $requestBodySize = $reflection->getProperty('requestBodySize');
-        $requestBodySize->setAccessible(true);
         $requestBodySize->setValue($client, $broken);
     }
 
@@ -393,7 +391,6 @@ final class MeteredHttpClientTest extends TestCase
 
         $reflection = new \ReflectionClass($client);
         $inFlight = $reflection->getProperty('inFlight');
-        $inFlight->setAccessible(true);
         $inFlight->setValue($client, true);
 
         $response = $client->request('GET', 'https://api.example.com/data');
@@ -410,7 +407,6 @@ final class MeteredHttpClientTest extends TestCase
 
         $reflection = new \ReflectionClass($client);
         $inFlight = $reflection->getProperty('inFlight');
-        $inFlight->setAccessible(true);
         $inFlight->setValue($client, true);
 
         $client->reset();

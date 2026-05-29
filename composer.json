@@ -30,6 +30,7 @@
         "symfony/yaml": "^6.4 || ^7.0 || ^8.0"
     },
     "suggest": {
+        "open-telemetry/contrib-aws": "Required for native AWS X-Ray support (open_telemetry.propagator: xray and open_telemetry.id_generator: xray)",
         "open-telemetry/exporter-otlp": "Required to export traces via OTLP (the most common protocol for OpenTelemetry backends)",
         "php-http/guzzle7-adapter": "HTTP transport for the OTLP exporter (or use any PSR-18 client)",
         "ext-protobuf": "Significantly faster protobuf serialization for OTLP export (use with OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf)",
@@ -46,6 +47,7 @@
     "require-dev": {
         "doctrine/dbal": "^4.0",
         "monolog/monolog": "^3.0",
+        "open-telemetry/contrib-aws": "^1.2",
         "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^10.0 || ^11.0 || ^13.0",
         "symfony/cache": "^6.4 || ^7.0 || ^8.0",

@@ -33,6 +33,7 @@ use Traceway\OpenTelemetryBundle\Metrics\MeterRegistryInterface;
 use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\Monolog\OtelLogHandler;
 use Traceway\OpenTelemetryBundle\Monolog\TraceContextProcessor;
+use Traceway\OpenTelemetryBundle\XRay\XRayBootstrapper;
 use Traceway\OpenTelemetryBundle\Twig\OpenTelemetryTwigExtension;
 
 final class OpenTelemetryExtension extends Extension implements PrependExtensionInterface
@@ -97,7 +98,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     public function load(array $configs, ContainerBuilder $container): void
     {
         $configuration = new Configuration();
-        /** @var array{traces: array{enabled: bool, tracer_name: string, excluded_paths: list<string>, record_client_ip: bool, error_status_threshold: int, console: array{enabled: bool, excluded_commands: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, messenger: array{enabled: bool, root_spans: bool}, doctrine: array{enabled: bool, record_statements: bool}, cache: array{enabled: bool, excluded_pools: list<string>}, twig: array{enabled: bool, excluded_templates: list<string>}, scheduler: array{enabled: bool}, mailer: array{enabled: bool, record_subject: bool}}, metrics: array{enabled: bool, meter_name: string, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}}, logs: array{correlation: array{enabled: bool}, export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}} $config */
+        /** @var array{traces: array{enabled: bool, propagator: string, id_generator: string, tracer_name: string, excluded_paths: list<string>, record_client_ip: bool, error_status_threshold: int, console: array{enabled: bool, excluded_commands: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, messenger: array{enabled: bool, root_spans: bool}, doctrine: array{enabled: bool, record_statements: bool}, cache: array{enabled: bool, excluded_pools: list<string>}, twig: array{enabled: bool, excluded_templates: list<string>}, scheduler: array{enabled: bool}, mailer: array{enabled: bool, record_subject: bool}}, metrics: array{enabled: bool, meter_name: string, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}}, logs: array{correlation: array{enabled: bool}, export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}} $config */
         $config = $this->processConfiguration($configuration, $configs);
 
         $loader = new YamlFileLoader($container, new FileLocator(\dirname(__DIR__, 2) . '/config'));
@@ -198,6 +199,22 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->setDefinition(TraceContextProcessor::class, $monologDef);
         }
 
+        $propagator = $config['traces']['propagator'];
+        $idGenerator = $config['traces']['id_generator'];
+
+        if ('w3c' !== $propagator || 'default' !== $idGenerator) {
+            if (!$this->isXRayAvailable()) {
+                throw new \LogicException(
+                    'X-Ray support requires "open-telemetry/contrib-aws". Run: composer require open-telemetry/contrib-aws'
+                );
+            }
+            $xrayDef = new Definition(XRayBootstrapper::class);
+            $xrayDef->setArgument('$propagator', $propagator);
+            $xrayDef->setArgument('$idGenerator', $idGenerator);
+            $xrayDef->setAutoconfigured(true);
+            $container->setDefinition(XRayBootstrapper::class, $xrayDef);
+        }
+
         $metrics = $config['metrics'];
         $meterName = $metrics['meter_name'];
 
@@ -292,5 +309,10 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     private function isMailerAvailable(): bool
     {
         return interface_exists(MailerInterface::class);
+    }
+
+    private function isXRayAvailable(): bool
+    {
+        return class_exists(\OpenTelemetry\Contrib\Aws\Xray\Propagator::class);
     }
 }

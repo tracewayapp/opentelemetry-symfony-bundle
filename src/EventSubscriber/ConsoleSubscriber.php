@@ -127,7 +127,7 @@ final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterfac
 
         $updated = [$span, $scope, true];
         $command = $event->getCommand();
-        if (null !== $command && $this->commandSpans->contains($command)) {
+        if (null !== $command && $this->commandSpans->offsetExists($command)) {
             $this->commandSpans[$command] = $updated;
         } else {
             $this->orphanSpan = $updated;
@@ -154,8 +154,8 @@ final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterfac
         $span->end();
         $scope->detach();
 
-        if (null !== $command && $this->commandSpans->contains($command)) {
-            $this->commandSpans->detach($command);
+        if (null !== $command && $this->commandSpans->offsetExists($command)) {
+            $this->commandSpans->offsetUnset($command);
         } else {
             $this->orphanSpan = null;
         }
@@ -166,7 +166,7 @@ final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterfac
      */
     private function resolveEntry(?Command $command): ?array
     {
-        if (null !== $command && $this->commandSpans->contains($command)) {
+        if (null !== $command && $this->commandSpans->offsetExists($command)) {
             return $this->commandSpans[$command];
         }
 

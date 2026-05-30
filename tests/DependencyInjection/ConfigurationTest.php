@@ -27,6 +27,8 @@ final class ConfigurationTest extends TestCase
 
         // traces
         self::assertTrue($config['traces']['enabled']);
+        self::assertSame('w3c', $config['traces']['propagator']);
+        self::assertSame('default', $config['traces']['id_generator']);
         self::assertSame('opentelemetry-symfony', $config['traces']['tracer_name']);
         self::assertSame([], $config['traces']['excluded_paths']);
         self::assertTrue($config['traces']['record_client_ip']);
@@ -157,6 +159,53 @@ final class ConfigurationTest extends TestCase
         $this->expectException(InvalidConfigurationException::class);
 
         $this->process([['traces' => ['tracer_name' => '']]]);
+    }
+
+    #[DataProvider('validPropagatorProvider')]
+    public function testValidPropagatorValues(string $value): void
+    {
+        $config = $this->process([['traces' => ['propagator' => $value]]]);
+
+        self::assertSame($value, $config['traces']['propagator']);
+    }
+
+    /**
+     * @return \Generator<string, array{string}>
+     */
+    public static function validPropagatorProvider(): \Generator
+    {
+        yield 'w3c' => ['w3c'];
+        yield 'xray' => ['xray'];
+        yield 'w3c+xray' => ['w3c+xray'];
+    }
+
+    public function testInvalidPropagatorThrows(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->process([['traces' => ['propagator' => 'jaeger']]]);
+    }
+
+    #[DataProvider('validIdGeneratorProvider')]
+    public function testValidIdGeneratorValues(string $value): void
+    {
+        $config = $this->process([['traces' => ['id_generator' => $value]]]);
+
+        self::assertSame($value, $config['traces']['id_generator']);
+    }
+
+    /**
+     * @return \Generator<string, array{string}>
+     */
+    public static function validIdGeneratorProvider(): \Generator
+    {
+        yield 'default' => ['default'];
+        yield 'xray' => ['xray'];
+    }
+
+    public function testInvalidIdGeneratorThrows(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->process([['traces' => ['id_generator' => 'random']]]);
     }
 
     public function testErrorStatusThresholdBounds(): void

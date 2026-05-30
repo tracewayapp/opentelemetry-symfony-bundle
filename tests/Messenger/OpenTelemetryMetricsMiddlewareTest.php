@@ -263,7 +263,6 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
 
         $reflection = new \ReflectionClass($middleware);
         $property = $reflection->getProperty('dispatchSent');
-        $property->setAccessible(true);
         $property->setValue($middleware, $broken);
     }
 
@@ -412,7 +411,6 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
 
         $reflection = new \ReflectionClass($middleware);
         $messages = $reflection->getProperty('messages');
-        $messages->setAccessible(true);
         $messages->setValue($middleware, $brokenCounter);
     }
 }

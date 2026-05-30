@@ -19,6 +19,7 @@ use Traceway\OpenTelemetryBundle\Metrics\MeterRegistryInterface;
 use Traceway\OpenTelemetryBundle\Monolog\OtelLogHandler;
 use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\TracingInterface;
+use Traceway\OpenTelemetryBundle\XRay\XRayBootstrapper;
 
 final class BundleBootTest extends TestCase
 {
@@ -338,6 +339,70 @@ final class BundleBootTest extends TestCase
                 'http_client' => ['enabled' => true],
             ],
         ]);
+    }
+
+    public function testDefaultConfigDoesNotRegisterXRayBootstrapper(): void
+    {
+        $container = $this->boot();
+
+        self::assertFalse($container->has(XRayBootstrapper::class));
+    }
+
+    public function testXRayPropagatorWithoutPackageThrowsLogicException(): void
+    {
+        if (class_exists(\OpenTelemetry\Contrib\Aws\Xray\Propagator::class)) {
+            $this->markTestSkipped('open-telemetry/contrib-aws is installed; cannot test the missing-package error path.');
+        }
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('open-telemetry/contrib-aws');
+
+        $this->boot(['traces' => ['propagator' => 'xray']]);
+    }
+
+    public function testXRayIdGeneratorWithoutPackageThrowsLogicException(): void
+    {
+        if (class_exists(\OpenTelemetry\Contrib\Aws\Xray\Propagator::class)) {
+            $this->markTestSkipped('open-telemetry/contrib-aws is installed; cannot test the missing-package error path.');
+        }
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('open-telemetry/contrib-aws');
+
+        $this->boot(['traces' => ['id_generator' => 'xray']]);
+    }
+
+    public function testXRayPropagatorRegistersBootstrapper(): void
+    {
+        if (!class_exists(\OpenTelemetry\Contrib\Aws\Xray\Propagator::class)) {
+            $this->markTestSkipped('open-telemetry/contrib-aws is required for this test.');
+        }
+
+        $container = $this->boot(['traces' => ['propagator' => 'xray']]);
+
+        self::assertInstanceOf(XRayBootstrapper::class, $container->get(XRayBootstrapper::class));
+    }
+
+    public function testXRayW3cPlusPropagatorRegistersBootstrapper(): void
+    {
+        if (!class_exists(\OpenTelemetry\Contrib\Aws\Xray\Propagator::class)) {
+            $this->markTestSkipped('open-telemetry/contrib-aws is required for this test.');
+        }
+
+        $container = $this->boot(['traces' => ['propagator' => 'w3c+xray']]);
+
+        self::assertInstanceOf(XRayBootstrapper::class, $container->get(XRayBootstrapper::class));
+    }
+
+    public function testXRayIdGeneratorRegistersBootstrapper(): void
+    {
+        if (!class_exists(\OpenTelemetry\Contrib\Aws\Xray\Propagator::class)) {
+            $this->markTestSkipped('open-telemetry/contrib-aws is required for this test.');
+        }
+
+        $container = $this->boot(['traces' => ['id_generator' => 'xray']]);
+
+        self::assertInstanceOf(XRayBootstrapper::class, $container->get(XRayBootstrapper::class));
     }
 
     /**

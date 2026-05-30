@@ -68,6 +68,16 @@ jobs:
             dbal: '^4.0'
             phpunit: '^13.0'
             coverage: false
+          # Catch native PHP deprecations (e.g. SplObjectStorage::contains/detach
+          # deprecated in 8.5) before users hit them. --fail-on-deprecation makes
+          # PHPUnit exit non-zero on any E_USER_DEPRECATED; the symfony/phpunit-bridge
+          # bootstrap converts native E_DEPRECATED into the same channel.
+          - php: '8.5'
+            symfony: '8.0.*'
+            dbal: '^4.0'
+            phpunit: '^13.0'
+            coverage: false
+            fail_on_deprecation: true
     steps:
       - uses: actions/checkout@v4
 
@@ -102,11 +112,11 @@ jobs:
 
       - name: Run PHPUnit
         if: ${{ !matrix.coverage }}
-        run: vendor/bin/phpunit
+        run: vendor/bin/phpunit ${{ matrix.fail_on_deprecation && '--fail-on-deprecation --fail-on-notice' || '' }}
 
       - name: Run PHPUnit with coverage
         if: ${{ matrix.coverage }}
-        run: vendor/bin/phpunit --coverage-clover coverage.xml
+        run: vendor/bin/phpunit --coverage-clover coverage.xml ${{ matrix.fail_on_deprecation && '--fail-on-deprecation --fail-on-notice' || '' }}
 
       - name: Upload coverage to Codecov
         if: ${{ matrix.coverage }}

@@ -1,0 +1,97 @@
+# Configuration
+
+All options are optional — the bundle works out of the box with zero configuration. Create `config/packages/open_telemetry.yaml` to customize:
+
+```yaml
+open_telemetry:
+    traces:
+        enabled: true
+        tracer_name: 'opentelemetry-symfony'
+
+        excluded_paths: [/health, /_profiler, /_wdt]
+        record_client_ip: true                # disable for GDPR
+        error_status_threshold: 500           # 400-599
+
+        console:
+            enabled: true
+            excluded_commands: [cache:clear, assets:install]
+
+        http_client:
+            enabled: true
+            excluded_hosts: []                # OTLP endpoint is auto-excluded
+
+        messenger:
+            enabled: true
+            root_spans: false                 # true = standalone traces per consumed message
+
+        scheduler:
+            enabled: true                     # suppresses parallel Messenger spans for scheduled tasks
+
+        mailer:
+            enabled: true
+            record_subject: false             # subjects can be PII
+
+        doctrine:
+            enabled: true
+            record_statements: true           # false = hide SQL from spans
+
+        cache:
+            enabled: true
+            excluded_pools: [cache.system, cache.validator, cache.serializer]
+
+        propagator: w3c                       # w3c (default) | xray | w3c+xray — see [AWS X-Ray](aws-xray.md)
+        id_generator: default                 # default | xray — see [AWS X-Ray](aws-xray.md)
+
+        twig:
+            enabled: true
+            excluded_templates: ['@WebProfiler/', '@Debug/']
+
+    metrics:
+        enabled: false
+        meter_name: 'opentelemetry-symfony'
+
+        messenger:
+            enabled: false
+            excluded_queues: []
+
+        doctrine:
+            enabled: false
+
+        http_server:
+            enabled: false
+            excluded_paths: []                # same prefix-match rules as tracing excluded_paths
+
+        http_client:
+            enabled: false
+            excluded_hosts: []                # OTLP endpoint is auto-excluded
+
+        mailer:
+            enabled: false
+
+    logs:
+        correlation:
+            enabled: true                     # inject trace_id/span_id into log records
+
+        export:
+            enabled: false                    # OTel Logs API export (requires symfony/monolog-bundle)
+            level: debug
+            capture_code_attributes: false    # fallback debug_backtrace when IntrospectionProcessor is absent
+            unprefixed_attributes: true       # flat context/extra attributes (matches Java/Python/.NET/JS)
+```
+
+Upgrading from v1.x? See [UPGRADE-2.0.md](../UPGRADE-2.0.md) for the flat→nested mapping and migration notes.
+
+## Environment Variables
+
+| Variable | Example | Description |
+|---|---|---|
+| `OTEL_PHP_AUTOLOAD_ENABLED` | `true` | Enable SDK auto-initialization |
+| `OTEL_SERVICE_NAME` | `my-symfony-app` | Service name shown in your backend |
+| `OTEL_TRACES_EXPORTER` | `otlp` | Traces exporter (`otlp`, `zipkin`, `console`, `none`) |
+| `OTEL_LOGS_EXPORTER` | `otlp` | Logs exporter (`otlp`, `console`, `none`) — only used when `logs.export.enabled: true` |
+| `OTEL_METRICS_EXPORTER` | `otlp` | Metrics exporter (`otlp`, `console`, `none`) — only used when `metrics.enabled: true` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` | Collector/backend endpoint |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/json` | Protocol (`http/json`, `http/protobuf`, `grpc`) |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | `http://localhost:4318/v1/metrics` | Override the generic endpoint for metrics |
+
+See the [OpenTelemetry SDK docs](https://opentelemetry.io/docs/languages/php/exporters/) for all available options.

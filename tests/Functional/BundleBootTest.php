@@ -20,6 +20,8 @@ use Traceway\OpenTelemetryBundle\Monolog\OtelLogHandler;
 use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\TracingInterface;
 use Traceway\OpenTelemetryBundle\XRay\XRayBootstrapper;
+use Traceway\OpenTelemetryBundle\Command\DoctorCommand;
+use Traceway\OpenTelemetryBundle\Command\Doctor\Support\CheckRunner;
 
 final class BundleBootTest extends TestCase
 {
@@ -59,6 +61,27 @@ final class BundleBootTest extends TestCase
         self::assertInstanceOf(OpenTelemetrySubscriber::class, $container->get(OpenTelemetrySubscriber::class));
         self::assertInstanceOf(ConsoleSubscriber::class, $container->get(ConsoleSubscriber::class));
         self::assertInstanceOf(OpenTelemetryMiddleware::class, $container->get(OpenTelemetryMiddleware::class));
+    }
+
+    public function testDoctorCommandIsWired(): void
+    {
+        $container = $this->boot();
+
+        self::assertInstanceOf(DoctorCommand::class, $container->get(DoctorCommand::class));
+        self::assertInstanceOf(CheckRunner::class, $container->get(CheckRunner::class));
+    }
+
+    public function testDoctorParametersAreSet(): void
+    {
+        $container = $this->boot();
+
+        // The 6 parameters added for the doctor command must be set so checks can read them.
+        self::assertTrue($container->getParameter('open_telemetry.traces.enabled'));
+        self::assertSame('w3c', $container->getParameter('open_telemetry.traces.propagator'));
+        self::assertSame('default', $container->getParameter('open_telemetry.traces.id_generator'));
+        self::assertTrue($container->getParameter('open_telemetry.traces.messenger.enabled'));
+        self::assertFalse($container->getParameter('open_telemetry.metrics.enabled'));
+        self::assertFalse($container->getParameter('open_telemetry.logs.export.enabled'));
     }
 
     public function testTracesDisabledRemovesSubscriber(): void

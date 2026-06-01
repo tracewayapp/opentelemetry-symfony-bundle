@@ -54,6 +54,8 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http/json
 
 That's it. Every HTTP request, console command, outgoing call, Messenger job, DB query, cache operation, and Twig render is now traced.
 
+It is also possible to use Symfony's DotEnv component in combination with the `open_telemetry.sdk` bundle configuration section for `OTEL_PHP_AUTOLOAD_ENABLED`,  `OTEL_RESOURCE_ATTRIBUTES` and `OTEL_EXPORTER_OTLP_HEADERS` to set the relevant SDK configuration, see [docs/configuration.md](docs/configuration.md) for more details. Using configuration setting `open_telemetry.sdk.autoload_enabled` registers the OpenTelemetry SDK without needing to set `OTEL_PHP_AUTOLOAD_ENABLED` before Composer's autoload is loaded. Furthermore, using `open_telemetry.sdk.resource_attributes` allows `OTEL_RESOURCE_ATTRIBUTES` to be set more conveniently and also supports the use of Symfony Secrets and the same applies with `open_telemetry.sdk.exporter_otlp_headers` for `OTEL_EXPORTER_OTLP_HEADERS`.
+
 Verify the wiring:
 
 ```bash

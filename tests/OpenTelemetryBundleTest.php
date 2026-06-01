@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\Tests;
 
+use OpenTelemetry\API\Globals;
+use OpenTelemetry\SDK\Common\Configuration\Configuration;
+use OpenTelemetry\SDK\Common\Configuration\Variables;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\CacheTracingPass;
@@ -54,5 +57,272 @@ final class OpenTelemetryBundleTest extends TestCase
         }
 
         self::assertTrue($found, 'CacheTracingPass should be registered');
+    }
+
+    public function testBootDoesNotSetOpenTelemetryConfigWithoutConfiguration(): void
+    {
+        $container = new ContainerBuilder();
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
+
+        foreach ([Variables::OTEL_EXPORTER_OTLP_HEADERS, Variables::OTEL_RESOURCE_ATTRIBUTES, Variables::OTEL_PHP_AUTOLOAD_ENABLED] as $variable) {
+            self::assertArrayNotHasKey($variable, $_SERVER);
+            self::assertArrayNotHasKey($variable, $_ENV);
+            self::assertFalse(getenv($variable));
+            self::assertFalse(Configuration::has($variable));
+        }
+
+        $reflection = new \ReflectionClass(Globals::class);
+
+        self::assertIsArray($reflection->getStaticPropertyValue('initializers'));
+        self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
+    }
+
+    public function testBootDoesNotSetOpenTelemetryConfigIfContainerIsMissing(): void
+    {
+        $bundle = new OpenTelemetryBundle();
+        $bundle->boot();
+
+        foreach ([Variables::OTEL_EXPORTER_OTLP_HEADERS, Variables::OTEL_RESOURCE_ATTRIBUTES, Variables::OTEL_PHP_AUTOLOAD_ENABLED] as $variable) {
+            self::assertArrayNotHasKey($variable, $_SERVER);
+            self::assertArrayNotHasKey($variable, $_ENV);
+            self::assertFalse(getenv($variable));
+            self::assertFalse(Configuration::has($variable));
+        }
+
+        $reflection = new \ReflectionClass(Globals::class);
+
+        self::assertIsArray($reflection->getStaticPropertyValue('initializers'));
+        self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
+    }
+
+    public function testOpenTelemetryWasNotAutoloadedIfNotConfigured(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.sdk.config', [
+            'enabled' => true,
+            'autoload_enabled' => false,
+            'use_putenv' => false,
+            'resource_attributes' => [],
+            'exporter_otlp_headers' => [],
+        ]);
+
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
+
+        $reflection = new \ReflectionClass(Globals::class);
+        self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
+    }
+
+    public function testOpenTelemetryWasAutoloadedIfConfigured(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.sdk.config', [
+            'enabled' => true,
+            'autoload_enabled' => true,
+            'use_putenv' => false,
+            'resource_attributes' => [],
+            'exporter_otlp_headers' => [],
+        ]);
+
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
+
+        $reflection = new \ReflectionClass(Globals::class);
+
+        self::assertIsArray($reflection->getStaticPropertyValue('initializers'));
+        self::assertNotSame([], $reflection->getStaticPropertyValue('initializers'));
+    }
+
+    public function testOpenTelemetryWasNotAutoloadedIfAutoloadWasAlreadyEnabledUsingServerGlobalBeforeBundleBoot(): void
+    {
+        $_SERVER[Variables::OTEL_PHP_AUTOLOAD_ENABLED] = 'true';
+
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.sdk.config', [
+            'enabled' => true,
+            'autoload_enabled' => true,
+            'use_putenv' => false,
+            'resource_attributes' => [],
+            'exporter_otlp_headers' => [],
+        ]);
+
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
+
+        $reflection = new \ReflectionClass(Globals::class);
+        self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
+    }
+
+    public function testOpenTelemetryWasNotAutoloadedIfAutoloadWasAlreadyEnabledUsingPutenvBeforeBundleBoot(): void
+    {
+        putenv(sprintf('%1$s=%2$s', Variables::OTEL_PHP_AUTOLOAD_ENABLED, 'true'));
+
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.sdk.config', [
+            'enabled' => true,
+            'autoload_enabled' => true,
+            'use_putenv' => false,
+            'resource_attributes' => [],
+            'exporter_otlp_headers' => [],
+        ]);
+
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
+
+        $reflection = new \ReflectionClass(Globals::class);
+        self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
+    }
+
+    public function testOpenTelemetryConfigurationWasUsedWithPutEnv(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.sdk.config', [
+            'enabled' => true,
+            'autoload_enabled' => true,
+            'use_putenv' => true,
+            'resource_attributes' => ['service.version' => '1.0', 'deployment.environment' => 'dev'],
+            'exporter_otlp_headers' => ['other-config-value' => 'abc', 'Authorization' => 'api-key'],
+        ]);
+
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
+
+        $expectedResourceAttributes = 'service.version=1.0,deployment.environment=dev';
+
+        self::assertSame($expectedResourceAttributes, $_SERVER[Variables::OTEL_RESOURCE_ATTRIBUTES]);
+        self::assertSame($expectedResourceAttributes, $_ENV[Variables::OTEL_RESOURCE_ATTRIBUTES]);
+        self::assertSame($expectedResourceAttributes, getenv(Variables::OTEL_RESOURCE_ATTRIBUTES));
+
+        self::assertSame(['service.version' => '1.0', 'deployment.environment' => 'dev'], Configuration::getMap(Variables::OTEL_RESOURCE_ATTRIBUTES));
+
+        $expectedExporterOtlpHeaders = 'other-config-value=abc,Authorization=api-key';
+
+        self::assertSame($expectedExporterOtlpHeaders, $_SERVER[Variables::OTEL_EXPORTER_OTLP_HEADERS]);
+        self::assertSame($expectedExporterOtlpHeaders, $_ENV[Variables::OTEL_EXPORTER_OTLP_HEADERS]);
+        self::assertSame($expectedExporterOtlpHeaders, getenv(Variables::OTEL_EXPORTER_OTLP_HEADERS));
+
+        self::assertSame(['other-config-value' => 'abc', 'Authorization' => 'api-key'], Configuration::getMap(Variables::OTEL_EXPORTER_OTLP_HEADERS));
+    }
+
+    public function testOpenTelemetryConfigurationWasUsedWithoutPutEnv(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.sdk.config', [
+            'enabled' => true,
+            'autoload_enabled' => true,
+            'use_putenv' => false,
+            'resource_attributes' => ['service.version' => '1.0', 'deployment.environment' => 'dev'],
+            'exporter_otlp_headers' => ['other-config-value' => 'abc', 'Authorization' => 'api-key'],
+        ]);
+
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
+
+        $expectedResourceAttributes = 'service.version=1.0,deployment.environment=dev';
+
+        self::assertSame($expectedResourceAttributes, $_SERVER[Variables::OTEL_RESOURCE_ATTRIBUTES]);
+        self::assertSame($expectedResourceAttributes, $_ENV[Variables::OTEL_RESOURCE_ATTRIBUTES]);
+        self::assertFalse(getenv(Variables::OTEL_RESOURCE_ATTRIBUTES));
+
+        self::assertSame(['service.version' => '1.0', 'deployment.environment' => 'dev'], Configuration::getMap(Variables::OTEL_RESOURCE_ATTRIBUTES));
+
+        $expectedExporterOtlpHeaders = 'other-config-value=abc,Authorization=api-key';
+
+        self::assertSame($expectedExporterOtlpHeaders, $_SERVER[Variables::OTEL_EXPORTER_OTLP_HEADERS]);
+        self::assertSame($expectedExporterOtlpHeaders, $_ENV[Variables::OTEL_EXPORTER_OTLP_HEADERS]);
+        self::assertFalse(getenv(Variables::OTEL_EXPORTER_OTLP_HEADERS));
+
+        self::assertSame(['other-config-value' => 'abc', 'Authorization' => 'api-key'], Configuration::getMap(Variables::OTEL_EXPORTER_OTLP_HEADERS));
+    }
+
+    public function testOpenTelemetryConfigurationWasMergedWithoutPutEnv(): void
+    {
+        $_SERVER[Variables::OTEL_RESOURCE_ATTRIBUTES] = 'service.version=2.0,custom.name=custom.value';
+        $_SERVER[Variables::OTEL_EXPORTER_OTLP_HEADERS] = 'other-config-value=foo,custom.header=custom.abc';
+
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.sdk.config', [
+            'enabled' => true,
+            'autoload_enabled' => true,
+            'use_putenv' => false,
+            'resource_attributes' => ['service.version' => '1.0', 'deployment.environment' => 'dev'],
+            'exporter_otlp_headers' => ['other-config-value' => 'abc', 'Authorization' => 'api-key'],
+        ]);
+
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
+
+        $expectedResourceAttributes = 'service.version=1.0,custom.name=custom.value,deployment.environment=dev';
+
+        self::assertSame($expectedResourceAttributes, $_SERVER[Variables::OTEL_RESOURCE_ATTRIBUTES]);
+        self::assertSame($expectedResourceAttributes, $_ENV[Variables::OTEL_RESOURCE_ATTRIBUTES]);
+        self::assertFalse(getenv(Variables::OTEL_RESOURCE_ATTRIBUTES));
+
+        self::assertSame(['service.version' => '1.0', 'custom.name' => 'custom.value', 'deployment.environment' => 'dev'], Configuration::getMap(Variables::OTEL_RESOURCE_ATTRIBUTES));
+
+        $expectedExporterOtlpHeaders = 'other-config-value=abc,custom.header=custom.abc,Authorization=api-key';
+
+        self::assertSame($expectedExporterOtlpHeaders, $_SERVER[Variables::OTEL_EXPORTER_OTLP_HEADERS]);
+        self::assertSame($expectedExporterOtlpHeaders, $_ENV[Variables::OTEL_EXPORTER_OTLP_HEADERS]);
+        self::assertFalse(getenv(Variables::OTEL_EXPORTER_OTLP_HEADERS));
+
+        self::assertSame(['other-config-value' => 'abc', 'custom.header' => 'custom.abc', 'Authorization' => 'api-key'], Configuration::getMap(Variables::OTEL_EXPORTER_OTLP_HEADERS));
+    }
+
+    public function testOpenTelemetryConfigurationWasMergedWihPutEnv(): void
+    {
+        putenv(sprintf('%1$s=%2$s', Variables::OTEL_RESOURCE_ATTRIBUTES, 'service.version=2.0,custom.name=custom.value'));
+        putenv(sprintf('%1$s=%2$s', Variables::OTEL_EXPORTER_OTLP_HEADERS, 'other-config-value=foo,custom.header=custom.abc'));
+
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.sdk.config', [
+            'enabled' => true,
+            'autoload_enabled' => true,
+            'use_putenv' => true,
+            'resource_attributes' => ['service.version' => '1.0', 'deployment.environment' => 'dev'],
+            'exporter_otlp_headers' => ['other-config-value' => 'abc', 'Authorization' => 'api-key'],
+        ]);
+
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
+
+        $expectedResourceAttributes = 'service.version=1.0,custom.name=custom.value,deployment.environment=dev';
+
+        self::assertSame($expectedResourceAttributes, $_SERVER[Variables::OTEL_RESOURCE_ATTRIBUTES]);
+        self::assertSame($expectedResourceAttributes, $_ENV[Variables::OTEL_RESOURCE_ATTRIBUTES]);
+        self::assertSame($expectedResourceAttributes, getenv(Variables::OTEL_RESOURCE_ATTRIBUTES));
+
+        self::assertSame(['service.version' => '1.0', 'custom.name' => 'custom.value', 'deployment.environment' => 'dev'], Configuration::getMap(Variables::OTEL_RESOURCE_ATTRIBUTES));
+
+        $expectedExporterOtlpHeaders = 'other-config-value=abc,custom.header=custom.abc,Authorization=api-key';
+
+        self::assertSame($expectedExporterOtlpHeaders, $_SERVER[Variables::OTEL_EXPORTER_OTLP_HEADERS]);
+        self::assertSame($expectedExporterOtlpHeaders, $_ENV[Variables::OTEL_EXPORTER_OTLP_HEADERS]);
+        self::assertSame($expectedExporterOtlpHeaders, getenv(Variables::OTEL_EXPORTER_OTLP_HEADERS));
+
+        self::assertSame(['other-config-value' => 'abc', 'custom.header' => 'custom.abc', 'Authorization' => 'api-key'], Configuration::getMap(Variables::OTEL_EXPORTER_OTLP_HEADERS));
+    }
+
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+
+        Globals::reset();
+
+        foreach ([Variables::OTEL_EXPORTER_OTLP_HEADERS, Variables::OTEL_RESOURCE_ATTRIBUTES, Variables::OTEL_PHP_AUTOLOAD_ENABLED] as $variable) {
+            unset($_SERVER[$variable]);
+            unset($_ENV[$variable]);
+            putenv($variable);
+        }
     }
 }

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Traceway\OpenTelemetryBundle;
 
 use Composer\InstalledVersions;
+use OpenTelemetry\SDK\Common\Configuration\Configuration;
+use OpenTelemetry\SDK\Common\Configuration\Variables;
 use OpenTelemetry\SemConv\TraceAttributes;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
@@ -54,5 +56,71 @@ final class OpenTelemetryBundle extends Bundle
         $container->addCompilerPass(new HttpClientTracingPass());
         $container->addCompilerPass(new HttpClientMetricsPass());
         $container->addCompilerPass(new CacheTracingPass());
+    }
+
+    public function boot(): void
+    {
+        parent::boot();
+
+        $this->bootSdkConfig();
+    }
+
+    public function autoloadSdk(bool $autoloadEnabled, bool $usePutEnv): void
+    {
+        if ($autoloadEnabled &&
+            !Configuration::getBoolean(Variables::OTEL_PHP_AUTOLOAD_ENABLED) &&
+            InstalledVersions::isInstalled('open-telemetry/sdk')
+        ) {
+            $this->setEnvVariable(Variables::OTEL_PHP_AUTOLOAD_ENABLED, 'true', $usePutEnv);
+
+            // Using require instead of require_once as open-telemetry/sdk already loaded the file once but without autoload enabled, it did not register anything.
+            require sprintf('%1$s/_autoload.php', InstalledVersions::getInstallPath('open-telemetry/sdk'));
+        }
+    }
+
+    private function bootSdkConfig(): void
+    {
+        if (!isset($this->container) || !$this->container->hasParameter('open_telemetry.sdk.config')) {
+            return;
+        }
+
+        /** @var array{enabled: bool, autoload_enabled: bool, use_putenv: bool, resource_attributes: array<string, string>, exporter_otlp_headers: array<string, string>} $sdkConfig */
+        $sdkConfig = $this->container->getParameter('open_telemetry.sdk.config');
+        $usePutEnv = $sdkConfig['use_putenv'];
+
+        $this->autoloadSdk($sdkConfig['autoload_enabled'], $usePutEnv);
+
+        $this->mergeEnvVariable(Variables::OTEL_RESOURCE_ATTRIBUTES, $sdkConfig['resource_attributes'], $usePutEnv);
+        $this->mergeEnvVariable(Variables::OTEL_EXPORTER_OTLP_HEADERS, $sdkConfig['exporter_otlp_headers'], $usePutEnv);
+    }
+
+    /**
+     * @param array<string, string> $values
+     */
+    private function mergeEnvVariable(string $name, array $values, bool $usePutEnv): void
+    {
+        if ([] === $values) {
+            return;
+        }
+
+        /** @var array<string, string> $existing */
+        $existing = Configuration::has($name) ? Configuration::getMap($name) : [];
+        $combined = array_replace($existing, $values);
+
+        $new = [];
+        foreach ($combined as $key => $value) {
+            $new[] = sprintf('%1$s=%2$s', $key, $value);
+        }
+
+        $this->setEnvVariable($name, implode(',', $new), $usePutEnv);
+    }
+
+    private function setEnvVariable(string $name, string $value, bool $usePutEnv): void
+    {
+        $_SERVER[$name] = $_ENV[$name] = $value;
+
+        if ($usePutEnv) {
+            putenv(sprintf('%1$s=%2$s', $name, $value));
+        }
     }
 }

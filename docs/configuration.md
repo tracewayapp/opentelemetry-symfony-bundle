@@ -77,6 +77,12 @@ open_telemetry:
             level: debug
             capture_code_attributes: false    # fallback debug_backtrace when IntrospectionProcessor is absent
             unprefixed_attributes: true       # flat context/extra attributes (matches Java/Python/.NET/JS)
+    sdk:
+        enabled: false                        # If enabled, this section can be used to configure OpenTelemetry SDK variables easier and adds support for Symfony Secrets. It defaults to `false`. It sets environment variables during bundle boot method to ensure they are set on a compiled container
+        autoload_enabled: false               # If `true` OTEL_PHP_AUTOLOAD_ENABLED will be set automatically and load `_autoload.php`, if and only if Configuration::getBoolean(Variables::OTEL_PHP_AUTOLOAD_ENABLED) returns false to avoid duplicate initialization. It defaults to `false`.
+        use_putenv: false                     # If `true` environment variables set by the SDK section will also use putenv(). Otherwise, only $_SERVER and $_ENV is used. Beware that putenv() is not thread safe, that\'s why it\'s not enabled by default.
+        resource_attributes: []               # Merged/replaced key and value pairs with existing OTEL_RESOURCE_ATTRIBUTES variable. It defaults to an empty array. Example: "{'deployment.environment': '%env(APP_ENV)%', 'service.version:': '%env(APP_VERSION)%'}".
+        exporter_otlp_headers: []             # Merged/replaced key and value pairs with existing OTEL_EXPORTER_OTLP_HEADERS variable. It defaults to an empty array. Example: "{'Authorization': 'Bearer %env(OTEL_API_BEARER_TOKEN)%'}".
 ```
 
 Upgrading from v1.x? See [UPGRADE-2.0.md](../UPGRADE-2.0.md) for the flat→nested mapping and migration notes.

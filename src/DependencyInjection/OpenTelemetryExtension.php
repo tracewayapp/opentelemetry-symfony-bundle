@@ -98,11 +98,13 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     public function load(array $configs, ContainerBuilder $container): void
     {
         $configuration = new Configuration();
-        /** @var array{traces: array{enabled: bool, propagator: string, id_generator: string, tracer_name: string, excluded_paths: list<string>, record_client_ip: bool, error_status_threshold: int, console: array{enabled: bool, excluded_commands: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, messenger: array{enabled: bool, root_spans: bool}, doctrine: array{enabled: bool, record_statements: bool}, cache: array{enabled: bool, excluded_pools: list<string>}, twig: array{enabled: bool, excluded_templates: list<string>}, scheduler: array{enabled: bool}, mailer: array{enabled: bool, record_subject: bool}}, metrics: array{enabled: bool, meter_name: string, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}}, logs: array{correlation: array{enabled: bool}, export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}} $config */
+        /** @var array{traces: array{enabled: bool, propagator: string, id_generator: string, tracer_name: string, excluded_paths: list<string>, record_client_ip: bool, error_status_threshold: int, console: array{enabled: bool, excluded_commands: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, messenger: array{enabled: bool, root_spans: bool}, doctrine: array{enabled: bool, record_statements: bool}, cache: array{enabled: bool, excluded_pools: list<string>}, twig: array{enabled: bool, excluded_templates: list<string>}, scheduler: array{enabled: bool}, mailer: array{enabled: bool, record_subject: bool}}, metrics: array{enabled: bool, meter_name: string, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}}, logs: array{correlation: array{enabled: bool}, export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}, sdk: array{enabled: bool, autoload_enabled: bool, use_putenv: bool, resource_attributes: array<string, string>, exporter_otlp_headers: array<string, string>}} $config */
         $config = $this->processConfiguration($configuration, $configs);
 
         $loader = new YamlFileLoader($container, new FileLocator(\dirname(__DIR__, 2) . '/config'));
         $loader->load('services.yaml');
+
+        $sdk = $config['sdk'];
 
         $traces = $config['traces'];
         $tracerName = $traces['tracer_name'];
@@ -124,6 +126,10 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         /** @var string[] $httpExcludedHosts */
         $httpExcludedHosts = $traces['http_client']['excluded_hosts'];
         $container->setParameter('open_telemetry.http_client_excluded_hosts', $httpExcludedHosts);
+
+        if ($sdk['enabled']) {
+            $container->setParameter('open_telemetry.sdk.config', $sdk);
+        }
 
         if ($traces['enabled']) {
             $container->getDefinition(OpenTelemetrySubscriber::class)
@@ -312,7 +318,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     {
         return interface_exists(\Symfony\Component\Scheduler\ScheduleProviderInterface::class);
     }
-    
+
     private function isMailerAvailable(): bool
     {
         return interface_exists(MailerInterface::class);

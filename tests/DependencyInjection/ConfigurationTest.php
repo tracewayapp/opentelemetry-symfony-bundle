@@ -286,7 +286,7 @@ final class ConfigurationTest extends TestCase
         self::assertSame([], $config['metrics']['http_server']['excluded_paths']);
     }
 
-    public function testSdkPConfigCanBeSupplied(): void
+    public function testSdkConfigCanBeSupplied(): void
     {
         $expected = [
             'enabled' => true,
@@ -301,7 +301,7 @@ final class ConfigurationTest extends TestCase
         self::assertSame($expected, $config['sdk']);
     }
 
-    public function testSdkHasUntouchedDefaultValuesIfEnabled()
+    public function testSdkHasUntouchedDefaultValuesIfEnabled(): void
     {
         $config = $this->process([['sdk' => ['enabled' => true]]]);
 
@@ -312,7 +312,7 @@ final class ConfigurationTest extends TestCase
         self::assertSame([], $config['sdk']['exporter_otlp_headers']);
     }
 
-    public function testSdkCanImplicitlyBeEnabled()
+    public function testSdkCanImplicitlyBeEnabled(): void
     {
         $config = $this->process([['sdk' => ['autoload_enabled' => true]]]);
 
@@ -320,7 +320,7 @@ final class ConfigurationTest extends TestCase
         self::assertTrue($config['sdk']['autoload_enabled']);
     }
 
-    public function testSdkCanExplicitlyBeDisabled()
+    public function testSdkCanExplicitlyBeDisabled(): void
     {
         $config = $this->process([['sdk' => ['enabled' => false, 'autoload_enabled' => true]]]);
 

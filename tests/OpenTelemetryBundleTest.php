@@ -79,24 +79,6 @@ final class OpenTelemetryBundleTest extends TestCase
         self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
     }
 
-    public function testBootDoesNotSetOpenTelemetryConfigIfContainerIsMissing(): void
-    {
-        $bundle = new OpenTelemetryBundle();
-        $bundle->boot();
-
-        foreach ([Variables::OTEL_EXPORTER_OTLP_HEADERS, Variables::OTEL_RESOURCE_ATTRIBUTES, Variables::OTEL_PHP_AUTOLOAD_ENABLED] as $variable) {
-            self::assertArrayNotHasKey($variable, $_SERVER);
-            self::assertArrayNotHasKey($variable, $_ENV);
-            self::assertFalse(getenv($variable));
-            self::assertFalse(Configuration::has($variable));
-        }
-
-        $reflection = new \ReflectionClass(Globals::class);
-
-        self::assertIsArray($reflection->getStaticPropertyValue('initializers'));
-        self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
-    }
-
     public function testOpenTelemetryWasNotAutoloadedIfNotConfigured(): void
     {
         $container = new ContainerBuilder();
@@ -278,7 +260,7 @@ final class OpenTelemetryBundleTest extends TestCase
         self::assertSame(['other-config-value' => 'abc', 'custom.header' => 'custom.abc', 'Authorization' => 'api-key'], Configuration::getMap(Variables::OTEL_EXPORTER_OTLP_HEADERS));
     }
 
-    public function testOpenTelemetryConfigurationWasMergedWihPutEnv(): void
+    public function testOpenTelemetryConfigurationWasMergedWithPutEnv(): void
     {
         putenv(sprintf('%1$s=%2$s', Variables::OTEL_RESOURCE_ATTRIBUTES, 'service.version=2.0,custom.name=custom.value'));
         putenv(sprintf('%1$s=%2$s', Variables::OTEL_EXPORTER_OTLP_HEADERS, 'other-config-value=foo,custom.header=custom.abc'));

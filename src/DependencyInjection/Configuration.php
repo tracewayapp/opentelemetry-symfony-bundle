@@ -61,7 +61,7 @@ final class Configuration implements ConfigurationInterface
                 ->append($this->buildTracesNode())
                 ->append($this->buildMetricsNode())
                 ->append($this->buildLogsNode())
-                ->append($this->buildSkdNode())
+                ->append($this->buildSdkNode())
             ->end()
         ;
 
@@ -428,16 +428,16 @@ final class Configuration implements ConfigurationInterface
         return $node;
     }
 
-    private function buildSkdNode(): ArrayNodeDefinition
+    private function buildSdkNode(): ArrayNodeDefinition
     {
         $builder = new TreeBuilder('sdk');
         /** @var ArrayNodeDefinition $node */
         $node = $builder->getRootNode();
 
-         $node
+        $node
             ->info('It can be used to configure OpenTelemetry SDK variables easier and adds support for Symfony Secrets. It sets environment variables during bundle boot method to ensure they are set on a compiled container.')
             ->addDefaultsIfNotSet()
-             ->canBeEnabled()
+            ->canBeEnabled()
             ->children()
                 ->booleanNode('autoload_enabled')
                     ->info('If `true` OTEL_PHP_AUTOLOAD_ENABLED will be set automatically and load `_autoload.php`, if and only if Configuration::getBoolean(Variables::OTEL_PHP_AUTOLOAD_ENABLED) returns false to avoid duplicate initialization. It defaults to `false`.')

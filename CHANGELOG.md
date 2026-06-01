@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-06-01
+
+### Added
+
+- **`traceway:doctor` diagnostic command** — new `traceway:doctor` (alias `debug:traceway`) runs a suite of checks across runtime extensions (`ext-opentelemetry`, `ext-protobuf`), SDK configuration (service name, OTLP endpoint, protocol, traces exporter, sampler, tracer provider), bundle wiring (Messenger middleware registration, OtelLogHandler registration, X-Ray dependency presence), and OTLP endpoint reachability. Supports `--format=json` with a stable envelope (`{version, summary, checks}`) for CI consumption; `--skip-network` skips connectivity checks; `--only=<names>` filters to a comma-separated subset; `--fail-on=info|warning|error` controls the exit-code threshold (default `error`); `--timeout=<seconds>` bounds network checks. Severities are `info`, `warning`, `error` ([#53](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/53)).
+- **SDK configuration via bundle config** — new `open_telemetry.sdk.*` section lets you set OpenTelemetry SDK env variables through Symfony's configuration system rather than the shell or Composer-time env. `sdk.autoload_enabled: true` toggles `OTEL_PHP_AUTOLOAD_ENABLED` from bundle config and re-executes the SDK's `_autoload.php` — solving the case where Symfony's Dotenv runs too late for autoload to see it (so `.env.local` and Symfony Secrets now work for the autoload toggle). `sdk.resource_attributes` and `sdk.exporter_otlp_headers` accept key/value maps that merge into `OTEL_RESOURCE_ATTRIBUTES` and `OTEL_EXPORTER_OTLP_HEADERS` respectively, with bundle values winning over any pre-existing env entries — primarily intended for Symfony Secrets interpolation (e.g. `'Authorization': 'Bearer %env(OTEL_API_BEARER_TOKEN)%'`). `sdk.use_putenv` (off by default for thread-safety) opts into mirroring writes via `putenv()` alongside `$_SERVER`/`$_ENV`. The whole section is `canBeEnabled()`-style: setting any sub-key implicitly enables it; set `sdk.enabled: false` to suppress ([#49](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/49) — thanks @AndreasA).
+
 ## [2.1.0] - 2026-05-29
 
 ### Added

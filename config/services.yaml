@@ -1,4 +1,8 @@
 services:
+    _instanceof:
+        Traceway\OpenTelemetryBundle\Command\Doctor\Check\CheckInterface:
+            tags: ['traceway.doctor.check']
+
     Traceway\OpenTelemetryBundle\Tracing:
         autoconfigure: true
 
@@ -24,4 +28,57 @@ services:
         autoconfigure: true
 
     Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetryMetricsSubscriber:
+        autoconfigure: true
+
+    # traceway:doctor command and supporting services
+    Traceway\OpenTelemetryBundle\Command\DoctorCommand:
+        autoconfigure: true
+        arguments:
+            $runner: '@Traceway\OpenTelemetryBundle\Command\Doctor\Support\CheckRunner'
+
+    Traceway\OpenTelemetryBundle\Command\Doctor\Support\CheckRunner:
+        arguments:
+            $checks: !tagged_iterator traceway.doctor.check
+            $globals: '@Traceway\OpenTelemetryBundle\Command\Doctor\Support\GlobalsAccessorInterface'
+            $env: '@Traceway\OpenTelemetryBundle\Command\Doctor\Support\EnvReaderInterface'
+            $params: '@parameter_bag'
+
+    Traceway\OpenTelemetryBundle\Command\Doctor\Support\GlobalsAccessor: ~
+    Traceway\OpenTelemetryBundle\Command\Doctor\Support\GlobalsAccessorInterface:
+        alias: Traceway\OpenTelemetryBundle\Command\Doctor\Support\GlobalsAccessor
+
+    Traceway\OpenTelemetryBundle\Command\Doctor\Support\EnvReader: ~
+    Traceway\OpenTelemetryBundle\Command\Doctor\Support\EnvReaderInterface:
+        alias: Traceway\OpenTelemetryBundle\Command\Doctor\Support\EnvReader
+
+    # Runtime checks
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\ProtobufExtensionCheck:
+        autoconfigure: true
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\OpenTelemetryExtensionCheck:
+        autoconfigure: true
+
+    # SDK configuration checks
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\ServiceNameCheck:
+        autoconfigure: true
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracesExporterCheck:
+        autoconfigure: true
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\OtlpEndpointConfiguredCheck:
+        autoconfigure: true
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\OtlpProtocolCheck:
+        autoconfigure: true
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracesSamplerCheck:
+        autoconfigure: true
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracerProviderCheck:
+        autoconfigure: true
+
+    # Bundle configuration checks
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\XRayDependencyCheck:
+        autoconfigure: true
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\MessengerMiddlewareCheck:
+        autoconfigure: true
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\OtelLogHandlerCheck:
+        autoconfigure: true
+
+    # Connectivity checks
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Connectivity\OtlpEndpointReachabilityCheck:
         autoconfigure: true

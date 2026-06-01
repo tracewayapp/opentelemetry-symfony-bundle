@@ -78,6 +78,13 @@ jobs:
             phpunit: '^13.0'
             coverage: false
             fail_on_deprecation: true
+          # Latest stable Symfony minor.
+          - php: '8.5'
+            symfony: '8.1.*'
+            dbal: '^4.0'
+            phpunit: '^13.0'
+            coverage: false
+            fail_on_deprecation: true
     steps:
       - uses: actions/checkout@v4
 

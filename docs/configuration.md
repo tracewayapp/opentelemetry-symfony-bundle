@@ -97,7 +97,22 @@ Upgrading from v1.x? See [UPGRADE-2.0.md](../UPGRADE-2.0.md) for the flat→nest
 | `OTEL_LOGS_EXPORTER` | `otlp` | Logs exporter (`otlp`, `console`, `none`) — only used when `logs.export.enabled: true` |
 | `OTEL_METRICS_EXPORTER` | `otlp` | Metrics exporter (`otlp`, `console`, `none`) — only used when `metrics.enabled: true` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` | Collector/backend endpoint |
-| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/json` | Protocol (`http/json`, `http/protobuf`, `grpc`) |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/json` | Protocol (`http/json`, `http/protobuf`, `grpc`). `grpc` is **not** included out of the box — see [gRPC transport](#grpc-transport) below. |
 | `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | `http://localhost:4318/v1/metrics` | Override the generic endpoint for metrics |
 
 See the [OpenTelemetry SDK docs](https://opentelemetry.io/docs/languages/php/exporters/) for all available options.
+
+### gRPC transport
+
+The bundle ships only the pure-PHP OTLP transports (`http/json`, `http/protobuf`). To use `OTEL_EXPORTER_OTLP_PROTOCOL=grpc` you must additionally install:
+
+- `ext-grpc` (PECL extension)
+- `open-telemetry/transport-grpc` (composer package)
+- `ext-protobuf` is also recommended (already covered by the protobuf protocol guidance above).
+
+```bash
+pecl install grpc
+composer require open-telemetry/transport-grpc
+```
+
+Run `bin/console traceway:doctor` after installing — it will warn if `grpc` is selected without the required pieces.

@@ -56,6 +56,8 @@ services:
         autoconfigure: true
     Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\OpenTelemetryExtensionCheck:
         autoconfigure: true
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\GrpcTransportCheck:
+        autoconfigure: true
 
     # SDK configuration checks
     Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\ServiceNameCheck:

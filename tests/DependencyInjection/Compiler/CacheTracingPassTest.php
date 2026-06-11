@@ -7,6 +7,7 @@ namespace Traceway\OpenTelemetryBundle\Tests\DependencyInjection\Compiler;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
+use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Contracts\Cache\NamespacedPoolInterface;
@@ -31,6 +32,32 @@ final class CacheTracingPassTest extends TestCase
         $pass->process($container);
 
         self::assertTrue($container->hasDefinition('cache.app.otel'));
+
+        $decorator = $container->getDefinition('cache.app.otel');
+        $expectedClass = interface_exists(NamespacedPoolInterface::class) && is_subclass_of(FilesystemAdapter::class, NamespacedPoolInterface::class)
+            ? TraceableNamespacedCachePool::class
+            : TraceableCachePool::class;
+        self::assertSame($expectedClass, $decorator->getClass());
+        self::assertSame('test-tracer', $decorator->getArgument('$tracerName'));
+        self::assertSame('cache.app', $decorator->getArgument('$poolName'));
+    }
+
+    public function testDecoratesCachePoolDefinedAsChildDefinition(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.cache_enabled', true);
+        $container->setParameter('open_telemetry.tracer_name', 'test-tracer');
+
+        $adapterDef = new Definition(FilesystemAdapter::class);
+        $adapterDef->setAbstract(true);
+        $container->setDefinition('cache.adapter.filesystem', $adapterDef);
+
+        $poolDef = new ChildDefinition('cache.adapter.filesystem');
+        $poolDef->addTag('cache.pool', ['name' => 'cache.app']);
+        $container->setDefinition('cache.app', $poolDef);
+
+        $pass = new CacheTracingPass();
+        $pass->process($container);
 
         $decorator = $container->getDefinition('cache.app.otel');
         $expectedClass = interface_exists(NamespacedPoolInterface::class) && is_subclass_of(FilesystemAdapter::class, NamespacedPoolInterface::class)

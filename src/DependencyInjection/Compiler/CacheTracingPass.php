@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\DependencyInjection\Compiler;
 
+use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
@@ -53,6 +54,10 @@ final class CacheTracingPass implements CompilerPassInterface
             \assert(\is_array($firstTag));
             $poolName = \is_string($firstTag['name'] ?? null) ? $firstTag['name'] : $id;
             $class = $definition->getClass();
+            while ($definition instanceof ChildDefinition) {
+                $definition = $container->findDefinition($definition->getParent());
+                $class ??= $definition->getClass();
+            }
 
             $isTagAware = null !== $class && is_subclass_of($class, TagAwareCacheInterface::class);
             $isNamespaced = !$isTagAware

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-06-11
+
+### Fixed
+
+- **Cache pools declared via `ChildDefinition` now classify correctly** — the default shape of `framework.cache.pools` pools (a `ChildDefinition` of `cache.adapter.filesystem` / `cache.adapter.redis` / etc. with no class set on the child) was falling through to plain `TraceableCachePool`. On Symfony 7.3+ this crashed container compilation via `CheckAliasValidityPass` because `NamespacedPoolInterface` is aliased to `cache.app`. `CacheTracingPass` now walks the parent chain to resolve the effective class before classifying ([#55](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/55) — thanks @d-mitrofanov-v).
+
+### Docs
+
+- **`grpc` protocol prerequisites documented** — README now flags that `protocol: grpc` requires the `ext-grpc` PHP extension and the `open-telemetry/transport-grpc` Composer package ([#54](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/54)).
+
 ## [2.2.0] - 2026-06-01
 
 ### Added

@@ -35,6 +35,16 @@ final class SqlOperationExtractorTest extends TestCase
         yield 'leading tab' => ["\tINSERT INTO t VALUES (1)", 'INSERT'];
         yield 'empty string' => ['', 'UNKNOWN'];
         yield 'whitespace only' => ['   ', 'UNKNOWN'];
+        yield 'leading block comment' => ['/* hint */ SELECT 1', 'SELECT'];
+        yield 'leading line comment' => ["-- comment\nSELECT 1", 'SELECT'];
+        yield 'leading hash comment' => ["# comment\nUPDATE t SET a = 1", 'UPDATE'];
+        yield 'multiple comments' => ["/* a */ -- b\n  /* c */ DELETE FROM t", 'DELETE'];
+        yield 'parenthesized union' => ['(SELECT 1) UNION (SELECT 2)', 'SELECT'];
+        yield 'cte select' => ['WITH x AS (SELECT 1) SELECT * FROM x', 'SELECT'];
+        yield 'cte insert' => ['WITH x AS (SELECT id FROM t) INSERT INTO u SELECT * FROM x', 'INSERT'];
+        yield 'cte multiple' => ['WITH a AS (SELECT 1), b AS (DELETE FROM t RETURNING id) UPDATE u SET v = 1', 'UPDATE'];
+        yield 'cte only no body' => ['WITH x AS (SELECT 1)', 'WITH'];
+        yield 'comment only' => ['/* nothing */', 'UNKNOWN'];
     }
 
     #[DataProvider('extractTargetProvider')]
@@ -110,5 +120,12 @@ final class SqlOperationExtractorTest extends TestCase
         yield 'target only' => ['INSERT', 'items', null, 'INSERT items'];
         yield 'db only' => ['SELECT', null, 'my_db', 'SELECT my_db'];
         yield 'neither' => ['BEGIN', null, null, 'BEGIN'];
+    }
+
+    public function testUnknownOperationFallsBackToNamespaceThenSystem(): void
+    {
+        self::assertSame('my_db', SqlOperationExtractor::spanName('UNKNOWN', null, 'my_db', 'postgresql'));
+        self::assertSame('postgresql', SqlOperationExtractor::spanName('UNKNOWN', null, null, 'postgresql'));
+        self::assertSame('db', SqlOperationExtractor::spanName('UNKNOWN', null, null, null));
     }
 }

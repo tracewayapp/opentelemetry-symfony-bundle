@@ -8,9 +8,7 @@ use Doctrine\DBAL\Driver\Middleware\AbstractStatementMiddleware;
 use Doctrine\DBAL\Driver\Result;
 use Doctrine\DBAL\Driver\Statement;
 use OpenTelemetry\API\Globals;
-use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\API\Trace\TracerInterface;
-use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
 final class TraceableStatementDbal3 extends AbstractStatementMiddleware
@@ -53,9 +51,7 @@ final class TraceableStatementDbal3 extends AbstractStatementMiddleware
         try {
             $result = parent::execute($params);
         } catch (\Throwable $e) {
-            $span->recordException($e);
-            $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
-            $span->setAttribute(ErrorAttributes::ERROR_TYPE, $e::class);
+            DbSpanBuilder::recordFailure($span, $e);
 
             throw $e;
         } finally {

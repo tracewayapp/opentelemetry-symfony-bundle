@@ -128,6 +128,28 @@ final class TraceableConnectionDbal3Test extends TestCase
         self::assertCount(1, $spans);
         self::assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
         self::assertSame('Connection lost', $spans[0]->getStatus()->getDescription());
+        self::assertSame(\RuntimeException::class, $spans[0]->getAttributes()->toArray()['error.type']);
+    }
+
+    public function testDriverExceptionRecordsSqlState(): void
+    {
+        $driverException = new class('duplicate key') extends \Exception implements \Doctrine\DBAL\Driver\Exception {
+            public function getSQLState(): ?string
+            {
+                return '23505';
+            }
+        };
+        $this->inner->method('exec')->willThrowException($driverException);
+
+        try {
+            $this->connection->exec('INSERT INTO users VALUES (1)');
+            self::fail('Expected exception');
+        } catch (\Doctrine\DBAL\Driver\Exception) {
+        }
+
+        $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
+        self::assertSame('23505', $attributes['db.response.status_code']);
+        self::assertSame('Exception', $attributes['error.type']);
     }
 
     public function testPrepareReturnsTraceableStatement(): void

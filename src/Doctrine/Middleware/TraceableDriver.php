@@ -26,7 +26,7 @@ final class TraceableDriver extends AbstractDriverMiddleware
             $connection,
             $this->tracerName,
             $this->recordStatements,
-            $this->resolveDbSystem($params),
+            DbSystemResolver::resolve($params),
             $params['dbname'] ?? null,
             $params['host'] ?? null,
             isset($params['port']) ? (int) $params['port'] : null,
@@ -46,22 +46,5 @@ final class TraceableDriver extends AbstractDriverMiddleware
         static $result = null;
 
         return $result ??= !interface_exists(\Doctrine\DBAL\VersionAwarePlatformDriver::class);
-    }
-
-    /**
-     * @param array<string, mixed> $params
-     */
-    private function resolveDbSystem(array $params): string
-    {
-        $driver = isset($params['driver']) && \is_string($params['driver']) ? $params['driver'] : '';
-
-        return match (true) {
-            str_contains($driver, 'mysql') => 'mysql',
-            str_contains($driver, 'pgsql') || str_contains($driver, 'postgres') => 'postgresql',
-            str_contains($driver, 'sqlite') => 'sqlite',
-            str_contains($driver, 'sqlsrv') || str_contains($driver, 'mssql') => 'mssql',
-            str_contains($driver, 'oci') || str_contains($driver, 'oracle') => 'oracle',
-            default => $driver !== '' ? $driver : 'other_sql',
-        };
     }
 }

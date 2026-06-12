@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\Doctrine\Metrics;
 
+use Doctrine\DBAL\Driver\Exception as DriverException;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Metrics\HistogramInterface;
 use OpenTelemetry\API\Metrics\MeterInterface;
@@ -51,8 +52,15 @@ final class DbMetricRecorder implements ResetInterface
                 $attributes['db.collection.name'] = $target;
             }
 
+            $attributes['db.query.summary'] = SqlOperationExtractor::spanName($operation, $target, $this->dbName, $this->dbSystem);
+
             if (null !== $exception) {
                 $attributes['error.type'] = ErrorTypeResolver::resolve($exception);
+
+                $sqlState = $exception instanceof DriverException ? $exception->getSQLState() : null;
+                if (null !== $sqlState && '' !== $sqlState) {
+                    $attributes['db.response.status_code'] = $sqlState;
+                }
             }
 
             $durationSeconds = (hrtime(true) - $start) / 1_000_000_000;
@@ -95,7 +103,7 @@ final class DbMetricRecorder implements ResetInterface
             'db.client.operation.duration',
             's',
             'Duration of database client operations',
-            ['ExplicitBucketBoundaries' => DurationBoundaries::SECONDS],
+            ['ExplicitBucketBoundaries' => DurationBoundaries::DB_SECONDS],
         );
     }
 

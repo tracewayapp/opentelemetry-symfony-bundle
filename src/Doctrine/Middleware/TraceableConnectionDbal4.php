@@ -10,9 +10,7 @@ use Doctrine\DBAL\Driver\Result;
 use Doctrine\DBAL\Driver\Statement;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanInterface;
-use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\API\Trace\TracerInterface;
-use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
 final class TraceableConnectionDbal4 extends AbstractConnectionMiddleware
@@ -57,9 +55,7 @@ final class TraceableConnectionDbal4 extends AbstractConnectionMiddleware
         try {
             $result = parent::query($sql);
         } catch (\Throwable $e) {
-            $span->recordException($e);
-            $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
-            $span->setAttribute(ErrorAttributes::ERROR_TYPE, $e::class);
+            DbSpanBuilder::recordFailure($span, $e);
 
             throw $e;
         } finally {
@@ -80,9 +76,7 @@ final class TraceableConnectionDbal4 extends AbstractConnectionMiddleware
         try {
             $result = parent::exec($sql);
         } catch (\Throwable $e) {
-            $span->recordException($e);
-            $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
-            $span->setAttribute(ErrorAttributes::ERROR_TYPE, $e::class);
+            DbSpanBuilder::recordFailure($span, $e);
 
             throw $e;
         } finally {
@@ -105,9 +99,7 @@ final class TraceableConnectionDbal4 extends AbstractConnectionMiddleware
         try {
             parent::beginTransaction();
         } catch (\Throwable $e) {
-            $span->recordException($e);
-            $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
-            $span->setAttribute(ErrorAttributes::ERROR_TYPE, $e::class);
+            DbSpanBuilder::recordFailure($span, $e);
 
             throw $e;
         } finally {
@@ -128,9 +120,7 @@ final class TraceableConnectionDbal4 extends AbstractConnectionMiddleware
         try {
             parent::commit();
         } catch (\Throwable $e) {
-            $span->recordException($e);
-            $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
-            $span->setAttribute(ErrorAttributes::ERROR_TYPE, $e::class);
+            DbSpanBuilder::recordFailure($span, $e);
 
             throw $e;
         } finally {
@@ -151,9 +141,7 @@ final class TraceableConnectionDbal4 extends AbstractConnectionMiddleware
         try {
             parent::rollBack();
         } catch (\Throwable $e) {
-            $span->recordException($e);
-            $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
-            $span->setAttribute(ErrorAttributes::ERROR_TYPE, $e::class);
+            DbSpanBuilder::recordFailure($span, $e);
 
             throw $e;
         } finally {

@@ -114,7 +114,7 @@ final class DbMetricRecorderTest extends TestCase
         $points = [...$metrics['db.client.operation.duration']->data->dataPoints];
 
         self::assertSame(
-            DurationBoundaries::SECONDS,
+            DurationBoundaries::DB_SECONDS,
             $points[0]->explicitBounds,
         );
     }

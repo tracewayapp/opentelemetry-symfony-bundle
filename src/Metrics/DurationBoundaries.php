@@ -17,15 +17,23 @@ namespace Traceway\OpenTelemetryBundle\Metrics;
 final class DurationBoundaries
 {
     /**
-     * Bucket boundaries (in seconds) applied to every second-based latency
-     * histogram emitted by the bundle: messaging.process.duration,
-     * messaging.client.operation.duration, http.server.request.duration,
-     * http.client.request.duration, db.client.operation.duration.
+     * Bucket boundaries (in seconds) for HTTP and messaging latency
+     * histograms, matching the OTel HTTP/messaging semconv advisory.
      *
      * @var list<float|int>
      */
     public const SECONDS = [
         0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10,
+    ];
+
+    /**
+     * Bucket boundaries for db.client.operation.duration per the OTel database
+     * semconv advisory — includes the 1ms bucket sub-millisecond queries need.
+     *
+     * @var list<float|int>
+     */
+    public const DB_SECONDS = [
+        0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10,
     ];
 
     private function __construct()

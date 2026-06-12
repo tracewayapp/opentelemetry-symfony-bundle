@@ -43,7 +43,7 @@ final class TraceableDriverTest extends TestCase
     }
 
     #[DataProvider('dbSystemProvider')]
-    public function testResolveDbSystem(string $driverParam, string $expectedSystem): void
+    public function testResolveDbSystem(string $driverParam, string $expectedSystem, string $expectedLegacy): void
     {
         $innerConnection = $this->createStub(Connection::class);
         $innerConnection->method('exec')->willReturn(0);
@@ -57,24 +57,24 @@ final class TraceableDriverTest extends TestCase
 
         $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
         self::assertSame($expectedSystem, $attributes['db.system.name']);
-        self::assertSame($expectedSystem, $attributes['db.system']);
+        self::assertSame($expectedLegacy, $attributes['db.system']);
         self::assertSame(SpanKind::KIND_CLIENT, $this->exporter->getSpans()[0]->getKind());
     }
 
     /**
-     * @return iterable<string, array{string, string}>
+     * @return iterable<string, array{string, string, string}>
      */
     public static function dbSystemProvider(): iterable
     {
-        yield 'pdo_mysql' => ['pdo_mysql', 'mysql'];
-        yield 'mysqli' => ['mysqli', 'mysql'];
-        yield 'pdo_pgsql' => ['pdo_pgsql', 'postgresql'];
-        yield 'pdo_sqlite' => ['pdo_sqlite', 'sqlite'];
-        yield 'sqlite3' => ['sqlite3', 'sqlite'];
-        yield 'pdo_sqlsrv' => ['pdo_sqlsrv', 'mssql'];
-        yield 'oci8' => ['oci8', 'oracle'];
-        yield 'unknown_driver' => ['some_custom_driver', 'some_custom_driver'];
-        yield 'empty_driver' => ['', 'other_sql'];
+        yield 'pdo_mysql' => ['pdo_mysql', 'mysql', 'mysql'];
+        yield 'mysqli' => ['mysqli', 'mysql', 'mysql'];
+        yield 'pdo_pgsql' => ['pdo_pgsql', 'postgresql', 'postgresql'];
+        yield 'pdo_sqlite' => ['pdo_sqlite', 'sqlite', 'sqlite'];
+        yield 'sqlite3' => ['sqlite3', 'sqlite', 'sqlite'];
+        yield 'pdo_sqlsrv' => ['pdo_sqlsrv', 'microsoft.sql_server', 'mssql'];
+        yield 'oci8' => ['oci8', 'oracle.db', 'oracle'];
+        yield 'unknown_driver' => ['some_custom_driver', 'other_sql', 'other_sql'];
+        yield 'empty_driver' => ['', 'other_sql', 'other_sql'];
     }
 
     public function testConnectWithoutOptionalParams(): void

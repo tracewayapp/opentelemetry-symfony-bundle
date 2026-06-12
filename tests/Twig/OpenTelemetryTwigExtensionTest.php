@@ -250,7 +250,7 @@ final class OpenTelemetryTwigExtensionTest extends TestCase
         self::assertSame($outerSpan->getSpanId(), $innerSpan->getParentSpanId());
     }
 
-    public function testDrainedOrphansAreMarkedFailed(): void
+    public function testResetDrainsRootOrphan(): void
     {
         $profile = new Profile('crash.html.twig', Profile::TEMPLATE, 'crash.html.twig');
 
@@ -259,6 +259,6 @@ final class OpenTelemetryTwigExtensionTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame(\OpenTelemetry\API\Trace\StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
+        self::assertSame(\OpenTelemetry\API\Trace\StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
     }
 }

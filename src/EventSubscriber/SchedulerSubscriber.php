@@ -79,6 +79,14 @@ final class SchedulerSubscriber implements EventSubscriberInterface, ResetInterf
         $context = $event->getMessageContext();
         $messageClass = $message::class;
 
+        // RecurringMessage reuses the same instance; close any stale entry before overwriting.
+        if ($this->spans->offsetExists($message)) {
+            [$staleSpan, $staleScope] = $this->spans[$message];
+            $this->spans->offsetUnset($message);
+            $staleSpan->end();
+            @$staleScope->detach();
+        }
+
         $builder = $this->getTracer()
             ->spanBuilder(sprintf('process %s', $this->shortName($messageClass)))
             ->setSpanKind(SpanKind::KIND_CONSUMER)

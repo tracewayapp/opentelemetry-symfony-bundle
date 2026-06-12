@@ -126,11 +126,18 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface, ResetInterfa
 
             $envelope = $stack->next()->handle($envelope, $stack);
 
-            /** @var SentStamp|null $sentStamp */
-            $sentStamp = $envelope->last(SentStamp::class);
-            $destination = $sentStamp?->getSenderAlias() ?? $sentStamp?->getSenderClass();
-            if (null !== $destination && '' !== $destination) {
-                $span->setAttribute('messaging.destination.name', $destination);
+            $destinations = [];
+            foreach ($envelope->all(SentStamp::class) as $sentStamp) {
+                /** @var SentStamp $sentStamp */
+                $destination = $sentStamp->getSenderAlias() ?? $sentStamp->getSenderClass();
+                if ('' !== $destination) {
+                    $destinations[$destination] = true;
+                }
+            }
+
+            // Per semconv, destination is only set when it applies to the whole operation.
+            if (1 === \count($destinations)) {
+                $span->setAttribute('messaging.destination.name', array_key_first($destinations));
             }
 
             return $envelope;

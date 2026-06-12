@@ -187,6 +187,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $twigExtDef = new Definition(OpenTelemetryTwigExtension::class);
             $twigExtDef->setArgument('$tracerName', $tracerName);
             $twigExtDef->setArgument('$excludedTemplates', $twigExcluded);
+            $twigExtDef->setAutoconfigured(true);
             $twigExtDef->addTag('twig.extension');
             $container->setDefinition(OpenTelemetryTwigExtension::class, $twigExtDef);
         }

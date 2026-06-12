@@ -141,7 +141,6 @@ final class OpenTelemetryTwigExtension extends AbstractExtension implements Rese
 
         foreach (array_reverse($profiles) as $profile) {
             [$span, $scope] = $this->spans[$profile];
-            $span->setStatus(StatusCode::STATUS_ERROR, 'Template rendering did not complete');
             $span->end();
             if ($suppressScopeNotice) {
                 @$scope->detach();

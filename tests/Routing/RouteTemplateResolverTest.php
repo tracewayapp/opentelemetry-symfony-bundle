@@ -98,4 +98,49 @@ final class RouteTemplateResolverTest extends TestCase
 
         self::assertSame('/api/items/{id}', $resolver->resolve($request));
     }
+
+    public function testWarmedMapIsPreferredAndAvoidsRouter(): void
+    {
+        $cacheDir = sys_get_temp_dir() . '/otel-route-test-' . uniqid('', true);
+        mkdir($cacheDir);
+
+        try {
+            $collection = new RouteCollection();
+            $collection->add('api_item_show', new Route('/api/items/{id}'));
+
+            $router = $this->createMock(RouterInterface::class);
+            $router->method('getRouteCollection')->willReturn($collection);
+
+            $warmer = new \Traceway\OpenTelemetryBundle\Routing\RouteTemplateCacheWarmer($router);
+            $warmer->warmUp($cacheDir);
+
+            // A different router that must never be consulted at runtime.
+            $runtimeRouter = $this->createMock(RouterInterface::class);
+            $runtimeRouter->expects(self::never())->method('getRouteCollection');
+
+            $resolver = new RouteTemplateResolver($runtimeRouter, $cacheDir);
+            $request = Request::create('/api/items/5', 'GET');
+            $request->attributes->set('_route', 'api_item_show');
+
+            self::assertSame('/api/items/{id}', $resolver->resolve($request));
+        } finally {
+            @unlink($cacheDir . '/' . \Traceway\OpenTelemetryBundle\Routing\RouteTemplateCacheWarmer::CACHE_FILE);
+            @rmdir($cacheDir);
+        }
+    }
+
+    public function testMissingWarmedFileFallsBackToRouter(): void
+    {
+        $collection = new RouteCollection();
+        $collection->add('api_item_show', new Route('/api/items/{id}'));
+
+        $router = $this->createStub(RouterInterface::class);
+        $router->method('getRouteCollection')->willReturn($collection);
+
+        $resolver = new RouteTemplateResolver($router, sys_get_temp_dir() . '/does-not-exist-' . uniqid('', true));
+        $request = Request::create('/api/items/5', 'GET');
+        $request->attributes->set('_route', 'api_item_show');
+
+        self::assertSame('/api/items/{id}', $resolver->resolve($request));
+    }
 }

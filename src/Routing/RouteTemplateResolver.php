@@ -11,19 +11,27 @@ use Symfony\Contracts\Service\ResetInterface;
 /**
  * Resolves the matched route's path template for http.route (e.g. /api/items/{id}).
  *
- * Primary source is the router's route collection (the real compiled template).
- * Fallback is whole-segment substitution of resolved route params into the
- * concrete path, which cannot corrupt static segments the way substring
- * replacement could. Returns null for unrouted requests: per semconv,
- * http.route is only set when a route actually matched.
+ * Primary source is the map dumped by {@see RouteTemplateCacheWarmer} (opcache-shared,
+ * free at runtime). Without a warmed cache it falls back to the router's route
+ * collection (rebuilds the collection — acceptable in dev / long-running workers
+ * where it is memoized, avoided in prod by the warmer), then to whole-segment
+ * substitution of resolved route params, which cannot corrupt static segments
+ * the way substring replacement could. Returns null for unrouted requests:
+ * per semconv, http.route is only set when a route actually matched.
  */
 final class RouteTemplateResolver implements ResetInterface
 {
     /** @var array<string, string|null> */
     private array $templateCache = [];
 
-    public function __construct(private readonly ?RouterInterface $router = null)
-    {
+    /** @var array<string, string>|null */
+    private ?array $warmedMap = null;
+    private bool $warmedMapLoaded = false;
+
+    public function __construct(
+        private readonly ?RouterInterface $router = null,
+        private readonly ?string $cacheDir = null,
+    ) {
     }
 
     public function resolve(Request $request): ?string
@@ -33,7 +41,7 @@ final class RouteTemplateResolver implements ResetInterface
             return null;
         }
 
-        return $this->fromRouter($routeName) ?? $this->synthesize($request);
+        return $this->fromWarmedMap($routeName) ?? $this->fromRouter($routeName) ?? $this->synthesize($request);
     }
 
     public function reset(): void
@@ -41,6 +49,48 @@ final class RouteTemplateResolver implements ResetInterface
         $this->templateCache = [];
     }
 
+    private function fromWarmedMap(string $routeName): ?string
+    {
+        if (!$this->warmedMapLoaded) {
+            $this->warmedMapLoaded = true;
+            $this->warmedMap = $this->loadWarmedMap();
+        }
+
+        return $this->warmedMap[$routeName] ?? null;
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function loadWarmedMap(): ?array
+    {
+        if (null === $this->cacheDir) {
+            return null;
+        }
+
+        $file = rtrim($this->cacheDir, '/') . '/' . RouteTemplateCacheWarmer::CACHE_FILE;
+        if (!is_file($file)) {
+            return null;
+        }
+
+        try {
+            $map = require $file;
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (!\is_array($map)) {
+            return null;
+        }
+
+        /** @var array<string, string> $map */
+        return $map;
+    }
+
+    /**
+     * Last-resort lookup: rebuilds the route collection when no warmed map
+     * exists, so it must never run per-request in prod (the warmer prevents it).
+     */
     private function fromRouter(string $routeName): ?string
     {
         if (null === $this->router) {

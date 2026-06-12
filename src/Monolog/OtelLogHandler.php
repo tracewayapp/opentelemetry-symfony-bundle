@@ -91,7 +91,7 @@ final class OtelLogHandler extends AbstractProcessingHandler implements ResetInt
             foreach ($record->extra as $key => $value) {
                 // The SDK sets trace_id/span_id natively on the LogRecord from the active span.
                 // TraceContextProcessor also writes them into extra for non-OTel handlers — skip the duplicate here.
-                if ('trace_id' === $key || 'span_id' === $key) {
+                if ('trace_id' === $key || 'span_id' === $key || 'trace_flags' === $key) {
                     continue;
                 }
                 if (\in_array($key, self::INTROSPECTION_EXTRA_KEYS, true)) {

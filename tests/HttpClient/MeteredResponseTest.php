@@ -169,12 +169,22 @@ final class MeteredResponseTest extends TestCase
         self::assertSame(1, $points[0]->count);
     }
 
-    public function testDestructorFinalisesPendingResponse(): void
+    public function testDestructorSkipsNeverStartedResponse(): void
     {
         $response = $this->wrap(new MockResponse('ok', ['http_code' => 200]));
         unset($response);
 
-        // Destructor calls finalize via the underlying response status — at least one duration point is recorded.
+        // The destructor must not force a blocking network wait: a response
+        // whose status was never received is dropped from metrics instead.
+        self::assertArrayNotHasKey('http.client.request.duration', $this->collectMetrics());
+    }
+
+    public function testDestructorFinalisesReceivedResponse(): void
+    {
+        $response = $this->wrap(new MockResponse('ok', ['http_code' => 200]));
+        $response->getHeaders();
+        unset($response);
+
         self::assertArrayHasKey('http.client.request.duration', $this->collectMetrics());
     }
 

@@ -110,7 +110,12 @@ final class MeteredResponse implements ResponseInterface
         }
 
         try {
-            $this->finalize($this->response->getStatusCode(), null);
+            $statusCode = $this->response->getInfo('http_code');
+            if (\is_int($statusCode) && $statusCode > 0) {
+                $this->finalize($statusCode, null);
+            } else {
+                $this->finalized = true;
+            }
         } catch (\Throwable) {
             // Destructor must not throw.
         }

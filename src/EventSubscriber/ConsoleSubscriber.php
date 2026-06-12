@@ -89,14 +89,37 @@ final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterfac
             return;
         }
 
+        // Nested re-runs of the same Command instance must not leak the previous entry.
+        if (null !== $command && $this->commandSpans->offsetExists($command)) {
+            [$staleSpan, $staleScope] = $this->commandSpans[$command];
+            $this->commandSpans->offsetUnset($command);
+            $staleSpan->end();
+            @$staleScope->detach();
+        }
+
         $builder = $this->getTracer()
             ->spanBuilder($commandName)
             ->setSpanKind(SpanKind::KIND_INTERNAL)
-            ->setAttribute('console.command', $commandName);
+            ->setAttribute('console.command', $commandName)
+            ->setAttribute('process.executable.name', basename(\PHP_BINARY));
 
-        $args = (string) $event->getInput();
-        if ('' !== $args) {
+        $pid = getmypid();
+        if (false !== $pid) {
+            $builder->setAttribute('process.pid', $pid);
+        }
+
+        $argv = $_SERVER['argv'] ?? null;
+        if (\is_array($argv) && [] !== $argv) {
+            $args = array_values(array_map(
+                static fn (mixed $arg): string => \is_scalar($arg) ? (string) $arg : '',
+                $argv,
+            ));
             $builder->setAttribute('process.command_args', $args);
+        } else {
+            $args = (string) $event->getInput();
+            if ('' !== $args) {
+                $builder->setAttribute('process.command_args', [$args]);
+            }
         }
 
         $span = $builder->startSpan();

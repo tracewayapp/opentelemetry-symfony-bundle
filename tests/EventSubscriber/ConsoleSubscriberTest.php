@@ -247,23 +247,7 @@ final class ConsoleSubscriberTest extends TestCase
         self::assertSame('app:crash', $spans[0]->getName());
     }
 
-    public function testCommandArgsRecordedOnSpan(): void
-    {
-        $command = new Command('app:import');
-        $command->addArgument('file', \Symfony\Component\Console\Input\InputArgument::REQUIRED);
-        $input = new ArrayInput(['file' => '/tmp/data.csv']);
-        $input->bind($command->getDefinition());
-        $output = new NullOutput();
-
-        $this->subscriber->onCommand(new ConsoleCommandEvent($command, $input, $output));
-        $this->subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, Command::SUCCESS));
-
-        $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
-        self::assertArrayHasKey('process.command_args', $attributes);
-        self::assertStringContainsString('/tmp/data.csv', $attributes['process.command_args']);
-    }
-
-    public function testEmptyArgsNotRecorded(): void
+    public function testCommandArgsRecordedAsProcessArgvArray(): void
     {
         $command = new Command('app:import');
         $input = new ArrayInput([]);
@@ -273,7 +257,28 @@ final class ConsoleSubscriberTest extends TestCase
         $this->subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, Command::SUCCESS));
 
         $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
-        self::assertArrayNotHasKey('process.command_args', $attributes);
+
+        // Per CLI semconv this is the real process argv (here: phpunit's), as a string array.
+        self::assertArrayHasKey('process.command_args', $attributes);
+        self::assertIsArray($attributes['process.command_args']);
+        self::assertNotEmpty($attributes['process.command_args']);
+        foreach ($attributes['process.command_args'] as $arg) {
+            self::assertIsString($arg);
+        }
+    }
+
+    public function testRequiredProcessAttributesRecorded(): void
+    {
+        $command = new Command('app:import');
+        $input = new ArrayInput([]);
+        $output = new NullOutput();
+
+        $this->subscriber->onCommand(new ConsoleCommandEvent($command, $input, $output));
+        $this->subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, Command::SUCCESS));
+
+        $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
+        self::assertSame(basename(\PHP_BINARY), $attributes['process.executable.name']);
+        self::assertSame(getmypid(), $attributes['process.pid']);
     }
 
     public function testResetDoesNotDrainActiveSpans(): void

@@ -251,7 +251,7 @@ final class TraceableHttpClientTest extends TestCase
         self::assertSame('GET', $spans[1]->getName());
     }
 
-    public function testRelativeUrlOmitsServerAddress(): void
+    public function testRelativeUrlBackfillsServerAddressFromEffectiveUrl(): void
     {
         $mockClient = new MockHttpClient(new MockResponse('OK', ['http_code' => 200]));
         $client = new TraceableHttpClient($mockClient);
@@ -261,8 +261,11 @@ final class TraceableHttpClientTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         $attributes = $spans[0]->getAttributes()->toArray();
-        self::assertArrayNotHasKey('server.address', $attributes);
-        self::assertArrayNotHasKey('server.port', $attributes);
+
+        // The effective URL from transport info supplies the required server.address post-hoc.
+        self::assertArrayHasKey('server.address', $attributes);
+        self::assertArrayHasKey('url.full', $attributes);
+        self::assertStringContainsString('/relative-path', $attributes['url.full']);
     }
 
     public function testDefaultPortInferredFromScheme(): void

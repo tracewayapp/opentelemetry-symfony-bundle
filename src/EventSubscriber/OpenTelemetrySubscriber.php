@@ -320,7 +320,6 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
 
         $attributes = [
             HttpAttributes::HTTP_REQUEST_METHOD => $normalizedMethod,
-            UrlAttributes::URL_FULL => UrlSanitizer::sanitizeUrl($request->getUri()),
             UrlAttributes::URL_PATH => $request->getPathInfo(),
             UrlAttributes::URL_SCHEME => $request->getScheme(),
             ServerAttributes::SERVER_ADDRESS => $request->getHost(),

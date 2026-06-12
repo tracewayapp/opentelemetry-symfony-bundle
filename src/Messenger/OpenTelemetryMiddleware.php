@@ -17,6 +17,7 @@ use Symfony\Component\Messenger\Middleware\StackInterface;
 use Symfony\Component\Messenger\Stamp\ConsumedByWorkerStamp;
 use Symfony\Component\Messenger\Stamp\ReceivedStamp;
 use Symfony\Component\Messenger\Stamp\SentStamp;
+use Symfony\Component\Messenger\Stamp\TransportMessageIdStamp;
 use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
@@ -140,6 +141,13 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface, ResetInterfa
                 $span->setAttribute('messaging.destination.name', array_key_first($destinations));
             }
 
+            /** @var TransportMessageIdStamp|null $idStamp */
+            $idStamp = $envelope->last(TransportMessageIdStamp::class);
+            $messageId = $idStamp?->getId();
+            if (\is_scalar($messageId) && '' !== (string) $messageId) {
+                $span->setAttribute('messaging.message.id', (string) $messageId);
+            }
+
             return $envelope;
         } catch (\Throwable $e) {
             $span->recordException($e);
@@ -200,6 +208,13 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface, ResetInterfa
         $receivedStamp = $envelope->last(ReceivedStamp::class);
         if (null !== $receivedStamp) {
             $builder->setAttribute('messaging.destination.name', $receivedStamp->getTransportName());
+        }
+
+        /** @var TransportMessageIdStamp|null $idStamp */
+        $idStamp = $envelope->last(TransportMessageIdStamp::class);
+        $messageId = $idStamp?->getId();
+        if (\is_scalar($messageId) && '' !== (string) $messageId) {
+            $builder->setAttribute('messaging.message.id', (string) $messageId);
         }
 
         $span = $builder->startSpan();

@@ -25,8 +25,40 @@ final class MeteredResponse implements ResponseInterface
         private readonly ResponseInterface $response,
         private readonly MeteredHttpClient $recorder,
         private readonly int|float $start,
-        private readonly array $attributes,
+        private array $attributes,
     ) {}
+
+    /**
+     * Backfills required server.address/port from the effective URL when the
+     * original request URL was relative (base_uri option).
+     */
+    private function backfillServerAttributes(): void
+    {
+        if (isset($this->attributes['server.address'])) {
+            return;
+        }
+
+        try {
+            $effectiveUrl = $this->response->getInfo('url');
+        } catch (\Throwable) {
+            return;
+        }
+
+        if (!\is_string($effectiveUrl) || !\is_array($parsed = parse_url($effectiveUrl)) || !isset($parsed['host'])) {
+            return;
+        }
+
+        $this->attributes['server.address'] = $parsed['host'];
+
+        $port = $parsed['port'] ?? match (strtolower($parsed['scheme'] ?? '')) {
+            'https' => 443,
+            'http' => 80,
+            default => null,
+        };
+        if (null !== $port) {
+            $this->attributes['server.port'] = (int) $port;
+        }
+    }
 
     public function getStatusCode(): int
     {
@@ -137,6 +169,7 @@ final class MeteredResponse implements ResponseInterface
         }
 
         $this->finalized = true;
+        $this->backfillServerAttributes();
         $this->recorder->recordResponse($this->start, $this->attributes, $statusCode, $bodySize);
     }
 
@@ -147,6 +180,7 @@ final class MeteredResponse implements ResponseInterface
         }
 
         $this->finalized = true;
+        $this->backfillServerAttributes();
         $this->recorder->recordFailure($this->start, $this->attributes, $e);
     }
 }

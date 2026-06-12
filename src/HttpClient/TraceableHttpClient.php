@@ -127,7 +127,7 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
             $this->inFlight = false;
         }
 
-        return new TracedResponse($response, $span);
+        return new TracedResponse($response, $span, \is_array($parsedUrl) && isset($parsedUrl['host']));
     }
 
     public function stream(ResponseInterface|iterable $responses, ?float $timeout = null): ResponseStreamInterface

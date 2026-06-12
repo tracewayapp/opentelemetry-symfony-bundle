@@ -107,7 +107,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             'traces' => [
                 'excluded_paths' => ['/health'],
                 'record_client_ip' => false,
-                'error_status_threshold' => 400,
+                'error_status_threshold' => 503,
             ],
         ]);
 
@@ -115,7 +115,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
         self::assertSame(['/health'], $def->getArgument('$excludedPaths'));
         self::assertFalse($def->getArgument('$recordClientIp'));
-        self::assertSame(400, $def->getArgument('$errorStatusThreshold'));
+        self::assertSame(503, $def->getArgument('$errorStatusThreshold'));
     }
 
     public function testMiddlewareReceivesRootSpansConfig(): void

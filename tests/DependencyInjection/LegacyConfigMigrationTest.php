@@ -147,7 +147,7 @@ final class LegacyConfigMigrationTest extends TestCase
         yield 'tracer_name' => ['tracer_name', ['tracer_name' => 'my-app'], ['traces' => ['tracer_name' => 'my-app']], 'traces.tracer_name'];
         yield 'excluded_paths' => ['excluded_paths', ['excluded_paths' => ['/health']], ['traces' => ['excluded_paths' => ['/health']]], 'traces.excluded_paths'];
         yield 'record_client_ip' => ['record_client_ip', ['record_client_ip' => false], ['traces' => ['record_client_ip' => false]], 'traces.record_client_ip'];
-        yield 'error_status_threshold' => ['error_status_threshold', ['error_status_threshold' => 400], ['traces' => ['error_status_threshold' => 400]], 'traces.error_status_threshold'];
+        yield 'error_status_threshold' => ['error_status_threshold', ['error_status_threshold' => 503], ['traces' => ['error_status_threshold' => 503]], 'traces.error_status_threshold'];
 
         // Trace subsystems
         yield 'console_enabled' => ['console_enabled', ['console_enabled' => false], ['traces' => ['console' => ['enabled' => false]]], 'traces.console.enabled'];

@@ -74,7 +74,7 @@ final class ConfigurationTest extends TestCase
                     'tracer_name' => 'my-app',
                     'excluded_paths' => ['/health', '/_profiler'],
                     'record_client_ip' => false,
-                    'error_status_threshold' => 400,
+                    'error_status_threshold' => 503,
                     'console' => [
                         'enabled' => false,
                         'excluded_commands' => ['cache:clear', 'assets:install'],
@@ -121,7 +121,7 @@ final class ConfigurationTest extends TestCase
         self::assertSame('my-app', $config['traces']['tracer_name']);
         self::assertSame(['/health', '/_profiler'], $config['traces']['excluded_paths']);
         self::assertFalse($config['traces']['record_client_ip']);
-        self::assertSame(400, $config['traces']['error_status_threshold']);
+        self::assertSame(503, $config['traces']['error_status_threshold']);
         self::assertFalse($config['traces']['console']['enabled']);
         self::assertSame(['cache:clear', 'assets:install'], $config['traces']['console']['excluded_commands']);
         self::assertFalse($config['traces']['http_client']['enabled']);

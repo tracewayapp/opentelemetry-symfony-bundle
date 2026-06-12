@@ -538,7 +538,8 @@ final class OpenTelemetrySubscriberTest extends TestCase
 
         $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
 
-        self::assertStringNotContainsString('secret123', $attributes['url.full']);
+        // url.full is client-only per semconv and no longer emitted on server spans.
+        self::assertArrayNotHasKey('url.full', $attributes);
         self::assertStringNotContainsString('secret123', $attributes['url.query']);
         self::assertStringContainsString('page=2', $attributes['url.query']);
     }

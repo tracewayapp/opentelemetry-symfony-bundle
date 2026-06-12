@@ -39,7 +39,7 @@ final class TraceableHttpClientTest extends TestCase
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
         self::assertSame(SpanKind::KIND_CLIENT, $spans[0]->getKind());
-        self::assertSame('GET api.example.com', $spans[0]->getName());
+        self::assertSame('GET', $spans[0]->getName());
     }
 
     public function testRequestAttributesRecorded(): void
@@ -247,11 +247,11 @@ final class TraceableHttpClientTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(2, $spans);
-        self::assertSame('GET api.example.com', $spans[0]->getName());
-        self::assertSame('GET api.example.com', $spans[1]->getName());
+        self::assertSame('GET', $spans[0]->getName());
+        self::assertSame('GET', $spans[1]->getName());
     }
 
-    public function testMalformedUrlUsesUnknownHost(): void
+    public function testRelativeUrlOmitsServerAddress(): void
     {
         $mockClient = new MockHttpClient(new MockResponse('OK', ['http_code' => 200]));
         $client = new TraceableHttpClient($mockClient);
@@ -261,10 +261,11 @@ final class TraceableHttpClientTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         $attributes = $spans[0]->getAttributes()->toArray();
-        self::assertSame('unknown', $attributes['server.address']);
+        self::assertArrayNotHasKey('server.address', $attributes);
+        self::assertArrayNotHasKey('server.port', $attributes);
     }
 
-    public function testRequestWithoutPortOmitsServerPort(): void
+    public function testDefaultPortInferredFromScheme(): void
     {
         $mockClient = new MockHttpClient(new MockResponse('OK', ['http_code' => 200]));
         $client = new TraceableHttpClient($mockClient);
@@ -274,7 +275,7 @@ final class TraceableHttpClientTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         $attributes = $spans[0]->getAttributes()->toArray();
-        self::assertArrayNotHasKey('server.port', $attributes);
+        self::assertSame(443, $attributes['server.port']);
     }
 
     public function testReEntranceGuardPreventsRecursiveSpans(): void
@@ -302,7 +303,7 @@ final class TraceableHttpClientTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans, 'Only the outer call should produce a span');
-        self::assertSame('GET api.example.com', $spans[0]->getName());
+        self::assertSame('GET', $spans[0]->getName());
     }
 
     public function testExcludedHostsSkipsTracing(): void
@@ -362,7 +363,7 @@ final class TraceableHttpClientTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('GET api.example.com', $spans[0]->getName());
+        self::assertSame('GET', $spans[0]->getName());
     }
 
     public function testReEntranceGuardResetsAfterException(): void
@@ -428,5 +429,63 @@ final class TraceableHttpClientTest extends TestCase
         $content = $response->getContent();
 
         self::assertSame('hello world', $content);
+    }
+
+    public function testUnknownMethodNormalizedToOther(): void
+    {
+        $mockClient = new MockHttpClient(new MockResponse('OK', ['http_code' => 200]));
+        $client = new TraceableHttpClient($mockClient);
+
+        $response = $client->request('PROPFIND', 'https://api.example.com/dav');
+        $response->getStatusCode();
+
+        $spans = $this->exporter->getSpans();
+        $attributes = $spans[0]->getAttributes()->toArray();
+
+        self::assertSame('HTTP', $spans[0]->getName());
+        self::assertSame('_OTHER', $attributes['http.request.method']);
+        self::assertSame('PROPFIND', $attributes['http.request.method_original']);
+    }
+
+    public function testUrlCredentialsRedacted(): void
+    {
+        $mockClient = new MockHttpClient(new MockResponse('OK', ['http_code' => 200]));
+        $client = new TraceableHttpClient($mockClient);
+
+        $response = $client->request('GET', 'https://user:hunter2@api.example.com/users');
+        $response->getStatusCode();
+
+        $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
+        self::assertSame('https://REDACTED:REDACTED@api.example.com/users', $attributes['url.full']);
+    }
+
+    public function testErrorStatusSetsErrorType(): void
+    {
+        $mockClient = new MockHttpClient(new MockResponse('nope', ['http_code' => 404]));
+        $client = new TraceableHttpClient($mockClient);
+
+        $response = $client->request('GET', 'https://api.example.com/missing');
+        $response->getStatusCode();
+
+        $span = $this->exporter->getSpans()[0];
+        self::assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
+        self::assertSame('404', $span->getAttributes()->toArray()['error.type']);
+    }
+
+    public function testTransportExceptionSetsErrorType(): void
+    {
+        $mockClient = new MockHttpClient(new MockResponse('', ['error' => 'connection refused']));
+        $client = new TraceableHttpClient($mockClient);
+
+        $response = $client->request('GET', 'https://api.example.com/down');
+
+        try {
+            $response->getStatusCode();
+        } catch (\Throwable) {
+        }
+
+        $span = $this->exporter->getSpans()[0];
+        self::assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
+        self::assertArrayHasKey('error.type', $span->getAttributes()->toArray());
     }
 }

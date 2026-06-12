@@ -65,6 +65,7 @@ final class OpenTelemetrySubscriberTest extends TestCase
     public function testSpanNameUpdatedAfterRouting(): void
     {
         $request = Request::create('/api/items/42', 'GET');
+        $request->attributes->set('_route', 'api_item_show');
         $request->attributes->set('_route_params', ['id' => '42']);
         $kernel = $this->createStub(HttpKernelInterface::class);
 
@@ -156,9 +157,10 @@ final class OpenTelemetrySubscriberTest extends TestCase
         self::assertArrayNotHasKey('client.address', $attributes);
     }
 
-    public function testRouteParamsReplacedLongestFirst(): void
+    public function testOverlappingRouteParamsReplacedPerSegment(): void
     {
         $request = Request::create('/api/users/123/posts/12', 'GET');
+        $request->attributes->set('_route', 'api_user_post_show');
         $request->attributes->set('_route_params', [
             'userId' => '123',
             'postId' => '12',
@@ -386,6 +388,7 @@ final class OpenTelemetrySubscriberTest extends TestCase
     public function testOnRouteWithNonArrayRouteParams(): void
     {
         $request = Request::create('/api/items', 'GET');
+        $request->attributes->set('_route', 'api_item_list');
         $request->attributes->set('_route_params', null);
         $kernel = $this->createStub(HttpKernelInterface::class);
 
@@ -463,5 +466,80 @@ final class OpenTelemetrySubscriberTest extends TestCase
         $attributes = $spans[0]->getAttributes()->toArray();
 
         self::assertArrayNotHasKey('traceway.distributed_trace_id', $attributes);
+    }
+
+    public function testInitialSpanNameIsBareMethod(): void
+    {
+        $request = Request::create('/api/items', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $spans = $this->exporter->getSpans();
+        self::assertSame('GET', $spans[0]->getName());
+        self::assertArrayNotHasKey('http.route', $spans[0]->getAttributes()->toArray());
+    }
+
+    public function testUnknownMethodNormalizedToOther(): void
+    {
+        $request = Request::create('/api/items', 'FOO');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $spans = $this->exporter->getSpans();
+        $attributes = $spans[0]->getAttributes()->toArray();
+
+        self::assertSame('HTTP', $spans[0]->getName());
+        self::assertSame('_OTHER', $attributes['http.request.method']);
+        self::assertSame('FOO', $attributes['http.request.method_original']);
+    }
+
+    public function testExceptionSetsErrorType(): void
+    {
+        $request = Request::create('/api/error', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onException(new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new \RuntimeException('boom')));
+        $this->subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $spans = $this->exporter->getSpans();
+        self::assertSame(\RuntimeException::class, $spans[0]->getAttributes()->toArray()['error.type']);
+    }
+
+    public function testServerErrorStatusSetsErrorType(): void
+    {
+        $request = Request::create('/api/items', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onResponse(new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new Response('', 503)));
+        $this->subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $spans = $this->exporter->getSpans();
+        self::assertSame('503', $spans[0]->getAttributes()->toArray()['error.type']);
+    }
+
+    public function testSensitiveQueryParamsRedacted(): void
+    {
+        $request = Request::create('/download?sig=secret123&page=2', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
+
+        self::assertStringNotContainsString('secret123', $attributes['url.full']);
+        self::assertStringNotContainsString('secret123', $attributes['url.query']);
+        self::assertStringContainsString('page=2', $attributes['url.query']);
     }
 }

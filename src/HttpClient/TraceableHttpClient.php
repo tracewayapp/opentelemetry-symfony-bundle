@@ -9,6 +9,7 @@ use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\Context\Context;
+use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\HttpAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
@@ -18,6 +19,9 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 use Symfony\Contracts\HttpClient\ResponseStreamInterface;
 use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
+use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
+use Traceway\OpenTelemetryBundle\Util\HttpMethodResolver;
+use Traceway\OpenTelemetryBundle\Util\UrlSanitizer;
 
 /**
  * Decorates any Symfony HttpClient to create CLIENT spans for outgoing requests
@@ -62,18 +66,30 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
         }
 
         $parsedUrl = parse_url($url);
-        $host = \is_array($parsedUrl) ? ($parsedUrl['host'] ?? 'unknown') : 'unknown';
+        $normalizedMethod = HttpMethodResolver::normalize($method);
 
         $spanBuilder = $this->getTracer()
-            ->spanBuilder(sprintf('%s %s', $method, $host))
+            ->spanBuilder(HttpMethodResolver::spanNameMethod($method))
             ->setSpanKind(SpanKind::KIND_CLIENT)
-            ->setAttribute(HttpAttributes::HTTP_REQUEST_METHOD, $method)
-            ->setAttribute(UrlAttributes::URL_FULL, $url)
-            ->setAttribute(ServerAttributes::SERVER_ADDRESS, $host);
+            ->setAttribute(HttpAttributes::HTTP_REQUEST_METHOD, $normalizedMethod)
+            ->setAttribute(UrlAttributes::URL_FULL, UrlSanitizer::sanitizeUrl($url));
+
+        if ($normalizedMethod !== $method) {
+            $spanBuilder->setAttribute(HttpAttributes::HTTP_REQUEST_METHOD_ORIGINAL, $method);
+        }
 
         if (\is_array($parsedUrl)) {
-            if (isset($parsedUrl['port'])) {
-                $spanBuilder->setAttribute(ServerAttributes::SERVER_PORT, $parsedUrl['port']);
+            if (isset($parsedUrl['host'])) {
+                $spanBuilder->setAttribute(ServerAttributes::SERVER_ADDRESS, $parsedUrl['host']);
+
+                $port = $parsedUrl['port'] ?? match (strtolower($parsedUrl['scheme'] ?? '')) {
+                    'https' => 443,
+                    'http' => 80,
+                    default => null,
+                };
+                if (null !== $port) {
+                    $spanBuilder->setAttribute(ServerAttributes::SERVER_PORT, (int) $port);
+                }
             }
             if (isset($parsedUrl['path'])) {
                 $spanBuilder->setAttribute(UrlAttributes::URL_PATH, $parsedUrl['path']);
@@ -100,6 +116,7 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
                 $response = $this->client->request($method, $url, $options);
             } catch (\Throwable $e) {
                 $span->recordException($e);
+                $span->setAttribute(ErrorAttributes::ERROR_TYPE, ErrorTypeResolver::resolve($e));
                 $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
                 $span->end();
 

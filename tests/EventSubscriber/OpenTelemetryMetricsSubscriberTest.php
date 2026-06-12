@@ -79,6 +79,7 @@ final class OpenTelemetryMetricsSubscriberTest extends TestCase
     public function testRouteAttributeUsesTemplate(): void
     {
         $request = Request::create('/api/items/42', 'GET');
+        $request->attributes->set('_route', 'api_item_show');
         $request->attributes->set('_route_params', ['id' => '42']);
         $kernel = $this->createStub(HttpKernelInterface::class);
 

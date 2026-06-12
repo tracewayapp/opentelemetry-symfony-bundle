@@ -9,8 +9,15 @@ services:
     Traceway\OpenTelemetryBundle\TracingInterface:
         alias: Traceway\OpenTelemetryBundle\Tracing
 
+    Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver:
+        autoconfigure: true
+        arguments:
+            $router: '@?router'
+
     Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber:
         autoconfigure: true
+        arguments:
+            $routeTemplateResolver: '@Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver'
 
     Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber:
         autoconfigure: true
@@ -29,6 +36,8 @@ services:
 
     Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetryMetricsSubscriber:
         autoconfigure: true
+        arguments:
+            $routeTemplateResolver: '@Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver'
 
     # traceway:doctor command and supporting services
     Traceway\OpenTelemetryBundle\Command\DoctorCommand:

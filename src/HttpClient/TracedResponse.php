@@ -6,9 +6,11 @@ namespace Traceway\OpenTelemetryBundle\HttpClient;
 
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\StatusCode;
+use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\HttpAttributes;
 use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
 use Symfony\Contracts\HttpClient\ResponseInterface;
+use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
  * Wraps a response to finalize the CLIENT span once the status code is read.
@@ -29,7 +31,13 @@ final class TracedResponse implements ResponseInterface
 
     public function getStatusCode(): int
     {
-        $statusCode = $this->response->getStatusCode();
+        try {
+            $statusCode = $this->response->getStatusCode();
+        } catch (\Throwable $e) {
+            $this->finalizeSpanWithError($e);
+            throw $e;
+        }
+
         $this->finalizeSpan($statusCode);
 
         return $statusCode;
@@ -132,6 +140,7 @@ final class TracedResponse implements ResponseInterface
         $this->span->setAttribute(HttpAttributes::HTTP_RESPONSE_STATUS_CODE, $statusCode);
 
         if ($statusCode >= 400) {
+            $this->span->setAttribute(ErrorAttributes::ERROR_TYPE, (string) $statusCode);
             $this->span->setStatus(StatusCode::STATUS_ERROR);
         }
 
@@ -145,6 +154,7 @@ final class TracedResponse implements ResponseInterface
         }
 
         $this->span->recordException($e);
+        $this->span->setAttribute(ErrorAttributes::ERROR_TYPE, ErrorTypeResolver::resolve($e));
         $this->span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
         $this->endSpan();
     }

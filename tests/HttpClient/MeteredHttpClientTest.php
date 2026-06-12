@@ -117,7 +117,7 @@ final class MeteredHttpClientTest extends TestCase
         self::assertArrayNotHasKey('http.client.request.body.size', $metrics);
     }
 
-    public function testErrorStatusCodeRecordedWithoutErrorType(): void
+    public function testErrorStatusCodeAddsErrorType(): void
     {
         $mockClient = new MockHttpClient(new MockResponse('not found', ['http_code' => 404]));
         $client = new MeteredHttpClient($mockClient, 'test');
@@ -130,9 +130,7 @@ final class MeteredHttpClientTest extends TestCase
         $attr = $points[0]->attributes->toArray();
 
         self::assertSame(404, $attr['http.response.status_code']);
-        // A 4xx response is a successful transport: we don't synthesize error.type here.
-        // Users can alert on status_code >= 400 in Grafana.
-        self::assertArrayNotHasKey('error.type', $attr);
+        self::assertSame('404', $attr['error.type']);
     }
 
     public function testTransportFailureAddsErrorType(): void

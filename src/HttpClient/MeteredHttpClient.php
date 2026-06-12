@@ -19,6 +19,7 @@ use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\Metrics\DurationBoundaries;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
+use Traceway\OpenTelemetryBundle\Util\HttpMethodResolver;
 
 /**
  * Decorates any Symfony HttpClient to emit OpenTelemetry metrics for
@@ -167,6 +168,10 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
         try {
             $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE] = $statusCode;
 
+            if ($statusCode >= 400) {
+                $attributes[ErrorAttributes::ERROR_TYPE] = (string) $statusCode;
+            }
+
             $durationSeconds = (hrtime(true) - $start) / 1_000_000_000;
             $this->getDurationHistogram()->record($durationSeconds, $attributes);
 
@@ -199,16 +204,23 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
     private function requestAttributes(string $method, string $url): array
     {
         $parsed = parse_url($url);
-        $host = \is_array($parsed) ? ($parsed['host'] ?? 'unknown') : 'unknown';
 
         $attributes = [
-            HttpAttributes::HTTP_REQUEST_METHOD => $method,
-            ServerAttributes::SERVER_ADDRESS => $host,
+            HttpAttributes::HTTP_REQUEST_METHOD => HttpMethodResolver::normalize($method),
         ];
 
         if (\is_array($parsed)) {
-            if (isset($parsed['port'])) {
-                $attributes[ServerAttributes::SERVER_PORT] = (int) $parsed['port'];
+            if (isset($parsed['host'])) {
+                $attributes[ServerAttributes::SERVER_ADDRESS] = $parsed['host'];
+
+                $port = $parsed['port'] ?? match (strtolower($parsed['scheme'] ?? '')) {
+                    'https' => 443,
+                    'http' => 80,
+                    default => null,
+                };
+                if (null !== $port) {
+                    $attributes[ServerAttributes::SERVER_PORT] = (int) $port;
+                }
             }
             if (isset($parsed['scheme'])) {
                 $attributes[UrlAttributes::URL_SCHEME] = $parsed['scheme'];

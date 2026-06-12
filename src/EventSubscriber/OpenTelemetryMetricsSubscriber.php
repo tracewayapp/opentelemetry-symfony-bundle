@@ -22,7 +22,9 @@ use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\Metrics\DurationBoundaries;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
+use Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
+use Traceway\OpenTelemetryBundle\Util\HttpMethodResolver;
 
 /**
  * Emits OpenTelemetry metrics for Symfony HTTP server requests.
@@ -62,15 +64,19 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
     /** @var \WeakMap<Request, array{start: int|float, active_counted: bool, route?: string, exception?: \Throwable}> */
     private \WeakMap $requestData;
 
+    private readonly RouteTemplateResolver $routeTemplateResolver;
+
     /**
      * @param string[] $excludedPaths URL path prefixes to skip (must start with /)
      */
     public function __construct(
         private readonly string $meterName = 'opentelemetry-symfony',
         array $excludedPaths = [],
+        ?RouteTemplateResolver $routeTemplateResolver = null,
     ) {
         $this->excludedPaths = array_values($excludedPaths);
         $this->requestData = new \WeakMap();
+        $this->routeTemplateResolver = $routeTemplateResolver ?? new RouteTemplateResolver();
     }
 
     /**
@@ -114,10 +120,9 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
     }
 
     /**
-     * Once the router has resolved, capture the URL path template so
-     * the emitted metrics group endpoints correctly
-     * (e.g. /api/items/{id} instead of /api/items/5).
-     * Replicates the substitution logic used by {@see OpenTelemetrySubscriber}.
+     * Once the router has resolved, capture the route path template so the
+     * emitted metrics group endpoints correctly (e.g. /api/items/{id}).
+     * Unrouted requests get no http.route, per semconv.
      */
     public function onRoute(RequestEvent $event): void
     {
@@ -131,23 +136,12 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
             return;
         }
 
-        $routeParams = $request->attributes->get('_route_params', []);
-        $path = $request->getPathInfo();
-
-        if (\is_array($routeParams)) {
-            $params = array_filter(
-                $routeParams,
-                static fn (mixed $v): bool => (\is_string($v) || \is_int($v)) && '' !== (string) $v,
-            );
-
-            uasort($params, static fn (mixed $a, mixed $b): int => \strlen((string) $b) <=> \strlen((string) $a));
-
-            foreach ($params as $name => $value) {
-                $path = str_replace((string) $value, '{' . $name . '}', $path);
-            }
+        $route = $this->routeTemplateResolver->resolve($request);
+        if (null === $route) {
+            return;
         }
 
-        $data['route'] = $path;
+        $data['route'] = $route;
         $this->requestData[$request] = $data;
     }
 
@@ -186,10 +180,13 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
             }
 
             $response = $event->getResponse();
-            $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE] = $response->getStatusCode();
+            $statusCode = $response->getStatusCode();
+            $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE] = $statusCode;
 
             if (isset($data['exception'])) {
                 $attributes[ErrorAttributes::ERROR_TYPE] = ErrorTypeResolver::resolve($data['exception']);
+            } elseif ($statusCode >= 500) {
+                $attributes[ErrorAttributes::ERROR_TYPE] = (string) $statusCode;
             }
 
             $durationSeconds = (hrtime(true) - $data['start']) / 1_000_000_000;
@@ -246,7 +243,7 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
     private function baseAttributes(Request $request): array
     {
         $attributes = [
-            HttpAttributes::HTTP_REQUEST_METHOD => $request->getMethod(),
+            HttpAttributes::HTTP_REQUEST_METHOD => HttpMethodResolver::normalize($request->getMethod()),
             UrlAttributes::URL_SCHEME => $request->getScheme(),
             ServerAttributes::SERVER_ADDRESS => $request->getHost(),
         ];

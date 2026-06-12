@@ -12,6 +12,7 @@ use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\Context\Context;
 use OpenTelemetry\Context\ScopeInterface;
 use OpenTelemetry\SemConv\Attributes\ClientAttributes;
+use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\HttpAttributes;
 use OpenTelemetry\SemConv\Attributes\NetworkAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
@@ -28,6 +29,10 @@ use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\Event\TerminateEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
+use Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver;
+use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
+use Traceway\OpenTelemetryBundle\Util\HttpMethodResolver;
+use Traceway\OpenTelemetryBundle\Util\UrlSanitizer;
 
 /**
  * Automatic HTTP request instrumentation for Symfony using OpenTelemetry.
@@ -42,6 +47,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
 
     private ?TracerInterface $tracer = null;
     private ?bool $enabled = null;
+    private readonly RouteTemplateResolver $routeTemplateResolver;
 
     /** @var \WeakMap<Request, array{span?: SpanInterface, scope?: ScopeInterface, exception?: \Throwable}> */
     private \WeakMap $requestData;
@@ -57,9 +63,11 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
         array $excludedPaths = [],
         private readonly bool $recordClientIp = true,
         private readonly int $errorStatusThreshold = 500,
+        ?RouteTemplateResolver $routeTemplateResolver = null,
     ) {
         $this->excludedPaths = array_values($excludedPaths);
         $this->requestData = new \WeakMap();
+        $this->routeTemplateResolver = $routeTemplateResolver ?? new RouteTemplateResolver();
     }
 
     /**
@@ -97,7 +105,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
         $tracer = $this->getTracer();
 
         $spanBuilder = $tracer
-            ->spanBuilder(sprintf('HTTP %s', $request->getMethod()))
+            ->spanBuilder(HttpMethodResolver::spanNameMethod($request->getMethod()))
             ->setSpanKind($event->isMainRequest() ? SpanKind::KIND_SERVER : SpanKind::KIND_INTERNAL)
             ->setAttributes($this->requestAttributes($request));
 
@@ -129,11 +137,9 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
     }
 
     /**
-     * Once the router has resolved, update the span name with a URL path template.
-     *
-     * Replaces resolved parameter values with {param} placeholders so backends
-     * group endpoints correctly (e.g. /api/items/{id} instead of /api/items/5).
-     * Longer values are replaced first to prevent substring collision.
+     * Once the router has resolved, set http.route and rename the span to
+     * "{method} {route template}" (e.g. GET /api/items/{id}). Unrouted
+     * requests keep the bare method name and no http.route, per semconv.
      */
     public function onRoute(RequestEvent $event): void
     {
@@ -143,25 +149,13 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
         }
 
         $request = $event->getRequest();
-        $routeParams = $request->attributes->get('_route_params', []);
-        $path = $request->getPathInfo();
-
-        if (\is_array($routeParams)) {
-            $params = array_filter(
-                $routeParams,
-                static fn (mixed $v): bool => (\is_string($v) || \is_int($v)) && '' !== (string) $v,
-            );
-
-            uasort($params, static fn (mixed $a, mixed $b): int => \strlen((string) $b) <=> \strlen((string) $a));
-
-            foreach ($params as $name => $value) {
-                $path = str_replace((string) $value, '{' . $name . '}', $path);
-            }
+        $route = $this->routeTemplateResolver->resolve($request);
+        if (null === $route) {
+            return;
         }
 
-        $method = $request->getMethod();
-        $span->updateName(sprintf('%s %s', $method, $path));
-        $span->setAttribute(HttpAttributes::HTTP_ROUTE, $path);
+        $span->updateName(sprintf('%s %s', HttpMethodResolver::spanNameMethod($request->getMethod()), $route));
+        $span->setAttribute(HttpAttributes::HTTP_ROUTE, $route);
     }
 
     public function onException(ExceptionEvent $event): void
@@ -172,6 +166,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
         }
 
         $span->recordException($event->getThrowable());
+        $span->setAttribute(ErrorAttributes::ERROR_TYPE, ErrorTypeResolver::resolve($event->getThrowable()));
         $span->setStatus(StatusCode::STATUS_ERROR, $event->getThrowable()->getMessage());
 
         $data = $this->requestData[$event->getRequest()] ?? [];
@@ -206,6 +201,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
         }
 
         if ($statusCode >= $this->errorStatusThreshold && !$hadException) {
+            $span->setAttribute(ErrorAttributes::ERROR_TYPE, (string) $statusCode);
             $span->setStatus(StatusCode::STATUS_ERROR);
         }
 
@@ -312,11 +308,19 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
         $protocolVersion = $request->getProtocolVersion();
         if (null !== $protocolVersion) {
             $protocolVersion = str_replace('HTTP/', '', $protocolVersion);
+            $protocolVersion = match ($protocolVersion) {
+                '2.0' => '2',
+                '3.0' => '3',
+                default => $protocolVersion,
+            };
         }
 
+        $method = $request->getMethod();
+        $normalizedMethod = HttpMethodResolver::normalize($method);
+
         $attributes = [
-            HttpAttributes::HTTP_REQUEST_METHOD => $request->getMethod(),
-            UrlAttributes::URL_FULL => $request->getUri(),
+            HttpAttributes::HTTP_REQUEST_METHOD => $normalizedMethod,
+            UrlAttributes::URL_FULL => UrlSanitizer::sanitizeUrl($request->getUri()),
             UrlAttributes::URL_PATH => $request->getPathInfo(),
             UrlAttributes::URL_SCHEME => $request->getScheme(),
             ServerAttributes::SERVER_ADDRESS => $request->getHost(),
@@ -325,9 +329,13 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
             NetworkAttributes::NETWORK_PROTOCOL_VERSION => $protocolVersion,
         ];
 
+        if ($normalizedMethod !== $method) {
+            $attributes[HttpAttributes::HTTP_REQUEST_METHOD_ORIGINAL] = $method;
+        }
+
         $queryString = $request->getQueryString();
         if (null !== $queryString) {
-            $attributes[UrlAttributes::URL_QUERY] = $queryString;
+            $attributes[UrlAttributes::URL_QUERY] = UrlSanitizer::sanitizeQuery($queryString);
         }
 
         if ($this->recordClientIp) {

@@ -44,7 +44,7 @@ final class ConsoleSubscriberTest extends TestCase
         self::assertArrayHasKey(ConsoleEvents::TERMINATE, $events);
     }
 
-    public function testCommandCreatesServerSpan(): void
+    public function testCommandCreatesInternalSpan(): void
     {
         $command = new Command('app:import');
         $input = new ArrayInput([]);
@@ -56,10 +56,10 @@ final class ConsoleSubscriberTest extends TestCase
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
         self::assertSame('app:import', $spans[0]->getName());
-        self::assertSame(SpanKind::KIND_SERVER, $spans[0]->getKind());
+        self::assertSame(SpanKind::KIND_INTERNAL, $spans[0]->getKind());
     }
 
-    public function testProcessCommandAttribute(): void
+    public function testConsoleCommandAttribute(): void
     {
         $command = new Command('app:import');
         $input = new ArrayInput([]);
@@ -69,7 +69,7 @@ final class ConsoleSubscriberTest extends TestCase
         $this->subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, Command::SUCCESS));
 
         $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
-        self::assertSame('app:import', $attributes['process.command']);
+        self::assertSame('app:import', $attributes['console.command']);
     }
 
     public function testExitCodeRecordedOnSpan(): void
@@ -82,7 +82,7 @@ final class ConsoleSubscriberTest extends TestCase
         $this->subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, Command::SUCCESS));
 
         $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
-        self::assertSame(0, $attributes['process.exit_code']);
+        self::assertSame(0, $attributes['process.exit.code']);
     }
 
     public function testNonZeroExitCodeMarksError(): void
@@ -95,8 +95,10 @@ final class ConsoleSubscriberTest extends TestCase
         $this->subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, Command::FAILURE));
 
         $span = $this->exporter->getSpans()[0];
+        $attributes = $span->getAttributes()->toArray();
         self::assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
-        self::assertSame(1, $span->getAttributes()->toArray()['process.exit_code']);
+        self::assertSame(1, $attributes['process.exit.code']);
+        self::assertSame('1', $attributes['error.type']);
     }
 
     public function testExceptionRecordedOnSpan(): void
@@ -113,6 +115,7 @@ final class ConsoleSubscriberTest extends TestCase
         $span = $this->exporter->getSpans()[0];
         self::assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
         self::assertSame('Something broke', $span->getStatus()->getDescription());
+        self::assertSame(\RuntimeException::class, $span->getAttributes()->toArray()['error.type']);
 
         $events = $span->getEvents();
         self::assertNotEmpty($events);
@@ -224,7 +227,7 @@ final class ConsoleSubscriberTest extends TestCase
 
         $span = $this->exporter->getSpans()[0];
         self::assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
-        self::assertSame(255, $span->getAttributes()->toArray()['process.exit_code']);
+        self::assertSame(255, $span->getAttributes()->toArray()['process.exit.code']);
     }
 
     public function testDestructorEndsSpanWhenTerminateNeverFires(): void
@@ -256,8 +259,8 @@ final class ConsoleSubscriberTest extends TestCase
         $this->subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, Command::SUCCESS));
 
         $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
-        self::assertArrayHasKey('process.command.args', $attributes);
-        self::assertStringContainsString('/tmp/data.csv', $attributes['process.command.args']);
+        self::assertArrayHasKey('process.command_args', $attributes);
+        self::assertStringContainsString('/tmp/data.csv', $attributes['process.command_args']);
     }
 
     public function testEmptyArgsNotRecorded(): void
@@ -270,7 +273,7 @@ final class ConsoleSubscriberTest extends TestCase
         $this->subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, Command::SUCCESS));
 
         $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
-        self::assertArrayNotHasKey('process.command.args', $attributes);
+        self::assertArrayNotHasKey('process.command_args', $attributes);
     }
 
     public function testResetDoesNotDrainActiveSpans(): void

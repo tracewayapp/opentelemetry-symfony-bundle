@@ -18,12 +18,14 @@ use Symfony\Component\Console\Event\ConsoleTerminateEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
+use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
  * Automatic console command instrumentation for Symfony using OpenTelemetry.
  *
- * Creates a SERVER span per command with the command name, exit code,
- * and exception recording. Built-in Symfony commands can be excluded.
+ * Creates a root INTERNAL span per command (per OTel CLI semconv) with the
+ * command name, exit code, and exception recording. Built-in Symfony
+ * commands can be excluded.
  */
 final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterface
 {
@@ -89,12 +91,12 @@ final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterfac
 
         $builder = $this->getTracer()
             ->spanBuilder($commandName)
-            ->setSpanKind(SpanKind::KIND_SERVER)
-            ->setAttribute('process.command', $commandName);
+            ->setSpanKind(SpanKind::KIND_INTERNAL)
+            ->setAttribute('console.command', $commandName);
 
         $args = (string) $event->getInput();
         if ('' !== $args) {
-            $builder->setAttribute('process.command.args', $args);
+            $builder->setAttribute('process.command_args', $args);
         }
 
         $span = $builder->startSpan();
@@ -123,6 +125,7 @@ final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterfac
         }
 
         $span->recordException($event->getError());
+        $span->setAttribute('error.type', ErrorTypeResolver::resolve($event->getError()));
         $span->setStatus(StatusCode::STATUS_ERROR, $event->getError()->getMessage());
 
         $updated = [$span, $scope, true];
@@ -145,9 +148,10 @@ final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterfac
         [$span, $scope, $errorRecorded] = $entry;
 
         $exitCode = $event->getExitCode();
-        $span->setAttribute('process.exit_code', $exitCode);
+        $span->setAttribute('process.exit.code', $exitCode);
 
         if ($exitCode !== Command::SUCCESS && !$errorRecorded && $span->isRecording()) {
+            $span->setAttribute('error.type', (string) $exitCode);
             $span->setStatus(StatusCode::STATUS_ERROR);
         }
 

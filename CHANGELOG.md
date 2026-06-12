@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Console command spans now conform to OTel CLI semconv and classify as Tasks (breaking attribute changes)** — `ConsoleSubscriber` emitted the command root span as `SERVER` with a `process.command` attribute. Task-oriented backends (Traceway) classify a span as a Task only when it is `CONSUMER` or a root `INTERNAL` span carrying `console.command`, so every `bin/console` run was silently dropped and its child spans orphaned. The span kind is now `INTERNAL` (the [CLI span spec](https://opentelemetry.io/docs/specs/semconv/cli/cli-spans/) says the callee span "SHOULD be INTERNAL"; no other PHP console instrumentation uses `SERVER`) and the command name is recorded as `console.command`, matching keepsuit's Laravel instrumentation. Attributes renamed to their real semconv keys: `process.exit_code` → `process.exit.code`, `process.command.args` → `process.command_args` (neither old name exists in the semconv registry). Failed commands now also carry `error.type` (exception FQCN via `ErrorTypeResolver`, or the exit code as a string when no exception was recorded), conditionally required by the CLI spec. **Migration**: dashboards or alerts querying `process.command`, `process.exit_code`, or `process.command.args` must switch to the new keys.
+
 ## [2.2.1] - 2026-06-11
 
 ### Fixed

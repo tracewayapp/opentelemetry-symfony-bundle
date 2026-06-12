@@ -223,4 +223,42 @@ final class OpenTelemetryTwigExtensionTest extends TestCase
         self::assertSame('twig.render partial.html.twig', $spans[0]->getName());
         self::assertSame('twig.render partial.html.twig', $spans[1]->getName());
     }
+
+    public function testThrowingInnerTemplateOrphanClosedByOuterLeave(): void
+    {
+        $outer = new Profile('layout.html.twig', Profile::TEMPLATE, 'layout.html.twig');
+        $inner = new Profile('broken.html.twig', Profile::TEMPLATE, 'broken.html.twig');
+
+        // Inner template throws: Twig's profiler hooks skip its leave().
+        $this->extension->enter($outer);
+        $this->extension->enter($inner);
+        $this->extension->leave($outer);
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(2, $spans);
+
+        $innerSpan = $spans[0];
+        $outerSpan = $spans[1];
+
+        self::assertSame('twig.render broken.html.twig', $innerSpan->getName());
+        self::assertSame(\OpenTelemetry\API\Trace\StatusCode::STATUS_ERROR, $innerSpan->getStatus()->getCode());
+
+        self::assertSame('twig.render layout.html.twig', $outerSpan->getName());
+        self::assertSame(\OpenTelemetry\API\Trace\StatusCode::STATUS_UNSET, $outerSpan->getStatus()->getCode());
+
+        // The orphan's span must still be a child of the outer span.
+        self::assertSame($outerSpan->getSpanId(), $innerSpan->getParentSpanId());
+    }
+
+    public function testDrainedOrphansAreMarkedFailed(): void
+    {
+        $profile = new Profile('crash.html.twig', Profile::TEMPLATE, 'crash.html.twig');
+
+        $this->extension->enter($profile);
+        $this->extension->reset();
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame(\OpenTelemetry\API\Trace\StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
+    }
 }

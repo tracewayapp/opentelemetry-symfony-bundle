@@ -16,6 +16,7 @@ use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
+use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
  * Decorates a Symfony cache pool to create INTERNAL spans for cache operations.
@@ -75,6 +76,7 @@ class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInter
             return $result;
         } catch (\Throwable $e) {
             $span->recordException($e);
+            $span->setAttribute('error.type', ErrorTypeResolver::resolve($e));
             $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
 
             throw $e;
@@ -104,6 +106,7 @@ class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInter
             return $this->pool->delete($key);
         } catch (\Throwable $e) {
             $span->recordException($e);
+            $span->setAttribute('error.type', ErrorTypeResolver::resolve($e));
             $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
 
             throw $e;
@@ -155,6 +158,7 @@ class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInter
             return $result;
         } catch (\Throwable $e) {
             $span->recordException($e);
+            $span->setAttribute('error.type', ErrorTypeResolver::resolve($e));
             $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
 
             throw $e;

@@ -118,7 +118,6 @@ final class SchedulerSubscriber implements EventSubscriberInterface, ResetInterf
         $this->spans->offsetUnset($message);
 
         $span->setAttribute('scheduler.cancelled', true);
-        $span->setStatus(StatusCode::STATUS_OK);
         $scope->detach();
         $span->end();
     }
@@ -133,7 +132,6 @@ final class SchedulerSubscriber implements EventSubscriberInterface, ResetInterf
         [$span, $scope] = $this->spans[$message];
         $this->spans->offsetUnset($message);
 
-        $span->setStatus(StatusCode::STATUS_OK);
         $scope->detach();
         $span->end();
     }
@@ -152,9 +150,7 @@ final class SchedulerSubscriber implements EventSubscriberInterface, ResetInterf
         $span->recordException($error);
         $span->setAttribute('error.type', ErrorTypeResolver::resolve($error));
 
-        if ($event->shouldIgnore()) {
-            $span->setStatus(StatusCode::STATUS_OK);
-        } else {
+        if (!$event->shouldIgnore()) {
             $span->setStatus(StatusCode::STATUS_ERROR, $error->getMessage());
         }
 

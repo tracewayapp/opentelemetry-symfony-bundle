@@ -8,6 +8,7 @@ use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
+use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
  * Extends {@see TraceableCachePool} for tag-aware cache pools,
@@ -40,13 +41,14 @@ final class TraceableTagAwareCachePool extends TraceableCachePool implements Tag
             ->spanBuilder('cache.invalidate_tags')
             ->setSpanKind(SpanKind::KIND_INTERNAL)
             ->setAttribute('cache.pool', $this->poolName)
-            ->setAttribute('cache.tags', implode(',', array_map('strval', $tags)))
+            ->setAttribute('cache.tags', array_values(array_map('strval', $tags)))
             ->startSpan();
 
         try {
             return $this->tagAwarePool->invalidateTags($tags);
         } catch (\Throwable $e) {
             $span->recordException($e);
+            $span->setAttribute('error.type', ErrorTypeResolver::resolve($e));
             $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
 
             throw $e;

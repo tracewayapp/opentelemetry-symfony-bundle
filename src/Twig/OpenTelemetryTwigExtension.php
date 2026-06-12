@@ -7,6 +7,7 @@ namespace Traceway\OpenTelemetryBundle\Twig;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
+use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\Context\ScopeInterface;
 use Symfony\Contracts\Service\ResetInterface;
@@ -53,13 +54,7 @@ final class OpenTelemetryTwigExtension extends AbstractExtension implements Rese
 
     public function __destruct()
     {
-        foreach ($this->spans as $profile) {
-            [$span, $scope] = $this->spans[$profile];
-            $span->end();
-            $scope->detach();
-        }
-
-        $this->spans = new \SplObjectStorage();
+        $this->drainOrphans(suppressScopeNotice: false);
     }
 
     /**
@@ -72,13 +67,7 @@ final class OpenTelemetryTwigExtension extends AbstractExtension implements Rese
 
     public function reset(): void
     {
-        foreach ($this->spans as $profile) {
-            [$span, $scope] = $this->spans[$profile];
-            $span->end();
-            @$scope->detach();
-        }
-
-        $this->spans = new \SplObjectStorage();
+        $this->drainOrphans(suppressScopeNotice: true);
         $this->tracer = null;
         $this->enabled = null;
     }
@@ -105,11 +94,63 @@ final class OpenTelemetryTwigExtension extends AbstractExtension implements Rese
             return;
         }
 
+        $this->closeNestedOrphans($profile);
+
         [$span, $scope] = $this->spans[$profile];
         $this->spans->offsetUnset($profile);
 
         $span->end();
         $scope->detach();
+    }
+
+    /**
+     * Twig's profiler hooks are not exception-safe: a throwing template skips
+     * its leave() call. Any span entered after the one now leaving is such an
+     * orphan — close them in reverse order so scope detaching stays nested,
+     * and mark them failed since their render never completed.
+     */
+    private function closeNestedOrphans(Profile $current): void
+    {
+        $orphans = [];
+        $seen = false;
+
+        foreach ($this->spans as $profile) {
+            if ($seen) {
+                $orphans[] = $profile;
+            } elseif ($profile === $current) {
+                $seen = true;
+            }
+        }
+
+        foreach (array_reverse($orphans) as $profile) {
+            [$span, $scope] = $this->spans[$profile];
+            $this->spans->offsetUnset($profile);
+
+            $span->setStatus(StatusCode::STATUS_ERROR, 'Template rendering did not complete');
+            $span->end();
+            $scope->detach();
+        }
+    }
+
+    private function drainOrphans(bool $suppressScopeNotice): void
+    {
+        $profiles = [];
+        foreach ($this->spans as $profile) {
+            $profiles[] = $profile;
+        }
+
+        foreach (array_reverse($profiles) as $profile) {
+            [$span, $scope] = $this->spans[$profile];
+            $span->setStatus(StatusCode::STATUS_ERROR, 'Template rendering did not complete');
+            $span->end();
+            if ($suppressScopeNotice) {
+                @$scope->detach();
+            } else {
+                $scope->detach();
+            }
+        }
+
+        $this->spans = new \SplObjectStorage();
     }
 
     private function isExcluded(string $templateName): bool

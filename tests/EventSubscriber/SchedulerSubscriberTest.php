@@ -45,7 +45,7 @@ final class SchedulerSubscriberTest extends TestCase
         self::assertCount(1, $spans);
         self::assertSame('process stdClass', $spans[0]->getName());
         self::assertSame(SpanKind::KIND_CONSUMER, $spans[0]->getKind());
-        self::assertSame(StatusCode::STATUS_OK, $spans[0]->getStatus()->getCode());
+        self::assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
 
         $attributes = $spans[0]->getAttributes()->toArray();
         self::assertSame('symfony_scheduler', $attributes['messaging.system']);
@@ -116,7 +116,7 @@ final class SchedulerSubscriberTest extends TestCase
         self::assertNotEmpty($span->getEvents());
     }
 
-    public function testIgnoredFailureEndsOk(): void
+    public function testIgnoredFailureLeavesStatusUnset(): void
     {
         $subscriber = new SchedulerSubscriber('test');
         $message = new \stdClass();
@@ -129,7 +129,7 @@ final class SchedulerSubscriberTest extends TestCase
         $subscriber->onFailure($failure);
 
         $span = $this->exporter->getSpans()[0];
-        self::assertSame(StatusCode::STATUS_OK, $span->getStatus()->getCode());
+        self::assertSame(StatusCode::STATUS_UNSET, $span->getStatus()->getCode());
         self::assertSame(\RuntimeException::class, $span->getAttributes()->toArray()['error.type']);
     }
 
@@ -148,7 +148,7 @@ final class SchedulerSubscriberTest extends TestCase
         self::assertCount(1, $spans);
         $attributes = $spans[0]->getAttributes()->toArray();
         self::assertTrue($attributes['scheduler.cancelled']);
-        self::assertSame(StatusCode::STATUS_OK, $spans[0]->getStatus()->getCode());
+        self::assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
     }
 
     public function testNotCancelledPreRunLateIsNoOp(): void

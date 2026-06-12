@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Twig spans are now exception-safe** — Twig's profiler hooks skip `leave()` when a template throws, leaving the span open with a leaked scope, a wrong duration (closed only at `reset()`/destruct), and out-of-order scope detaching. `leave()` now closes any nested orphans (in reverse order, preserving scope nesting) and marks them `Error` with "Template rendering did not complete"; `reset()`/destruct drains do the same.
+- **Cache spans set `error.type` on failure** (exception FQCN via `ErrorTypeResolver`), matching every other instrumentation in the bundle; `cache.tags` is now a native string-array attribute instead of a comma-joined string.
+- **Scheduler spans leave status `Unset` on success** (and on ignored failures) instead of forcing `Ok` — per OTel trace API guidance, `Ok` is reserved for explicit app-level marking. Ignored failures still record the exception event and `error.type`.
+- **Monolog `TraceContextProcessor` now also injects `trace_flags`** (W3C two-hex form, e.g. `01`) alongside `trace_id`/`span_id`, so non-OTel log sinks can tell sampled from unsampled traces when joining logs to traces.
 - **Messenger and Mailer instrumentation conform to the current OTel messaging semconv (breaking span-name and operation-type changes)** — six fixes:
   - *`messaging.operation.type: publish` → `send`*: `publish` was renamed in the messaging conventions (the vendored sem-conv marks it `@deprecated Replaced by 'send'`).
   - *Required `messaging.operation.name` now set* on messenger producer (`send`) and consumer (`process`) spans — previously only the metrics middleware and Scheduler satisfied this.

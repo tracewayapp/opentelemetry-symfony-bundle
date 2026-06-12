@@ -46,7 +46,7 @@ final class TraceableTagAwareCachePoolTest extends TestCase
 
         $attrs = $spans[0]->getAttributes()->toArray();
         self::assertSame('cache.app.taggable', $attrs['cache.pool']);
-        self::assertSame('product,category', $attrs['cache.tags']);
+        self::assertSame(['product', 'category'], $attrs['cache.tags']);
     }
 
     public function testInvalidateEmptyTagsArray(): void
@@ -58,7 +58,7 @@ final class TraceableTagAwareCachePoolTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('', $spans[0]->getAttributes()->toArray()['cache.tags']);
+        self::assertSame([], $spans[0]->getAttributes()->toArray()['cache.tags']);
     }
 
     public function testInvalidateTagsRecordsExceptionOnError(): void

@@ -46,13 +46,13 @@ final class TraceableTransportsTest extends TestCase
         self::assertCount(1, $spans);
         self::assertSame('send', $spans[0]->getName());
         self::assertSame(SpanKind::KIND_CLIENT, $spans[0]->getKind());
-        self::assertSame(StatusCode::STATUS_OK, $spans[0]->getStatus()->getCode());
+        self::assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
 
         $attributes = $spans[0]->getAttributes()->toArray();
         self::assertSame('symfony_mailer', $attributes['messaging.system']);
         self::assertSame('send', $attributes['messaging.operation.name']);
         self::assertSame('send', $attributes['messaging.operation.type']);
-        self::assertSame('abc123@example.com', $attributes['email.message_id']);
+        self::assertSame('abc123@example.com', $attributes['messaging.message.id']);
     }
 
     public function testXTransportHeaderBecomesDestinationName(): void
@@ -80,7 +80,7 @@ final class TraceableTransportsTest extends TestCase
         $transports->send($this->buildEmail());
 
         $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
-        self::assertArrayNotHasKey('email.message_id', $attributes);
+        self::assertArrayNotHasKey('messaging.message.id', $attributes);
     }
 
     public function testExceptionPathRecordsErrorAndRethrows(): void

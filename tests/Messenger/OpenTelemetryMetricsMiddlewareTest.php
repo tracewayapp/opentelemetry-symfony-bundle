@@ -93,7 +93,7 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
         self::assertArrayHasKey('messaging.process.duration', $metrics);
     }
 
-    public function testDispatchWithoutSentStampsEmitsBaseMetric(): void
+    public function testSyncDispatchWithoutSentStampEmitsNoClientMetrics(): void
     {
         $middleware = new OpenTelemetryMetricsMiddleware('test');
         $envelope = new Envelope(new \stdClass());
@@ -102,19 +102,9 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
 
         $metrics = $this->collectMetrics();
 
-        self::assertArrayHasKey('messaging.client.sent.messages', $metrics);
-        $points = [...$metrics['messaging.client.sent.messages']->data->dataPoints];
-        self::assertCount(1, $points);
-        self::assertSame(1, $points[0]->value);
-
-        $attr = $points[0]->attributes->toArray();
-        self::assertSame('symfony_messenger', $attr['messaging.system']);
-        self::assertSame('send', $attr['messaging.operation.name']);
-        self::assertSame('send', $attr['messaging.operation.type']);
-        self::assertArrayNotHasKey('messaging.destination.name', $attr);
-
-        self::assertArrayHasKey('messaging.client.operation.duration', $metrics);
-        self::assertSame('s', $metrics['messaging.client.operation.duration']->unit);
+        // Sync-handled messages never reach a broker: spec forbids counting them as sent.
+        self::assertArrayNotHasKey('messaging.client.sent.messages', $metrics);
+        self::assertArrayNotHasKey('messaging.client.operation.duration', $metrics);
     }
 
     public function testDispatchWithSingleSentStampSetsDestinationFromAlias(): void
@@ -200,7 +190,11 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
         }
 
         $metrics = $this->collectMetrics();
-        $points = [...$metrics['messaging.client.sent.messages']->data->dataPoints];
+
+        // Nothing was sent, so the counter stays clean — but the failed
+        // operation still records duration with error.type for alerting.
+        self::assertArrayNotHasKey('messaging.client.sent.messages', $metrics);
+        $points = [...$metrics['messaging.client.operation.duration']->data->dataPoints];
         self::assertSame('RuntimeException', $points[0]->attributes->toArray()['error.type']);
     }
 

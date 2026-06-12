@@ -67,9 +67,8 @@ final class TraceableTransports implements TransportInterface, ResetInterface
         try {
             $sent = $this->decorated->send($message, $envelope);
             if (null !== $sent) {
-                $span->setAttribute('email.message_id', $sent->getMessageId());
+                $span->setAttribute('messaging.message.id', $sent->getMessageId());
             }
-            $span->setStatus(StatusCode::STATUS_OK);
 
             return $sent;
         } catch (\Throwable $e) {

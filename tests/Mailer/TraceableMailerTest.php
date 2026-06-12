@@ -44,14 +44,14 @@ final class TraceableMailerTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('send', $spans[0]->getName());
+        self::assertSame('create', $spans[0]->getName());
         self::assertSame(SpanKind::KIND_PRODUCER, $spans[0]->getKind());
-        self::assertSame(StatusCode::STATUS_OK, $spans[0]->getStatus()->getCode());
+        self::assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
 
         $attributes = $spans[0]->getAttributes()->toArray();
         self::assertSame('symfony_mailer', $attributes['messaging.system']);
-        self::assertSame('send', $attributes['messaging.operation.name']);
-        self::assertSame('send', $attributes['messaging.operation.type']);
+        self::assertSame('create', $attributes['messaging.operation.name']);
+        self::assertSame('create', $attributes['messaging.operation.type']);
         self::assertSame(1, $attributes['email.to.count']);
         self::assertArrayNotHasKey('email.subject', $attributes);
         self::assertArrayNotHasKey('messaging.destination.name', $attributes);
@@ -141,7 +141,7 @@ final class TraceableMailerTest extends TestCase
         $mailer->send($email);
 
         $span = $this->exporter->getSpans()[0];
-        self::assertSame('send alerts', $span->getName());
+        self::assertSame('create alerts', $span->getName());
         self::assertSame('alerts', $span->getAttributes()->toArray()['messaging.destination.name']);
     }
 

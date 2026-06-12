@@ -162,9 +162,13 @@ final class OpenTelemetryMetricsMiddleware implements MiddlewareInterface, Reset
 
         $sentStamps = $envelope->all(SentStamp::class);
 
+        // No SentStamp means nothing reached a broker (sync-handled or failed
+        // pre-send) — the spec forbids counting these in sent.messages; failed
+        // dispatches still record duration so errors stay observable.
         if ([] === $sentStamps) {
-            $this->getDispatchSentCounter()->add(1, $base);
-            $this->getDispatchDurationHistogram()->record($durationSeconds, $base);
+            if (null !== $exception) {
+                $this->getDispatchDurationHistogram()->record($durationSeconds, $base);
+            }
 
             return;
         }

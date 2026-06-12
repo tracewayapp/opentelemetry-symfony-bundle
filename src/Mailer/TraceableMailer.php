@@ -18,7 +18,7 @@ use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
- * Decorates {@see MailerInterface} to emit a PRODUCER span around send().
+ * Decorates {@see MailerInterface} to emit a PRODUCER "create" span around send().
  *
  * Attribute shape follows OTel messaging semconv. Email-specific keys
  * (`email.subject`, `email.to.count`) anticipate semantic-conventions
@@ -54,14 +54,14 @@ final class TraceableMailer implements MailerInterface, ResetInterface
         }
 
         $transportName = $this->extractTransportName($message);
-        $spanName = null !== $transportName ? sprintf('send %s', $transportName) : 'send';
+        $spanName = null !== $transportName ? sprintf('create %s', $transportName) : 'create';
 
         $builder = $this->getTracer()
             ->spanBuilder($spanName)
             ->setSpanKind(SpanKind::KIND_PRODUCER)
             ->setAttribute('messaging.system', 'symfony_mailer')
-            ->setAttribute('messaging.operation.name', 'send')
-            ->setAttribute('messaging.operation.type', 'send');
+            ->setAttribute('messaging.operation.name', 'create')
+            ->setAttribute('messaging.operation.type', 'create');
 
         if (null !== $transportName) {
             $builder->setAttribute('messaging.destination.name', $transportName);
@@ -84,7 +84,6 @@ final class TraceableMailer implements MailerInterface, ResetInterface
 
         try {
             $this->decorated->send($message, $envelope);
-            $span->setStatus(StatusCode::STATUS_OK);
         } catch (\Throwable $e) {
             $span->recordException($e);
             $span->setAttribute('error.type', ErrorTypeResolver::resolve($e));

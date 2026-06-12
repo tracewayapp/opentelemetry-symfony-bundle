@@ -43,13 +43,13 @@ final class OpenTelemetryMiddlewareTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame('stdClass publish', $spans[0]->getName());
+        self::assertSame('send stdClass', $spans[0]->getName());
         self::assertSame(SpanKind::KIND_PRODUCER, $spans[0]->getKind());
-        self::assertSame(StatusCode::STATUS_OK, $spans[0]->getStatus()->getCode());
+        self::assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
 
         $attributes = $spans[0]->getAttributes()->toArray();
         self::assertSame('symfony_messenger', $attributes['messaging.system']);
-        self::assertSame('publish', $attributes['messaging.operation.type']);
+        self::assertSame('send', $attributes['messaging.operation.type']);
         self::assertSame(\stdClass::class, $attributes['messaging.message.class']);
     }
 
@@ -127,7 +127,7 @@ final class OpenTelemetryMiddlewareTest extends TestCase
         self::assertCount(1, $spans);
         self::assertStringContainsString('process', $spans[0]->getName());
         self::assertSame(SpanKind::KIND_CONSUMER, $spans[0]->getKind());
-        self::assertSame(StatusCode::STATUS_OK, $spans[0]->getStatus()->getCode());
+        self::assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
     }
 
     public function testConsumeSpanHasMessagingAttributes(): void
@@ -299,7 +299,7 @@ final class OpenTelemetryMiddlewareTest extends TestCase
         $middleware->handle($envelope, $stack);
 
         $spans = $this->exporter->getSpans();
-        self::assertSame('stdClass process', $spans[0]->getName());
+        self::assertSame('process stdClass', $spans[0]->getName());
     }
 
     public function testConsumedByWorkerStampTriggersConsumeSpan(): void
@@ -360,6 +360,80 @@ final class OpenTelemetryMiddlewareTest extends TestCase
 
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
-        self::assertSame(StatusCode::STATUS_OK, $spans[0]->getStatus()->getCode());
+        self::assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
+    }
+
+    public function testDispatchSetsRequiredOperationName(): void
+    {
+        $middleware = new OpenTelemetryMiddleware('test');
+        $middleware->handle(new Envelope(new \stdClass()), new StackMiddleware());
+
+        $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
+        self::assertSame('send', $attributes['messaging.operation.name']);
+    }
+
+    public function testDispatchSetsDestinationFromSentStamp(): void
+    {
+        $middleware = new OpenTelemetryMiddleware('test');
+        $envelope = new Envelope(new \stdClass(), [
+            new \Symfony\Component\Messenger\Stamp\SentStamp(\stdClass::class, 'async'),
+        ]);
+
+        $middleware->handle($envelope, new StackMiddleware());
+
+        $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
+        self::assertSame('async', $attributes['messaging.destination.name']);
+    }
+
+    public function testConsumeSetsRequiredOperationName(): void
+    {
+        $middleware = new OpenTelemetryMiddleware('test');
+        $envelope = new Envelope(new \stdClass(), [new ReceivedStamp('async')]);
+        $middleware->handle($envelope, new StackMiddleware());
+
+        $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
+        self::assertSame('process', $attributes['messaging.operation.name']);
+    }
+
+    public function testRootSpansModeLinksProducerContext(): void
+    {
+        $headers = ['traceparent' => '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01'];
+        $middleware = new OpenTelemetryMiddleware('test', rootSpans: true);
+        $envelope = new Envelope(new \stdClass(), [
+            new ReceivedStamp('async'),
+            new TraceContextStamp($headers),
+        ]);
+
+        $middleware->handle($envelope, new StackMiddleware());
+
+        $span = $this->exporter->getSpans()[0];
+        self::assertSame('0000000000000000', $span->getParentSpanId(), 'root span must have no parent');
+
+        $links = $span->getLinks();
+        self::assertCount(1, $links);
+        self::assertSame('0af7651916cd43dd8448eb211c80319c', $links[0]->getSpanContext()->getTraceId());
+        self::assertSame('b7ad6b7169203331', $links[0]->getSpanContext()->getSpanId());
+    }
+
+    public function testConsumeFailureSetsErrorType(): void
+    {
+        $middleware = new OpenTelemetryMiddleware('test');
+        $envelope = new Envelope(new \stdClass(), [new ReceivedStamp('async')]);
+
+        $failing = new class implements \Symfony\Component\Messenger\Middleware\MiddlewareInterface {
+            public function handle(Envelope $envelope, \Symfony\Component\Messenger\Middleware\StackInterface $stack): Envelope
+            {
+                throw new \RuntimeException('handler failed');
+            }
+        };
+
+        try {
+            $middleware->handle($envelope, new StackMiddleware([$middleware, $failing]));
+            self::fail('Expected RuntimeException');
+        } catch (\RuntimeException) {
+        }
+
+        $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
+        self::assertSame(\RuntimeException::class, $attributes['error.type']);
     }
 }

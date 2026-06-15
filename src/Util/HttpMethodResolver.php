@@ -11,8 +11,8 @@ final class HttpMethodResolver
 {
     public const OTHER = '_OTHER';
 
-    /** RFC 9110 methods plus PATCH (RFC 5789), overridable via OTEL_INSTRUMENTATION_HTTP_KNOWN_METHODS. */
-    private const DEFAULT_KNOWN_METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE', 'PATCH'];
+    /** RFC 9110 methods plus PATCH (RFC 5789) and QUERY (httpbis draft), overridable via OTEL_INSTRUMENTATION_HTTP_KNOWN_METHODS. */
+    private const DEFAULT_KNOWN_METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE', 'PATCH', 'QUERY'];
 
     /** @var list<string>|null */
     private static ?array $knownMethods = null;

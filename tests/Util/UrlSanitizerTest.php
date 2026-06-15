@@ -44,8 +44,8 @@ final class UrlSanitizerTest extends TestCase
     public function testAllSemconvSensitiveParamsRedacted(): void
     {
         self::assertSame(
-            'AWSAccessKeyId=REDACTED&Signature=REDACTED&sig=REDACTED&X-Goog-Signature=REDACTED',
-            UrlSanitizer::sanitizeQuery('AWSAccessKeyId=AKIA123&Signature=s3cr3t&sig=abc&X-Goog-Signature=xyz'),
+            'X-Amz-Signature=REDACTED&X-Amz-Credential=REDACTED&X-Amz-Security-Token=REDACTED&sig=REDACTED&X-Goog-Signature=REDACTED',
+            UrlSanitizer::sanitizeQuery('X-Amz-Signature=s3cr3t&X-Amz-Credential=AKIA123&X-Amz-Security-Token=tok&sig=abc&X-Goog-Signature=xyz'),
         );
     }
 

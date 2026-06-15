@@ -12,7 +12,7 @@ final class UrlSanitizer
     private const REDACTED = 'REDACTED';
 
     /** Query parameter names the semconv requires redacted by default. */
-    private const SENSITIVE_QUERY_PARAMS = ['AWSAccessKeyId', 'Signature', 'sig', 'X-Goog-Signature'];
+    private const SENSITIVE_QUERY_PARAMS = ['X-Amz-Signature', 'X-Amz-Credential', 'X-Amz-Security-Token', 'sig', 'X-Goog-Signature'];
 
     public static function sanitizeUrl(string $url): string
     {

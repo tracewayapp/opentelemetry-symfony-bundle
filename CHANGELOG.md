@@ -13,6 +13,7 @@ This is a **conformance major**: a full pass aligning every instrumentation with
 
 ### Fixed
 
+- **`traces.doctrine.record_statements` now defaults to `false`** — per the database semconv, non-parameterized `query()`/`exec()` SQL should not be collected by default because it may carry unsanitized literals. SQL (`db.query.text`/`db.statement`) is no longer recorded unless you opt in. **Migration**: set `traces.doctrine.record_statements: true` to restore SQL on spans.
 - **`url.full`/`url.query` redaction list updated to the current HTTP semconv** — the default sensitive-query-param deny-list is now `X-Amz-Signature`, `X-Amz-Credential`, `X-Amz-Security-Token`, `sig`, `X-Goog-Signature` (was the retired `AWSAccessKeyId`/`Signature` pair plus `sig`/`X-Goog-Signature`). Closes a gap where AWS presigned-URL signatures and credentials leaked into client-span `url.full`.
 - **`QUERY` added to the default known-HTTP-methods list** (httpbis safe-method-with-body draft, present in the vendored sem-conv) so `QUERY` requests are no longer normalized to `_OTHER`.
 - **Mailer transport span omits an empty `messaging.message.id`** instead of emitting a blank attribute when `SentMessage::getMessageId()` returns `''`.

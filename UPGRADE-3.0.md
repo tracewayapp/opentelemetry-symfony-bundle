@@ -63,6 +63,21 @@ Notes:
 - Unrouted requests (404s, etc.) **no longer** leak the raw URL path into `http.route` or the span name (spec MUST NOT). They group under the bare method.
 - Messenger/Mailer deliberately keep the **message class** (not the spec's `{destination}`) as the low-cardinality target, so task-oriented backends keep grouping per message type. This is the only intentional deviation and is documented.
 
+## Default change — `record_statements` now off
+
+`traces.doctrine.record_statements` now defaults to **`false`**. Per the database semconv, non-parameterized `query()`/`exec()` SQL should not be collected by default (it may contain unsanitized literals). With the default, `db.query.text`/`db.statement` are no longer recorded on Doctrine spans.
+
+**Action**: if you want SQL on spans, opt in explicitly:
+
+```yaml
+open_telemetry:
+    traces:
+        doctrine:
+            record_statements: true
+```
+
+Note that with it enabled, `query()`/`exec()` records raw SQL (possibly with literals) — keep it off in production if your SQL may carry sensitive data.
+
 ## Removed attribute
 
 - **`url.full` is no longer set on HTTP *server* spans** — per semconv it is a client-span attribute. Servers carry `url.path`, `url.query`, `url.scheme`. **Action**: query `url.path` instead of `url.full` on server spans. (`url.full` is unchanged on *client* spans.)

@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-06-15
+
+This is a **conformance major**: a full pass aligning every instrumentation with the current *stable* OpenTelemetry semantic conventions. There are no API changes for application code — the breaking changes are span-name, attribute-key, attribute-value, metric-bucket, and one config-validation change that mostly cause dashboards/alerts to regroup. See [UPGRADE-3.0.md](UPGRADE-3.0.md) for the full migration checklist. **Legacy flat config keys still work in 3.0** (removal deferred to 4.0 — see [UPGRADE-2.0.md](UPGRADE-2.0.md#timeline)).
+
 ### Fixed
 
+- **`url.full`/`url.query` redaction list updated to the current HTTP semconv** — the default sensitive-query-param deny-list is now `X-Amz-Signature`, `X-Amz-Credential`, `X-Amz-Security-Token`, `sig`, `X-Goog-Signature` (was the retired `AWSAccessKeyId`/`Signature` pair plus `sig`/`X-Goog-Signature`). Closes a gap where AWS presigned-URL signatures and credentials leaked into client-span `url.full`.
+- **`QUERY` added to the default known-HTTP-methods list** (httpbis safe-method-with-body draft, present in the vendored sem-conv) so `QUERY` requests are no longer normalized to `_OTHER`.
+- **Mailer transport span omits an empty `messaging.message.id`** instead of emitting a blank attribute when `SentMessage::getMessageId()` returns `''`.
 - **HTTP client spans/metrics backfill transport-level attributes at finalize** — `network.peer.address`/`network.peer.port` (from `primary_ip`/`primary_port`), `network.protocol.version` (curl version constant mapped to `1.1`/`2`/`3`), and — closing the last Required-attribute gap — relative `base_uri` requests now resolve `server.address`/`server.port` and an absolute, sanitized `url.full` from the effective URL.
 - **Messenger spans carry `messaging.message.id`** from `TransportMessageIdStamp` on both producer and consumer sides.
 - **`error_status_threshold` minimum raised from 400 to 500** — OTel forbids `Error` status for 4xx responses on server spans; the config can no longer express a spec violation. **Migration**: configs using 400–499 fail validation at boot.

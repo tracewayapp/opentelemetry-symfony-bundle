@@ -105,7 +105,7 @@ final class Configuration implements ConfigurationInterface
             trigger_deprecation(
                 'traceway/opentelemetry-symfony',
                 '2.0',
-                'Configuring "open_telemetry.%s" is deprecated, use "open_telemetry.%s" instead. The legacy key will be removed in v3.0.',
+                'Configuring "open_telemetry.%s" is deprecated, use "open_telemetry.%s" instead. The legacy key will be removed in v4.0.',
                 $oldKey,
                 $newPath,
             );

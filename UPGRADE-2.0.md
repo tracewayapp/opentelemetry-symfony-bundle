@@ -196,4 +196,5 @@ The `symfony/phpunit-bridge` bump only affects bundle developers running the tes
 ## Timeline
 
 - **v2.0**: legacy flat keys still accepted, emit deprecations.
-- **v3.0**: legacy flat keys removed entirely. Migrate before then.
+- **v3.0**: legacy flat keys still accepted (removal deferred — the v2.0 deprecation window was too short to drop them safely).
+- **v4.0**: legacy flat keys removed entirely. Migrate before then.

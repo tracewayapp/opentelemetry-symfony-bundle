@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-06-26
+
 ### Fixed
 
-- **`cache:pool:prune` no longer fatals on a traced cache pool** - `TraceableCachePool` now implements `PruneableInterface` and delegates `prune()` to the inner pool. The prunable `cache.pool` tag transfers onto the decorator, so `CachePoolPrunerPass` selects it and the command called the missing `prune()` (`Call to undefined method ...::prune()`) on every scheduled run against a DB-backed pool. Mirrors Symfony's `TraceableAdapter` (returns `false` when the pool is not prunable); the `TraceableTagAwareCachePool`/`TraceableNamespacedCachePool` subclasses inherit it.
+- **`cache:pool:prune` no longer fatals on a traced cache pool** — `TraceableCachePool` now implements `PruneableInterface` and delegates `prune()` to the inner pool. The prunable `cache.pool` tag transfers onto the decorator, so `CachePoolPrunerPass` selects it and the command called the missing `prune()` (`Call to undefined method ...::prune()`) on every scheduled run against a DB-backed pool. Mirrors Symfony's `TraceableAdapter` (returns `false` when the pool is not prunable); the `TraceableTagAwareCachePool`/`TraceableNamespacedCachePool` subclasses inherit it ([#57](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/57) — thanks @pflueg).
+- **HTTP client spans/metrics finalize when a response is consumed via `stream()`** — a response read only through the streaming API previously left its span open until `__destruct()`/GC, producing wildly inflated durations in long-running workers. The stream now ends the span/metrics on the last chunk (and records the error on a transport-error chunk).
+- **Decorators are now wired for `kernel.reset`** — the HTTP client (trace + metrics), cache pool, and mailer (`TraceableMailer`/`TraceableTransports`/`MeteredTransports`) decorators implement `ResetInterface` but were never tagged, so their cached tracer/`enabled` state never refreshed between work units in long-running workers (Swoole, RoadRunner, Messenger).
+- **Doctrine span creation can no longer break a query** — `DbSpanBuilder` degrades to a non-recording span if the tracer throws (mirroring the metrics recorder), so a misconfigured SDK can no longer propagate an exception out of `query()`/`exec()`/prepared-statement execution. Tracing must never break the instrumented operation.
+- **Empty `excluded_paths` entries are ignored** — an empty or whitespace-only string previously normalized to `/`, silently excluding all traffic from tracing/metrics. Such entries are now dropped (both `traces.excluded_paths` and `metrics.http_server.excluded_paths`).
 
 ## [3.0.0] - 2026-06-15
 

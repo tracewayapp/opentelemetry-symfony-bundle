@@ -32,7 +32,7 @@ final class ServiceNameCheck implements CheckInterface
         if (null !== $serviceName) {
             return CheckResult::ok(
                 $this->name(),
-                sprintf('OTEL_SERVICE_NAME = "%s"', $serviceName),
+                \sprintf('OTEL_SERVICE_NAME = "%s"', $serviceName),
                 ['value' => $serviceName, 'source' => 'OTEL_SERVICE_NAME'],
             );
         }

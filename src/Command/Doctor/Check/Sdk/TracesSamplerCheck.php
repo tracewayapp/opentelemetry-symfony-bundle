@@ -53,7 +53,7 @@ final class TracesSamplerCheck implements CheckInterface
         if ('always_off' === $sampler || 'parentbased_always_off' === $sampler) {
             return CheckResult::warning(
                 $this->name(),
-                sprintf('OTEL_TRACES_SAMPLER = %s — no spans will be sampled', $sampler),
+                \sprintf('OTEL_TRACES_SAMPLER = %s — no spans will be sampled', $sampler),
                 'Use parentbased_traceidratio with OTEL_TRACES_SAMPLER_ARG=0.1 (or your desired ratio) instead of always_off if you want partial sampling.',
                 ['value' => $sampler, 'arg' => $arg],
             );
@@ -61,16 +61,16 @@ final class TracesSamplerCheck implements CheckInterface
 
         if (\in_array($sampler, self::KNOWN_SAMPLERS, true)) {
             $message = null !== $arg
-                ? sprintf('OTEL_TRACES_SAMPLER = %s (arg: %s)', $sampler, $arg)
-                : sprintf('OTEL_TRACES_SAMPLER = %s', $sampler);
+                ? \sprintf('OTEL_TRACES_SAMPLER = %s (arg: %s)', $sampler, $arg)
+                : \sprintf('OTEL_TRACES_SAMPLER = %s', $sampler);
 
             return CheckResult::ok($this->name(), $message, ['value' => $sampler, 'arg' => $arg]);
         }
 
         return CheckResult::error(
             $this->name(),
-            sprintf('OTEL_TRACES_SAMPLER = "%s" is not recognized', $sampler),
-            sprintf('Expected one of: %s', implode(', ', self::KNOWN_SAMPLERS)),
+            \sprintf('OTEL_TRACES_SAMPLER = "%s" is not recognized', $sampler),
+            \sprintf('Expected one of: %s', implode(', ', self::KNOWN_SAMPLERS)),
             ['value' => $sampler, 'arg' => $arg],
         );
     }

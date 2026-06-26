@@ -32,14 +32,14 @@ final class XRayDependencyCheck implements CheckInterface
     {
         $propagatorRaw = $context->param('open_telemetry.traces.propagator', 'w3c');
         $idGeneratorRaw = $context->param('open_telemetry.traces.id_generator', 'default');
-        $propagator = is_string($propagatorRaw) ? $propagatorRaw : 'w3c';
-        $idGenerator = is_string($idGeneratorRaw) ? $idGeneratorRaw : 'default';
+        $propagator = \is_string($propagatorRaw) ? $propagatorRaw : 'w3c';
+        $idGenerator = \is_string($idGeneratorRaw) ? $idGeneratorRaw : 'default';
 
         $usesXRay = \in_array($propagator, ['xray', 'w3c+xray'], true) || 'xray' === $idGenerator;
         if (!$usesXRay) {
             return CheckResult::skipped(
                 $this->name(),
-                sprintf('propagator=%s, id_generator=%s; X-Ray not configured', $propagator, $idGenerator),
+                \sprintf('propagator=%s, id_generator=%s; X-Ray not configured', $propagator, $idGenerator),
             );
         }
 
@@ -48,14 +48,14 @@ final class XRayDependencyCheck implements CheckInterface
         if (class_exists(self::XRAY_PROPAGATOR_CLASS)) {
             return CheckResult::ok(
                 $this->name(),
-                sprintf('AWS X-Ray configured (propagator=%s, id_generator=%s) and open-telemetry/contrib-aws is installed', $propagator, $idGenerator),
+                \sprintf('AWS X-Ray configured (propagator=%s, id_generator=%s) and open-telemetry/contrib-aws is installed', $propagator, $idGenerator),
                 $details,
             );
         }
 
         return CheckResult::error(
             $this->name(),
-            sprintf('AWS X-Ray configured (propagator=%s) but open-telemetry/contrib-aws is not installed', $propagator),
+            \sprintf('AWS X-Ray configured (propagator=%s) but open-telemetry/contrib-aws is not installed', $propagator),
             'Run: composer require open-telemetry/contrib-aws',
             $details,
         );

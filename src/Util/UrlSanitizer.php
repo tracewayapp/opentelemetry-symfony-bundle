@@ -18,7 +18,7 @@ final class UrlSanitizer
     {
         $sanitized = preg_replace(
             '#^([a-z][a-z0-9+.-]*://)[^/?\#@]+@#i',
-            '$1' . self::REDACTED . ':' . self::REDACTED . '@',
+            '$1'.self::REDACTED.':'.self::REDACTED.'@',
             $url,
         ) ?? $url;
 
@@ -38,8 +38,8 @@ final class UrlSanitizer
         }
 
         return substr($sanitized, 0, $queryPos + 1)
-            . $sanitizedQuery
-            . (false === $fragmentPos ? '' : substr($sanitized, $fragmentPos));
+            .$sanitizedQuery
+            .(false === $fragmentPos ? '' : substr($sanitized, $fragmentPos));
     }
 
     public static function sanitizeQuery(string $query): string
@@ -56,7 +56,7 @@ final class UrlSanitizer
             $key = false === $eq ? $pair : substr($pair, 0, $eq);
 
             if (\in_array(rawurldecode($key), self::SENSITIVE_QUERY_PARAMS, true)) {
-                $pairs[$i] = $key . '=' . self::REDACTED;
+                $pairs[$i] = $key.'='.self::REDACTED;
                 $changed = true;
             }
         }

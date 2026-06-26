@@ -52,7 +52,8 @@ final class MeteredTransports implements TransportInterface, ResetInterface
     public function __construct(
         private readonly TransportInterface $decorated,
         private readonly string $meterName = 'opentelemetry-symfony',
-    ) {}
+    ) {
+    }
 
     public function send(RawMessage $message, ?Envelope $envelope = null): ?SentMessage
     {

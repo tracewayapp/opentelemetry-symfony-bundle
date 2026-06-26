@@ -17,7 +17,7 @@ use OpenTelemetry\SemConv\Attributes\ServerAttributes;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
- * @internal Shared span-building logic for Doctrine connection and statement tracing.
+ * @internal shared span-building logic for Doctrine connection and statement tracing
  */
 final class DbSpanBuilder
 {
@@ -45,11 +45,11 @@ final class DbSpanBuilder
             $builder->setAttribute('db.operation', $operation);
         }
 
-        if ($target !== null) {
+        if (null !== $target) {
             $builder->setAttribute(DbAttributes::DB_COLLECTION_NAME, $target);
         }
 
-        if ($dbName !== null) {
+        if (null !== $dbName) {
             $builder->setAttribute(DbAttributes::DB_NAMESPACE, $dbName);
             $builder->setAttribute('db.name', $dbName);
         }
@@ -59,11 +59,11 @@ final class DbSpanBuilder
             $builder->setAttribute('db.statement', $sql);
         }
 
-        if ($serverAddress !== null) {
+        if (null !== $serverAddress) {
             $builder->setAttribute(ServerAttributes::SERVER_ADDRESS, $serverAddress);
         }
 
-        if ($serverPort !== null) {
+        if (null !== $serverPort) {
             $builder->setAttribute(ServerAttributes::SERVER_PORT, $serverPort);
         }
 

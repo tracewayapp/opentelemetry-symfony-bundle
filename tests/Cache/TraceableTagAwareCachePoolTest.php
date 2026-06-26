@@ -98,7 +98,7 @@ final class TraceableTagAwareCachePoolTest extends TestCase
         $inner = $this->createTagAwarePool();
         $pool = new TraceableTagAwareCachePool($inner, 'test-tracer', 'cache.app.taggable');
 
-        $value = $pool->get('key', fn () => 'computed');
+        $value = $pool->get('key', static fn () => 'computed');
         self::assertSame('cached', $value);
 
         $deleted = $pool->delete('key');
@@ -113,37 +113,134 @@ final class TraceableTagAwareCachePoolTest extends TestCase
     private function createTagAwarePool(): AdapterInterface&TagAwareCacheInterface
     {
         return new class implements AdapterInterface, CacheInterface, TagAwareCacheInterface {
-            public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed { return 'cached'; }
-            public function delete(string $key): bool { return true; }
-            public function invalidateTags(array $tags): bool { return true; }
-            public function getItem(mixed $key): CacheItem { throw new \LogicException('Not implemented'); }
-            public function getItems(array $keys = []): iterable { return []; }
-            public function hasItem(mixed $key): bool { return false; }
-            public function clear(string $prefix = ''): bool { return true; }
-            public function deleteItem(string $key): bool { return true; }
-            public function deleteItems(array $keys): bool { return true; }
-            public function save(CacheItemInterface $item): bool { return true; }
-            public function saveDeferred(CacheItemInterface $item): bool { return true; }
-            public function commit(): bool { return true; }
+            public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed
+            {
+                return 'cached';
+            }
+
+            public function delete(string $key): bool
+            {
+                return true;
+            }
+
+            public function invalidateTags(array $tags): bool
+            {
+                return true;
+            }
+
+            public function getItem(mixed $key): CacheItem
+            {
+                throw new \LogicException('Not implemented');
+            }
+
+            public function getItems(array $keys = []): iterable
+            {
+                return [];
+            }
+
+            public function hasItem(mixed $key): bool
+            {
+                return false;
+            }
+
+            public function clear(string $prefix = ''): bool
+            {
+                return true;
+            }
+
+            public function deleteItem(string $key): bool
+            {
+                return true;
+            }
+
+            public function deleteItems(array $keys): bool
+            {
+                return true;
+            }
+
+            public function save(CacheItemInterface $item): bool
+            {
+                return true;
+            }
+
+            public function saveDeferred(CacheItemInterface $item): bool
+            {
+                return true;
+            }
+
+            public function commit(): bool
+            {
+                return true;
+            }
         };
     }
 
     private function createFailingTagAwarePool(\Throwable $e): AdapterInterface&TagAwareCacheInterface
     {
         return new class($e) implements AdapterInterface, CacheInterface, TagAwareCacheInterface {
-            public function __construct(private readonly \Throwable $e) {}
-            public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed { throw $this->e; }
-            public function delete(string $key): bool { throw $this->e; }
-            public function invalidateTags(array $tags): bool { throw $this->e; }
-            public function getItem(mixed $key): CacheItem { throw new \LogicException('Not implemented'); }
-            public function getItems(array $keys = []): iterable { return []; }
-            public function hasItem(mixed $key): bool { return false; }
-            public function clear(string $prefix = ''): bool { throw $this->e; }
-            public function deleteItem(string $key): bool { return true; }
-            public function deleteItems(array $keys): bool { return true; }
-            public function save(CacheItemInterface $item): bool { return true; }
-            public function saveDeferred(CacheItemInterface $item): bool { return true; }
-            public function commit(): bool { return true; }
+            public function __construct(private readonly \Throwable $e)
+            {
+            }
+
+            public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed
+            {
+                throw $this->e;
+            }
+
+            public function delete(string $key): bool
+            {
+                throw $this->e;
+            }
+
+            public function invalidateTags(array $tags): bool
+            {
+                throw $this->e;
+            }
+
+            public function getItem(mixed $key): CacheItem
+            {
+                throw new \LogicException('Not implemented');
+            }
+
+            public function getItems(array $keys = []): iterable
+            {
+                return [];
+            }
+
+            public function hasItem(mixed $key): bool
+            {
+                return false;
+            }
+
+            public function clear(string $prefix = ''): bool
+            {
+                throw $this->e;
+            }
+
+            public function deleteItem(string $key): bool
+            {
+                return true;
+            }
+
+            public function deleteItems(array $keys): bool
+            {
+                return true;
+            }
+
+            public function save(CacheItemInterface $item): bool
+            {
+                return true;
+            }
+
+            public function saveDeferred(CacheItemInterface $item): bool
+            {
+                return true;
+            }
+
+            public function commit(): bool
+            {
+                return true;
+            }
         };
     }
 }

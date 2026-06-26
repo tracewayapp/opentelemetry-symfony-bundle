@@ -66,7 +66,7 @@ final class LegacyConfigMigrationTest extends TestCase
         array $_nestedInput,
         string $expectedNewPath,
     ): void {
-        $this->expectUserDeprecationMessage(sprintf(
+        $this->expectUserDeprecationMessage(\sprintf(
             'Since traceway/opentelemetry-symfony 2.0: Configuring "open_telemetry.%s" is deprecated, use "open_telemetry.%s" instead. The legacy key will be removed in v4.0.',
             $oldKey,
             $expectedNewPath,

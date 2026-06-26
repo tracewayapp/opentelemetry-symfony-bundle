@@ -52,24 +52,24 @@ HELP);
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $formatRaw = $input->getOption('format');
-        $format = is_string($formatRaw) ? $formatRaw : 'text';
+        $format = \is_string($formatRaw) ? $formatRaw : 'text';
         if (!\in_array($format, ['text', 'json'], true)) {
-            $output->writeln(sprintf('<error>Unknown --format "%s". Expected: text, json.</error>', $format));
+            $output->writeln(\sprintf('<error>Unknown --format "%s". Expected: text, json.</error>', $format));
 
             return Command::INVALID;
         }
 
         $failOnRaw = $input->getOption('fail-on');
         try {
-            $failOn = Severity::fromName(is_string($failOnRaw) ? $failOnRaw : 'error');
+            $failOn = Severity::fromName(\is_string($failOnRaw) ? $failOnRaw : 'error');
         } catch (\InvalidArgumentException $e) {
-            $output->writeln(sprintf('<error>%s</error>', $e->getMessage()));
+            $output->writeln(\sprintf('<error>%s</error>', $e->getMessage()));
 
             return Command::INVALID;
         }
 
         $onlyRaw = $input->getOption('only');
-        $only = $this->parseOnlyOption(is_string($onlyRaw) ? $onlyRaw : '');
+        $only = $this->parseOnlyOption(\is_string($onlyRaw) ? $onlyRaw : '');
         $skipNetwork = (bool) $input->getOption('skip-network');
         $timeoutRaw = $input->getOption('timeout');
         $timeout = is_numeric($timeoutRaw) ? (float) $timeoutRaw : 1.0;

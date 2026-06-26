@@ -33,9 +33,7 @@ final class XRayBootstrapper implements EventSubscriberInterface
     public function __construct(string $propagator, string $idGenerator)
     {
         if (!class_exists(\OpenTelemetry\Contrib\Aws\Xray\Propagator::class)) {
-            throw new \LogicException(
-                'X-Ray support requires "open-telemetry/contrib-aws". Run: composer require open-telemetry/contrib-aws'
-            );
+            throw new \LogicException('X-Ray support requires "open-telemetry/contrib-aws". Run: composer require open-telemetry/contrib-aws');
         }
 
         Globals::registerInitializer(
@@ -62,12 +60,14 @@ final class XRayBootstrapper implements EventSubscriberInterface
     public static function getSubscribedEvents(): array
     {
         return [
-            KernelEvents::REQUEST => ['boot', PHP_INT_MAX],
-            ConsoleEvents::COMMAND => ['boot', PHP_INT_MAX],
+            KernelEvents::REQUEST => ['boot', \PHP_INT_MAX],
+            ConsoleEvents::COMMAND => ['boot', \PHP_INT_MAX],
         ];
     }
 
-    public function boot(): void {}
+    public function boot(): void
+    {
+    }
 
     private function buildXRayTracerProvider(): TracerProvider
     {

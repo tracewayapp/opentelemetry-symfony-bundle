@@ -74,7 +74,7 @@ final class OtelLogHandler extends AbstractProcessingHandler implements ResetInt
                     $builder->setException($value);
                     continue;
                 }
-                $builder->setAttribute($contextPrefix . $key, $this->toAttributeValue($value));
+                $builder->setAttribute($contextPrefix.$key, $this->toAttributeValue($value));
             }
 
             [$file, $line, $function] = $this->resolveCodeAttributes($record->extra);
@@ -97,13 +97,13 @@ final class OtelLogHandler extends AbstractProcessingHandler implements ResetInt
                 if (\in_array($key, self::INTROSPECTION_EXTRA_KEYS, true)) {
                     continue;
                 }
-                $builder->setAttribute($extraPrefix . $key, $this->toAttributeValue($value));
+                $builder->setAttribute($extraPrefix.$key, $this->toAttributeValue($value));
             }
 
             $builder->emit();
         } catch (\Throwable $e) {
             // A logging handler must never take down the thing being logged about.
-            error_log(sprintf('OtelLogHandler: failed to export log record: %s', $e->getMessage()));
+            error_log(\sprintf('OtelLogHandler: failed to export log record: %s', $e->getMessage()));
         } finally {
             $this->emitting = false;
         }
@@ -137,6 +137,7 @@ final class OtelLogHandler extends AbstractProcessingHandler implements ResetInt
      * populated, walk debug_backtrace skipping Monolog and bundle frames to recover the call site.
      *
      * @param array<array-key, mixed> $extra
+     *
      * @return array{0: ?string, 1: ?int, 2: ?string} [file, line, function-name]
      */
     private function resolveCodeAttributes(array $extra): array
@@ -152,7 +153,7 @@ final class OtelLogHandler extends AbstractProcessingHandler implements ResetInt
 
         $functionName = null;
         if (null !== $function) {
-            $functionName = null !== $class ? $class . '::' . $function : $function;
+            $functionName = null !== $class ? $class.'::'.$function : $function;
         }
 
         return [$file, $line, $functionName];
@@ -183,7 +184,7 @@ final class OtelLogHandler extends AbstractProcessingHandler implements ResetInt
             break;
         }
 
-        if ($i === 0 || $i >= $count) {
+        if (0 === $i || $i >= $count) {
             return [null, null, null, null];
         }
 
@@ -227,6 +228,6 @@ final class OtelLogHandler extends AbstractProcessingHandler implements ResetInt
             }
         }
 
-        return json_encode($normalized, JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR) ?: '[unserializable]';
+        return json_encode($normalized, \JSON_UNESCAPED_SLASHES | \JSON_PARTIAL_OUTPUT_ON_ERROR) ?: '[unserializable]';
     }
 }

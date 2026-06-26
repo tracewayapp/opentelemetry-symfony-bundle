@@ -330,5 +330,4 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
             'response_body_size' => 'http.server.response.body.size',
         };
     }
-
 }

@@ -53,14 +53,14 @@ final class TracerProviderCheck implements CheckInterface
         if ('none' === $exporter) {
             return CheckResult::info(
                 $this->name(),
-                sprintf('TracerProvider is %s, but OTEL_TRACES_EXPORTER=none', $this->shortClass($class)),
+                \sprintf('TracerProvider is %s, but OTEL_TRACES_EXPORTER=none', $this->shortClass($class)),
                 ['class' => $class, 'exporter' => 'none'],
             );
         }
 
         return CheckResult::ok(
             $this->name(),
-            sprintf('TracerProvider is %s', $this->shortClass($class)),
+            \sprintf('TracerProvider is %s', $this->shortClass($class)),
             ['class' => $class],
         );
     }

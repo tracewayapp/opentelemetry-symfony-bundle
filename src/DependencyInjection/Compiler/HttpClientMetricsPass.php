@@ -44,8 +44,8 @@ final class HttpClientMetricsPass implements CompilerPassInterface
             : [];
 
         foreach ($this->findHttpClientServiceIds($container) as $clientId) {
-            $decoratorId = $clientId . '.otel_metrics';
-            $innerId = $decoratorId . '.inner';
+            $decoratorId = $clientId.'.otel_metrics';
+            $innerId = $decoratorId.'.inner';
 
             $decorator = new Definition(MeteredHttpClient::class);
             $decorator->setArgument('$client', new Reference($innerId));

@@ -79,7 +79,7 @@ final class OpenTelemetryTwigExtension extends AbstractExtension implements Rese
         }
 
         $span = $this->getTracer()
-            ->spanBuilder('twig.render ' . $profile->getTemplate())
+            ->spanBuilder('twig.render '.$profile->getTemplate())
             ->setSpanKind(SpanKind::KIND_INTERNAL)
             ->setAttribute('twig.template', $profile->getTemplate())
             ->startSpan();

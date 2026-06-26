@@ -50,7 +50,7 @@ final class TraceableNamespacedCachePoolTest extends TestCase
 
         $namespaced = $pool->withSubNamespace('users');
 
-        $value = $namespaced->get('key', fn () => 'computed');
+        $value = $namespaced->get('key', static fn () => 'computed');
         self::assertSame('namespaced', $value);
 
         $spans = $this->exporter->getSpans();
@@ -72,18 +72,69 @@ final class TraceableNamespacedCachePoolTest extends TestCase
     {
         return new class implements AdapterInterface, CacheInterface, NamespacedPoolInterface {
             private string $value = 'cached';
-            public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed { return $this->value; }
-            public function delete(string $key): bool { return true; }
-            public function withSubNamespace(string $namespace): static { $clone = clone $this; $clone->value = 'namespaced'; return $clone; }
-            public function getItem(mixed $key): CacheItem { throw new \LogicException('Not implemented'); }
-            public function getItems(array $keys = []): iterable { return []; }
-            public function hasItem(mixed $key): bool { return false; }
-            public function clear(string $prefix = ''): bool { return true; }
-            public function deleteItem(string $key): bool { return true; }
-            public function deleteItems(array $keys): bool { return true; }
-            public function save(CacheItemInterface $item): bool { return true; }
-            public function saveDeferred(CacheItemInterface $item): bool { return true; }
-            public function commit(): bool { return true; }
+
+            public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed
+            {
+                return $this->value;
+            }
+
+            public function delete(string $key): bool
+            {
+                return true;
+            }
+
+            public function withSubNamespace(string $namespace): static
+            {
+                $clone = clone $this;
+                $clone->value = 'namespaced';
+
+                return $clone;
+            }
+
+            public function getItem(mixed $key): CacheItem
+            {
+                throw new \LogicException('Not implemented');
+            }
+
+            public function getItems(array $keys = []): iterable
+            {
+                return [];
+            }
+
+            public function hasItem(mixed $key): bool
+            {
+                return false;
+            }
+
+            public function clear(string $prefix = ''): bool
+            {
+                return true;
+            }
+
+            public function deleteItem(string $key): bool
+            {
+                return true;
+            }
+
+            public function deleteItems(array $keys): bool
+            {
+                return true;
+            }
+
+            public function save(CacheItemInterface $item): bool
+            {
+                return true;
+            }
+
+            public function saveDeferred(CacheItemInterface $item): bool
+            {
+                return true;
+            }
+
+            public function commit(): bool
+            {
+                return true;
+            }
         };
     }
 }

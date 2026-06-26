@@ -12,7 +12,8 @@ final class TraceableMiddleware implements Middleware
     public function __construct(
         private readonly string $tracerName = 'opentelemetry-symfony',
         private readonly bool $recordStatements = true,
-    ) {}
+    ) {
+    }
 
     public function wrap(DriverInterface $driver): DriverInterface
     {

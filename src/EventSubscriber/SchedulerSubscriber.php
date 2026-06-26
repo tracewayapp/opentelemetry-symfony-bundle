@@ -14,7 +14,6 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\Scheduler\Event\FailureEvent;
 use Symfony\Component\Scheduler\Event\PostRunEvent;
 use Symfony\Component\Scheduler\Event\PreRunEvent;
-use Symfony\Component\Scheduler\Generator\MessageContext;
 use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
@@ -88,7 +87,7 @@ final class SchedulerSubscriber implements EventSubscriberInterface, ResetInterf
         }
 
         $builder = $this->getTracer()
-            ->spanBuilder(sprintf('process %s', $this->shortName($messageClass)))
+            ->spanBuilder(\sprintf('process %s', $this->shortName($messageClass)))
             ->setSpanKind(SpanKind::KIND_CONSUMER)
             ->setAttribute('messaging.system', 'symfony_scheduler')
             ->setAttribute('messaging.operation.name', 'process')

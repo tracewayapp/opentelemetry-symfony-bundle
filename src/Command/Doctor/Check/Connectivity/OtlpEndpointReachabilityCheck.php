@@ -16,7 +16,8 @@ final class OtlpEndpointReachabilityCheck implements NetworkCheckInterface
 {
     public function __construct(
         private readonly ?HttpClientInterface $httpClient = null,
-    ) {}
+    ) {
+    }
 
     public function name(): string
     {
@@ -39,7 +40,7 @@ final class OtlpEndpointReachabilityCheck implements NetworkCheckInterface
         if ('otlp' !== $exporter) {
             return CheckResult::skipped(
                 $this->name(),
-                sprintf('OTEL_TRACES_EXPORTER is %s, not otlp', $exporter),
+                \sprintf('OTEL_TRACES_EXPORTER is %s, not otlp', $exporter),
             );
         }
 
@@ -82,7 +83,7 @@ final class OtlpEndpointReachabilityCheck implements NetworkCheckInterface
 
             return CheckResult::ok(
                 $this->name(),
-                sprintf('OTLP endpoint reachable (HTTP %d, %dms)', $statusCode, $elapsed),
+                \sprintf('OTLP endpoint reachable (HTTP %d, %dms)', $statusCode, $elapsed),
                 [
                     'endpoint' => $endpoint,
                     'probe_url' => $probeUrl,
@@ -93,7 +94,7 @@ final class OtlpEndpointReachabilityCheck implements NetworkCheckInterface
         } catch (TransportExceptionInterface $e) {
             return CheckResult::error(
                 $this->name(),
-                sprintf('OTLP endpoint unreachable: %s', $e->getMessage()),
+                \sprintf('OTLP endpoint unreachable: %s', $e->getMessage()),
                 'Verify OTEL_EXPORTER_OTLP_ENDPOINT is correct, the collector is running, and any firewall/proxy allows the connection. Use --skip-network to silence this check (e.g. in CI without backend access).',
                 [
                     'endpoint' => $endpoint,
@@ -108,7 +109,7 @@ final class OtlpEndpointReachabilityCheck implements NetworkCheckInterface
     private function normalizeForProbe(string $endpoint, string $protocol): string
     {
         if ('grpc' === $protocol && !str_contains($endpoint, '://')) {
-            return 'http://' . $endpoint;
+            return 'http://'.$endpoint;
         }
 
         return $endpoint;

@@ -68,7 +68,7 @@ final class RouteTemplateResolver implements ResetInterface
             return null;
         }
 
-        $file = rtrim($this->cacheDir, '/') . '/' . RouteTemplateCacheWarmer::CACHE_FILE;
+        $file = rtrim($this->cacheDir, '/').'/'.RouteTemplateCacheWarmer::CACHE_FILE;
         if (!is_file($file)) {
             return null;
         }
@@ -132,7 +132,7 @@ final class RouteTemplateResolver implements ResetInterface
 
             foreach ($segments as $i => $segment) {
                 if ($segment === (string) $value) {
-                    $segments[$i] = '{' . $name . '}';
+                    $segments[$i] = '{'.$name.'}';
                     break;
                 }
             }

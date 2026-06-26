@@ -142,7 +142,7 @@ final class OpenTelemetryBundleTest extends TestCase
 
     public function testOpenTelemetryWasNotAutoloadedIfAutoloadWasAlreadyEnabledUsingPutenvBeforeBundleBoot(): void
     {
-        putenv(sprintf('%1$s=%2$s', Variables::OTEL_PHP_AUTOLOAD_ENABLED, 'true'));
+        putenv(\sprintf('%1$s=%2$s', Variables::OTEL_PHP_AUTOLOAD_ENABLED, 'true'));
 
         $container = new ContainerBuilder();
         $container->setParameter('open_telemetry.sdk.config', [
@@ -262,8 +262,8 @@ final class OpenTelemetryBundleTest extends TestCase
 
     public function testOpenTelemetryConfigurationWasMergedWithPutEnv(): void
     {
-        putenv(sprintf('%1$s=%2$s', Variables::OTEL_RESOURCE_ATTRIBUTES, 'service.version=2.0,custom.name=custom.value'));
-        putenv(sprintf('%1$s=%2$s', Variables::OTEL_EXPORTER_OTLP_HEADERS, 'other-config-value=foo,custom.header=custom.abc'));
+        putenv(\sprintf('%1$s=%2$s', Variables::OTEL_RESOURCE_ATTRIBUTES, 'service.version=2.0,custom.name=custom.value'));
+        putenv(\sprintf('%1$s=%2$s', Variables::OTEL_EXPORTER_OTLP_HEADERS, 'other-config-value=foo,custom.header=custom.abc'));
 
         $container = new ContainerBuilder();
         $container->setParameter('open_telemetry.sdk.config', [

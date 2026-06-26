@@ -26,7 +26,8 @@ final class MeteredResponse implements ResponseInterface
         private readonly MeteredHttpClient $recorder,
         private readonly int|float $start,
         private array $attributes,
-    ) {}
+    ) {
+    }
 
     /**
      * Backfills required server.address/port from the effective URL when the

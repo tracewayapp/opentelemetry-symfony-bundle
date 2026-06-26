@@ -35,7 +35,7 @@ final class TracingTest extends TestCase
     {
         $tracing = new Tracing('test-tracer');
 
-        $result = $tracing->trace('my.operation', fn () => 42);
+        $result = $tracing->trace('my.operation', static fn () => 42);
 
         self::assertSame(42, $result);
 
@@ -49,7 +49,7 @@ final class TracingTest extends TestCase
     {
         $tracing = new Tracing('test-tracer');
 
-        $tracing->trace('db.query', fn () => null, [
+        $tracing->trace('db.query', static fn () => null, [
             'db.system.name' => 'mysql',
             'db.query.text' => 'SELECT 1',
         ]);
@@ -66,7 +66,7 @@ final class TracingTest extends TestCase
     {
         $tracing = new Tracing('test-tracer');
 
-        $tracing->trace('http.request', fn () => null, [], SpanKind::KIND_CLIENT);
+        $tracing->trace('http.request', static fn () => null, [], SpanKind::KIND_CLIENT);
 
         $spans = $this->exporter->getSpans();
         self::assertSame(SpanKind::KIND_CLIENT, $spans[0]->getKind());
@@ -76,7 +76,7 @@ final class TracingTest extends TestCase
     {
         $tracing = new Tracing('test-tracer');
 
-        $tracing->trace('internal.op', fn () => null);
+        $tracing->trace('internal.op', static fn () => null);
 
         $spans = $this->exporter->getSpans();
         self::assertSame(SpanKind::KIND_INTERNAL, $spans[0]->getKind());
@@ -90,7 +90,7 @@ final class TracingTest extends TestCase
         $this->expectExceptionMessage('boom');
 
         try {
-            $tracing->trace('failing.op', fn () => throw new \RuntimeException('boom'));
+            $tracing->trace('failing.op', static fn () => throw new \RuntimeException('boom'));
         } finally {
             $spans = $this->exporter->getSpans();
             self::assertCount(1, $spans);
@@ -111,7 +111,7 @@ final class TracingTest extends TestCase
     public function testResetClearsCachedTracerAndEnabled(): void
     {
         $tracing = new Tracing('test-tracer');
-        $tracing->trace('warm-up', fn () => null);
+        $tracing->trace('warm-up', static fn () => null);
 
         $reflection = new \ReflectionClass($tracing);
         $tracerProp = $reflection->getProperty('tracer');
@@ -130,8 +130,8 @@ final class TracingTest extends TestCase
     {
         $tracing = new Tracing('test-tracer');
 
-        $tracing->trace('parent', function () use ($tracing) {
-            $tracing->trace('child', fn () => null);
+        $tracing->trace('parent', static function () use ($tracing) {
+            $tracing->trace('child', static fn () => null);
         });
 
         $spans = $this->exporter->getSpans();

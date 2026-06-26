@@ -19,7 +19,8 @@ final class TraceContextStamp implements StampInterface
      */
     public function __construct(
         private readonly array $headers,
-    ) {}
+    ) {
+    }
 
     /**
      * @return array<string, string>

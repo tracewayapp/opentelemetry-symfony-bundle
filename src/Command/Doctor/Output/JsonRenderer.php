@@ -12,7 +12,8 @@ final class JsonRenderer implements RendererInterface
 {
     public function __construct(
         private readonly Severity $failOn = Severity::Error,
-    ) {}
+    ) {
+    }
 
     public function render(RunReport $report, OutputInterface $output): void
     {
@@ -38,6 +39,6 @@ final class JsonRenderer implements RendererInterface
             'checks' => $checks,
         ];
 
-        $output->writeln((string) json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        $output->writeln((string) json_encode($payload, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
     }
 }

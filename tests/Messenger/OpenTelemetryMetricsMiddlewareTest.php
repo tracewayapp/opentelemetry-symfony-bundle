@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Traceway\OpenTelemetryBundle\Tests\Messenger;
 
 use OpenTelemetry\API\Metrics\CounterInterface;
-use OpenTelemetry\API\Metrics\HistogramInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\Middleware\MiddlewareInterface;
@@ -71,8 +70,8 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
         $middleware = new OpenTelemetryMetricsMiddleware('test');
         $envelope = new Envelope(new \stdClass(), [new ReceivedStamp('async')]);
 
-        $failing = new class implements \Symfony\Component\Messenger\Middleware\MiddlewareInterface {
-            public function handle(Envelope $envelope, \Symfony\Component\Messenger\Middleware\StackInterface $stack): Envelope
+        $failing = new class implements MiddlewareInterface {
+            public function handle(Envelope $envelope, StackInterface $stack): Envelope
             {
                 throw new \RuntimeException('boom');
             }
@@ -222,7 +221,9 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
         $businessException = new \DomainException('transport down');
 
         $failing = new class($businessException) implements MiddlewareInterface {
-            public function __construct(private readonly \Throwable $e) {}
+            public function __construct(private readonly \Throwable $e)
+            {
+            }
 
             public function handle(Envelope $envelope, StackInterface $stack): Envelope
             {
@@ -370,7 +371,9 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
         $businessException = new \DomainException('handler failed');
 
         $failing = new class($businessException) implements MiddlewareInterface {
-            public function __construct(private readonly \Throwable $e) {}
+            public function __construct(private readonly \Throwable $e)
+            {
+            }
 
             public function handle(Envelope $envelope, StackInterface $stack): Envelope
             {

@@ -332,7 +332,7 @@ final class ConfigurationTest extends TestCase
     public function testMetricsSubsystemRequiresMetricsEnabled(string $subsystem): void
     {
         $this->expectException(InvalidConfigurationException::class);
-        $this->expectExceptionMessage(sprintf(
+        $this->expectExceptionMessage(\sprintf(
             '"open_telemetry.metrics.%s.enabled" requires "open_telemetry.metrics.enabled" to be true.',
             $subsystem,
         ));
@@ -386,6 +386,7 @@ final class ConfigurationTest extends TestCase
 
     /**
      * @param list<array<string, mixed>> $configs
+     *
      * @return array<string, mixed>
      */
     private function process(array $configs): array

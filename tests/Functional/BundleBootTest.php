@@ -7,11 +7,13 @@ namespace Traceway\OpenTelemetryBundle\Tests\Functional;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
+use Traceway\OpenTelemetryBundle\Command\Doctor\Support\CheckRunner;
+use Traceway\OpenTelemetryBundle\Command\DoctorCommand;
+use Traceway\OpenTelemetryBundle\Doctrine\Middleware\MeteredMiddleware as DoctrineMeteredMiddleware;
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetryMetricsSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OtelLoggerFlushSubscriber;
-use Traceway\OpenTelemetryBundle\Doctrine\Middleware\MeteredMiddleware as DoctrineMeteredMiddleware;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMetricsMiddleware;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
 use Traceway\OpenTelemetryBundle\Metrics\MeterRegistry;
@@ -20,8 +22,6 @@ use Traceway\OpenTelemetryBundle\Monolog\OtelLogHandler;
 use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\TracingInterface;
 use Traceway\OpenTelemetryBundle\XRay\XRayBootstrapper;
-use Traceway\OpenTelemetryBundle\Command\DoctorCommand;
-use Traceway\OpenTelemetryBundle\Command\Doctor\Support\CheckRunner;
 
 final class BundleBootTest extends TestCase
 {
@@ -458,7 +458,7 @@ final class BundleBootTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $otelConfig
+     * @param array<string, mixed>                                       $otelConfig
      * @param list<\Symfony\Component\HttpKernel\Bundle\BundleInterface> $extraBundles
      */
     private function boot(array $otelConfig = [], array $extraBundles = []): \Symfony\Component\DependencyInjection\ContainerInterface

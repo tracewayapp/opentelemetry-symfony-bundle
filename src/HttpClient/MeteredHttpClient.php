@@ -127,7 +127,17 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
 
         return new ResponseStream((function () use ($meteredMap, $underlyingResponses, $timeout) {
             foreach ($this->client->stream($underlyingResponses, $timeout) as $response => $chunk) {
-                yield $meteredMap[$response] => $chunk;
+                $metered = $meteredMap[$response];
+                if ($metered instanceof MeteredResponse) {
+                    try {
+                        if ($chunk->isLast()) {
+                            $metered->finalizeFromStream();
+                        }
+                    } catch (\Throwable $e) {
+                        $metered->finalizeStreamError($e);
+                    }
+                }
+                yield $metered => $chunk;
             }
         })());
     }

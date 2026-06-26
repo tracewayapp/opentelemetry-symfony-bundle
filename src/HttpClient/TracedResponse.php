@@ -122,6 +122,16 @@ final class TracedResponse implements ResponseInterface
         return $this->span;
     }
 
+    public function finalizeFromStream(): void
+    {
+        $this->safeFinalize();
+    }
+
+    public function finalizeStreamError(\Throwable $e): void
+    {
+        $this->finalizeSpanWithError($e);
+    }
+
     public function __destruct()
     {
         $this->endSpan();

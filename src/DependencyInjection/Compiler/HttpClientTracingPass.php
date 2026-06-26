@@ -49,6 +49,7 @@ final class HttpClientTracingPass implements CompilerPassInterface
             $decorator->setArgument('$tracerName', $tracerName);
             $decorator->setArgument('$excludedHosts', $excludedHosts);
             $decorator->setDecoratedService($clientId, $innerId, -16);
+            $decorator->addTag('kernel.reset', ['method' => 'reset']);
 
             $container->setDefinition($decoratorId, $decorator);
         }

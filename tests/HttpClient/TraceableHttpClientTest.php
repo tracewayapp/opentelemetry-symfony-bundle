@@ -229,6 +229,23 @@ final class TraceableHttpClientTest extends TestCase
         self::assertSame('single', $content);
     }
 
+    public function testStreamFinalizesSpanWhenConsumedToCompletion(): void
+    {
+        $mockClient = new MockHttpClient(new MockResponse('hello', ['http_code' => 200]));
+        $client = new TraceableHttpClient($mockClient);
+
+        $response = $client->request('GET', 'https://api.example.com/stream');
+        self::assertInstanceOf(TracedResponse::class, $response);
+
+        foreach ($client->stream($response) as $chunk) {
+            $chunk->getContent();
+        }
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame(200, $spans[0]->getAttributes()->toArray()['http.response.status_code']);
+    }
+
     public function testResetAllowsSubsequentRequests(): void
     {
         $mockClient = new MockHttpClient([

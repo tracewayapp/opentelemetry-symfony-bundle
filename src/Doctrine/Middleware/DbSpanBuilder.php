@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Traceway\OpenTelemetryBundle\Doctrine\Middleware;
 
 use Doctrine\DBAL\Driver\Exception as DriverException;
+use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanBuilderInterface;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
@@ -67,6 +68,22 @@ final class DbSpanBuilder
         }
 
         return $builder;
+    }
+
+    public static function startSpan(
+        TracerInterface $tracer,
+        string $sql,
+        bool $recordStatements,
+        string $dbSystem,
+        ?string $dbName,
+        ?string $serverAddress,
+        ?int $serverPort,
+    ): SpanInterface {
+        try {
+            return self::create($tracer, $sql, $recordStatements, $dbSystem, $dbName, $serverAddress, $serverPort)->startSpan();
+        } catch (\Throwable) {
+            return Span::getInvalid();
+        }
     }
 
     /**

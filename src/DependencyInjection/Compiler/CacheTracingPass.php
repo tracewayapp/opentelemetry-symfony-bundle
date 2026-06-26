@@ -80,6 +80,7 @@ final class CacheTracingPass implements CompilerPassInterface
             $decorator->setArgument('$tracerName', $tracerName);
             $decorator->setArgument('$poolName', $poolName);
             $decorator->setDecoratedService($id, $innerId, -32);
+            $decorator->addTag('kernel.reset', ['method' => 'reset']);
 
             $container->setDefinition($decoratorId, $decorator);
         }

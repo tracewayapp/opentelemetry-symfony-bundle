@@ -370,6 +370,20 @@ final class ConfigurationTest extends TestCase
         yield 'mailer' => ['mailer'];
     }
 
+    public function testEmptyExcludedPathEntriesAreDropped(): void
+    {
+        $config = $this->process([['traces' => ['excluded_paths' => ['', '   ', '/health', 'metrics']]]]);
+
+        self::assertSame(['/health', '/metrics'], $config['traces']['excluded_paths']);
+    }
+
+    public function testEmptyMetricsExcludedPathEntriesAreDropped(): void
+    {
+        $config = $this->process([['metrics' => ['enabled' => true, 'http_server' => ['excluded_paths' => ['', '/health']]]]]);
+
+        self::assertSame(['/health'], $config['metrics']['http_server']['excluded_paths']);
+    }
+
     /**
      * @param list<array<string, mixed>> $configs
      * @return array<string, mixed>

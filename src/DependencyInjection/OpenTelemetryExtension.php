@@ -198,12 +198,14 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $mailerDef->setArgument('$decorated', new Reference('.inner'));
             $mailerDef->setArgument('$tracerName', $tracerName);
             $mailerDef->setArgument('$recordSubject', $traces['mailer']['record_subject']);
+            $mailerDef->addTag('kernel.reset', ['method' => 'reset']);
             $container->setDefinition(TraceableMailer::class, $mailerDef);
 
             $transportsDef = new Definition(TraceableTransports::class);
             $transportsDef->setDecoratedService('mailer.transports', null, 0, ContainerInterface::IGNORE_ON_INVALID_REFERENCE);
             $transportsDef->setArgument('$decorated', new Reference('.inner'));
             $transportsDef->setArgument('$tracerName', $tracerName);
+            $transportsDef->addTag('kernel.reset', ['method' => 'reset']);
             $container->setDefinition(TraceableTransports::class, $transportsDef);
         }
 
@@ -276,6 +278,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $meteredTransportsDef->setDecoratedService('mailer.transports', null, 8, ContainerInterface::IGNORE_ON_INVALID_REFERENCE);
             $meteredTransportsDef->setArgument('$decorated', new Reference('.inner'));
             $meteredTransportsDef->setArgument('$meterName', $meterName);
+            $meteredTransportsDef->addTag('kernel.reset', ['method' => 'reset']);
             $container->setDefinition(MeteredTransports::class, $meteredTransportsDef);
         }
     }

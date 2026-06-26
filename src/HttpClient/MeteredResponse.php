@@ -135,6 +135,16 @@ final class MeteredResponse implements ResponseInterface
         return $this->response;
     }
 
+    public function finalizeFromStream(): void
+    {
+        $this->safeFinalize(null);
+    }
+
+    public function finalizeStreamError(\Throwable $e): void
+    {
+        $this->finalizeWithError($e);
+    }
+
     public function __destruct()
     {
         if ($this->finalized) {

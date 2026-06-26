@@ -52,6 +52,7 @@ final class HttpClientMetricsPass implements CompilerPassInterface
             $decorator->setArgument('$meterName', $meterName);
             $decorator->setArgument('$excludedHosts', $excludedHosts);
             $decorator->setDecoratedService($clientId, $innerId, -8);
+            $decorator->addTag('kernel.reset', ['method' => 'reset']);
 
             $container->setDefinition($decoratorId, $decorator);
         }

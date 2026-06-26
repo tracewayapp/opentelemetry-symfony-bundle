@@ -172,7 +172,7 @@ final class Configuration implements ConfigurationInterface
                         ->then(static function (array $paths): array {
                             $normalized = [];
                             foreach ($paths as $p) {
-                                if (!\is_string($p)) {
+                                if (!\is_string($p) || '' === trim($p)) {
                                     continue;
                                 }
                                 $normalized[] = str_starts_with($p, '/') ? $p : '/' . $p;
@@ -322,7 +322,7 @@ final class Configuration implements ConfigurationInterface
                                 ->then(static function (array $paths): array {
                                     $normalized = [];
                                     foreach ($paths as $p) {
-                                        if (!\is_string($p)) {
+                                        if (!\is_string($p) || '' === trim($p)) {
                                             continue;
                                         }
                                         $normalized[] = str_starts_with($p, '/') ? $p : '/' . $p;

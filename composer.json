@@ -50,6 +50,7 @@
         "doctrine/dbal": "^4.0",
         "monolog/monolog": "^3.0",
         "open-telemetry/contrib-aws": "^1.2",
+        "php-cs-fixer/shim": "^3.0",
         "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^10.0 || ^11.0 || ^13.0",
         "symfony/cache": "^6.4 || ^7.0 || ^8.0",
@@ -91,7 +92,9 @@
     },
     "scripts": {
         "test": "phpunit",
-        "phpstan": "phpstan analyse"
+        "phpstan": "phpstan analyse",
+        "cs": "php-cs-fixer fix --dry-run --diff",
+        "cs-fix": "php-cs-fixer fix"
     },
     "minimum-stability": "stable",
     "prefer-stable": true

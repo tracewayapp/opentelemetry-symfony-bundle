@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`cache:pool:prune` no longer fatals on a traced cache pool** - `TraceableCachePool` now implements `PruneableInterface` and delegates `prune()` to the inner pool. The prunable `cache.pool` tag transfers onto the decorator, so `CachePoolPrunerPass` selects it and the command called the missing `prune()` (`Call to undefined method ...::prune()`) on every scheduled run against a DB-backed pool. Mirrors Symfony's `TraceableAdapter` (returns `false` when the pool is not prunable); the `TraceableTagAwareCachePool`/`TraceableNamespacedCachePool` subclasses inherit it.
+
 ## [3.0.0] - 2026-06-15
 
 This is a **conformance major**: a full pass aligning every instrumentation with the current *stable* OpenTelemetry semantic conventions. There are no API changes for application code — the breaking changes are span-name, attribute-key, attribute-value, metric-bucket, and one config-validation change that mostly cause dashboards/alerts to regroup. See [UPGRADE-3.0.md](UPGRADE-3.0.md) for the full migration checklist. **Legacy flat config keys still work in 3.0** (removal deferred to 4.0 — see [UPGRADE-2.0.md](UPGRADE-2.0.md#timeline)).

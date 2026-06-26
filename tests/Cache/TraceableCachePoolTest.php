@@ -11,6 +11,7 @@ use Psr\Cache\CacheItemInterface;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Component\Cache\Adapter\AdapterInterface;
 use Symfony\Component\Cache\CacheItem;
+use Symfony\Component\Cache\PruneableInterface;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Service\ResetInterface;
@@ -175,6 +176,40 @@ final class TraceableCachePoolTest extends TestCase
         $pool->hasItem('key');
         $pool->deleteItem('key');
 
+        self::assertEmpty($this->exporter->getSpans());
+    }
+
+    public function testPruneDelegatesToPruneablePool(): void
+    {
+        $inner = new class implements AdapterInterface, CacheInterface, PruneableInterface {
+            public bool $pruned = false;
+            public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed { return null; }
+            public function delete(string $key): bool { return true; }
+            public function getItem(mixed $key): CacheItem { throw new \LogicException('Not implemented'); }
+            public function getItems(array $keys = []): iterable { return []; }
+            public function hasItem(mixed $key): bool { return false; }
+            public function clear(string $prefix = ''): bool { return true; }
+            public function deleteItem(string $key): bool { return true; }
+            public function deleteItems(array $keys): bool { return true; }
+            public function save(CacheItemInterface $item): bool { return true; }
+            public function saveDeferred(CacheItemInterface $item): bool { return true; }
+            public function commit(): bool { return true; }
+            public function prune(): bool { $this->pruned = true; return true; }
+        };
+
+        $pool = new TraceableCachePool($inner, 'test-tracer', 'cache.app');
+
+        self::assertTrue($pool->prune());
+        self::assertTrue($inner->pruned);
+        self::assertEmpty($this->exporter->getSpans());
+    }
+
+    public function testPruneReturnsFalseForNonPruneablePool(): void
+    {
+        $inner = $this->createCachePool('value', true);
+        $pool = new TraceableCachePool($inner, 'test-tracer', 'cache.app');
+
+        self::assertFalse($pool->prune());
         self::assertEmpty($this->exporter->getSpans());
     }
 

@@ -72,14 +72,15 @@ final class CacheTracingPass implements CompilerPassInterface
             } else {
                 $decoratorClass = TraceableCachePool::class;
             }
-            $decoratorId = $id . '.otel';
-            $innerId = $decoratorId . '.inner';
+            $decoratorId = $id.'.otel';
+            $innerId = $decoratorId.'.inner';
 
             $decorator = new Definition($decoratorClass);
             $decorator->setArgument('$pool', new Reference($innerId));
             $decorator->setArgument('$tracerName', $tracerName);
             $decorator->setArgument('$poolName', $poolName);
             $decorator->setDecoratedService($id, $innerId, -32);
+            $decorator->addTag('kernel.reset', ['method' => 'reset']);
 
             $container->setDefinition($decoratorId, $decorator);
         }

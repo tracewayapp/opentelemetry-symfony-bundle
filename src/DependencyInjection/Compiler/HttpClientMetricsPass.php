@@ -44,14 +44,15 @@ final class HttpClientMetricsPass implements CompilerPassInterface
             : [];
 
         foreach ($this->findHttpClientServiceIds($container) as $clientId) {
-            $decoratorId = $clientId . '.otel_metrics';
-            $innerId = $decoratorId . '.inner';
+            $decoratorId = $clientId.'.otel_metrics';
+            $innerId = $decoratorId.'.inner';
 
             $decorator = new Definition(MeteredHttpClient::class);
             $decorator->setArgument('$client', new Reference($innerId));
             $decorator->setArgument('$meterName', $meterName);
             $decorator->setArgument('$excludedHosts', $excludedHosts);
             $decorator->setDecoratedService($clientId, $innerId, -8);
+            $decorator->addTag('kernel.reset', ['method' => 'reset']);
 
             $container->setDefinition($decoratorId, $decorator);
         }

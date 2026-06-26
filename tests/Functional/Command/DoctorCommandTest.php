@@ -189,6 +189,7 @@ final class DoctorCommandTest extends TestCase
 
     /**
      * @param array<string, mixed> $decoded
+     *
      * @return array<string, mixed>
      */
     private function findCheckByName(array $decoded, string $name): array

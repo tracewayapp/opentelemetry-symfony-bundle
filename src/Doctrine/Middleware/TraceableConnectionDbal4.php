@@ -167,7 +167,7 @@ final class TraceableConnectionDbal4 extends AbstractConnectionMiddleware
     {
         $tracer = $this->getTracer();
 
-        return DbSpanBuilder::create(
+        return DbSpanBuilder::startSpan(
             $tracer,
             $sql,
             $this->recordStatements,
@@ -175,6 +175,6 @@ final class TraceableConnectionDbal4 extends AbstractConnectionMiddleware
             $this->dbName,
             $this->serverAddress,
             $this->serverPort,
-        )->startSpan();
+        );
     }
 }

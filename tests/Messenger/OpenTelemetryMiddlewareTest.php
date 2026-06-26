@@ -251,7 +251,7 @@ final class OpenTelemetryMiddlewareTest extends TestCase
     {
         $middleware = new OpenTelemetryMiddleware('test', rootSpans: true);
 
-        $headers = ['traceparent' => '00-' . str_repeat('a', 32) . '-' . str_repeat('b', 16) . '-01'];
+        $headers = ['traceparent' => '00-'.str_repeat('a', 32).'-'.str_repeat('b', 16).'-01'];
         $envelope = new Envelope(new \stdClass(), [
             new ReceivedStamp('sync'),
             new TraceContextStamp($headers),

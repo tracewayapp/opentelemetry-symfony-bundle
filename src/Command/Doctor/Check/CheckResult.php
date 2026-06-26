@@ -8,7 +8,7 @@ namespace Traceway\OpenTelemetryBundle\Command\Doctor\Check;
 final class CheckResult
 {
     /**
-     * @param array<string, scalar|null|array<int|string, scalar|null>> $details
+     * @param array<string, scalar|array<int|string, scalar|null>|null> $details
      */
     private function __construct(
         public readonly string $name,
@@ -16,10 +16,11 @@ final class CheckResult
         public readonly string $message,
         public readonly ?string $remediation = null,
         public readonly array $details = [],
-    ) {}
+    ) {
+    }
 
     /**
-     * @param array<string, scalar|null|array<int|string, scalar|null>> $details
+     * @param array<string, scalar|array<int|string, scalar|null>|null> $details
      */
     public static function ok(string $name, string $message, array $details = []): self
     {
@@ -27,7 +28,7 @@ final class CheckResult
     }
 
     /**
-     * @param array<string, scalar|null|array<int|string, scalar|null>> $details
+     * @param array<string, scalar|array<int|string, scalar|null>|null> $details
      */
     public static function warning(string $name, string $message, ?string $remediation = null, array $details = []): self
     {
@@ -35,7 +36,7 @@ final class CheckResult
     }
 
     /**
-     * @param array<string, scalar|null|array<int|string, scalar|null>> $details
+     * @param array<string, scalar|array<int|string, scalar|null>|null> $details
      */
     public static function error(string $name, string $message, ?string $remediation = null, array $details = []): self
     {
@@ -43,7 +44,7 @@ final class CheckResult
     }
 
     /**
-     * @param array<string, scalar|null|array<int|string, scalar|null>> $details
+     * @param array<string, scalar|array<int|string, scalar|null>|null> $details
      */
     public static function info(string $name, string $message, array $details = []): self
     {

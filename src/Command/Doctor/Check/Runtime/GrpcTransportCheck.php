@@ -37,7 +37,7 @@ final class GrpcTransportCheck implements CheckInterface
         if ('grpc' !== $protocol) {
             return CheckResult::skipped(
                 $this->name(),
-                sprintf('protocol is %s; gRPC transport not required', $protocol),
+                \sprintf('protocol is %s; gRPC transport not required', $protocol),
             );
         }
 
@@ -68,7 +68,7 @@ final class GrpcTransportCheck implements CheckInterface
 
         return CheckResult::warning(
             $this->name(),
-            sprintf('OTEL_EXPORTER_OTLP_PROTOCOL=grpc but %s missing', implode(' and ', $missing)),
+            \sprintf('OTEL_EXPORTER_OTLP_PROTOCOL=grpc but %s missing', implode(' and ', $missing)),
             'gRPC export is not bundled. Install both pieces: `pecl install grpc` and `composer require open-telemetry/transport-grpc`. Without them, OTLP export will fail at runtime.',
             $details,
         );

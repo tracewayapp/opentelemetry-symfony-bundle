@@ -32,7 +32,8 @@ final class TracedResponse implements ResponseInterface
         private readonly ResponseInterface $response,
         private readonly SpanInterface $span,
         private readonly bool $hasServerAddress = true,
-    ) {}
+    ) {
+    }
 
     public function getStatusCode(): int
     {
@@ -120,6 +121,16 @@ final class TracedResponse implements ResponseInterface
     public function getSpan(): SpanInterface
     {
         return $this->span;
+    }
+
+    public function finalizeFromStream(): void
+    {
+        $this->safeFinalize();
+    }
+
+    public function finalizeStreamError(\Throwable $e): void
+    {
+        $this->finalizeSpanWithError($e);
     }
 
     public function __destruct()

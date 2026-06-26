@@ -101,8 +101,9 @@ final class TraceableHttpClientTest extends TestCase
     public function testTraceContextInjectedIntoHeaders(): void
     {
         $capturedOptions = [];
-        $mockClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$capturedOptions) {
+        $mockClient = new MockHttpClient(static function (string $method, string $url, array $options) use (&$capturedOptions) {
             $capturedOptions = $options;
+
             return new MockResponse('OK');
         });
 
@@ -201,7 +202,7 @@ final class TraceableHttpClientTest extends TestCase
         foreach ($stream as $response => $chunk) {
             if (!$chunk->isLast()) {
                 $content = $chunk->getContent();
-                if ($content !== '') {
+                if ('' !== $content) {
                     $contents[] = $content;
                 }
             }
@@ -227,6 +228,23 @@ final class TraceableHttpClientTest extends TestCase
         }
 
         self::assertSame('single', $content);
+    }
+
+    public function testStreamFinalizesSpanWhenConsumedToCompletion(): void
+    {
+        $mockClient = new MockHttpClient(new MockResponse('hello', ['http_code' => 200]));
+        $client = new TraceableHttpClient($mockClient);
+
+        $response = $client->request('GET', 'https://api.example.com/stream');
+        self::assertInstanceOf(TracedResponse::class, $response);
+
+        foreach ($client->stream($response) as $chunk) {
+            $chunk->getContent();
+        }
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame(200, $spans[0]->getAttributes()->toArray()['http.response.status_code']);
     }
 
     public function testResetAllowsSubsequentRequests(): void
@@ -287,9 +305,9 @@ final class TraceableHttpClientTest extends TestCase
         $outerClient = null;
         $depth = 0;
 
-        $mockClient = new MockHttpClient(function () use (&$innerCalled, &$outerClient, &$depth) {
-            $depth++;
-            if ($depth === 1) {
+        $mockClient = new MockHttpClient(static function () use (&$innerCalled, &$outerClient, &$depth) {
+            ++$depth;
+            if (1 === $depth) {
                 $innerResponse = $outerClient->request('GET', 'https://collector.example.com/export');
                 $innerResponse->getContent();
                 $innerCalled = true;
@@ -372,9 +390,9 @@ final class TraceableHttpClientTest extends TestCase
     public function testReEntranceGuardResetsAfterException(): void
     {
         $callCount = 0;
-        $mockClient = new MockHttpClient(function () use (&$callCount) {
-            $callCount++;
-            if ($callCount === 1) {
+        $mockClient = new MockHttpClient(static function () use (&$callCount) {
+            ++$callCount;
+            if (1 === $callCount) {
                 throw new \RuntimeException('First call fails');
             }
 

@@ -11,7 +11,8 @@ final class MeteredMiddleware implements Middleware
 {
     public function __construct(
         private readonly string $meterName = 'opentelemetry-symfony',
-    ) {}
+    ) {
+    }
 
     public function wrap(DriverInterface $driver): DriverInterface
     {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\DependencyInjection;
 
+use Doctrine\DBAL\Driver\Middleware as DoctrineMiddleware;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -15,7 +16,6 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Messenger\Middleware\MiddlewareInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
-use Doctrine\DBAL\Driver\Middleware as DoctrineMiddleware;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\MeteredMiddleware as DoctrineMeteredMiddleware;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableMiddleware as DoctrineTraceableMiddleware;
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
@@ -30,11 +30,11 @@ use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMetricsMiddleware;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
 use Traceway\OpenTelemetryBundle\Metrics\MeterRegistry;
 use Traceway\OpenTelemetryBundle\Metrics\MeterRegistryInterface;
-use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\Monolog\OtelLogHandler;
 use Traceway\OpenTelemetryBundle\Monolog\TraceContextProcessor;
-use Traceway\OpenTelemetryBundle\XRay\XRayBootstrapper;
+use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\Twig\OpenTelemetryTwigExtension;
+use Traceway\OpenTelemetryBundle\XRay\XRayBootstrapper;
 
 final class OpenTelemetryExtension extends Extension implements PrependExtensionInterface
 {
@@ -68,9 +68,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
 
         if ($config['logs']['export']['enabled']) {
             if (!$container->hasExtension('monolog')) {
-                throw new \LogicException(
-                    'The "open_telemetry.logs.export.enabled" option requires symfony/monolog-bundle to be installed and enabled. Run "composer require symfony/monolog-bundle" or set "logs.export.enabled: false".'
-                );
+                throw new \LogicException('The "open_telemetry.logs.export.enabled" option requires symfony/monolog-bundle to be installed and enabled. Run "composer require symfony/monolog-bundle" or set "logs.export.enabled: false".');
             }
 
             $container->prependExtensionConfig('monolog', [
@@ -101,7 +99,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         /** @var array{traces: array{enabled: bool, propagator: string, id_generator: string, tracer_name: string, excluded_paths: list<string>, record_client_ip: bool, error_status_threshold: int, console: array{enabled: bool, excluded_commands: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, messenger: array{enabled: bool, root_spans: bool}, doctrine: array{enabled: bool, record_statements: bool}, cache: array{enabled: bool, excluded_pools: list<string>}, twig: array{enabled: bool, excluded_templates: list<string>}, scheduler: array{enabled: bool}, mailer: array{enabled: bool, record_subject: bool}}, metrics: array{enabled: bool, meter_name: string, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}}, logs: array{correlation: array{enabled: bool}, export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}, sdk: array{enabled: bool, autoload_enabled: bool, use_putenv: bool, resource_attributes: array<string, string>, exporter_otlp_headers: array<string, string>}} $config */
         $config = $this->processConfiguration($configuration, $configs);
 
-        $loader = new YamlFileLoader($container, new FileLocator(\dirname(__DIR__, 2) . '/config'));
+        $loader = new YamlFileLoader($container, new FileLocator(\dirname(__DIR__, 2).'/config'));
         $loader->load('services.yaml');
 
         $sdk = $config['sdk'];
@@ -198,12 +196,14 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $mailerDef->setArgument('$decorated', new Reference('.inner'));
             $mailerDef->setArgument('$tracerName', $tracerName);
             $mailerDef->setArgument('$recordSubject', $traces['mailer']['record_subject']);
+            $mailerDef->addTag('kernel.reset', ['method' => 'reset']);
             $container->setDefinition(TraceableMailer::class, $mailerDef);
 
             $transportsDef = new Definition(TraceableTransports::class);
             $transportsDef->setDecoratedService('mailer.transports', null, 0, ContainerInterface::IGNORE_ON_INVALID_REFERENCE);
             $transportsDef->setArgument('$decorated', new Reference('.inner'));
             $transportsDef->setArgument('$tracerName', $tracerName);
+            $transportsDef->addTag('kernel.reset', ['method' => 'reset']);
             $container->setDefinition(TraceableTransports::class, $transportsDef);
         }
 
@@ -218,9 +218,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
 
         if ('w3c' !== $propagator || 'default' !== $idGenerator) {
             if (!$this->isXRayAvailable()) {
-                throw new \LogicException(
-                    'X-Ray support requires "open-telemetry/contrib-aws". Run: composer require open-telemetry/contrib-aws'
-                );
+                throw new \LogicException('X-Ray support requires "open-telemetry/contrib-aws". Run: composer require open-telemetry/contrib-aws');
             }
             $xrayDef = new Definition(XRayBootstrapper::class);
             $xrayDef->setArgument('$propagator', $propagator);
@@ -276,6 +274,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $meteredTransportsDef->setDecoratedService('mailer.transports', null, 8, ContainerInterface::IGNORE_ON_INVALID_REFERENCE);
             $meteredTransportsDef->setArgument('$decorated', new Reference('.inner'));
             $meteredTransportsDef->setArgument('$meterName', $meterName);
+            $meteredTransportsDef->addTag('kernel.reset', ['method' => 'reset']);
             $container->setDefinition(MeteredTransports::class, $meteredTransportsDef);
         }
     }

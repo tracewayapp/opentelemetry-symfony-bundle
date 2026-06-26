@@ -41,7 +41,7 @@ trait OTelTestTrait
             ->addReader($this->metricReader)
             ->build();
 
-        Globals::registerInitializer(fn (Configurator $configurator) => $configurator
+        Globals::registerInitializer(static fn (Configurator $configurator) => $configurator
             ->withTracerProvider($tracerProvider)
             ->withLoggerProvider($loggerProvider)
             ->withMeterProvider($meterProvider)

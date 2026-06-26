@@ -26,11 +26,10 @@ final class Tracing implements TracingInterface, ResetInterface
 
     public function __construct(
         private readonly string $tracerName = 'opentelemetry-symfony',
-    ) {}
+    ) {
+    }
 
     /**
-     * {@inheritDoc}
-     *
      * @param non-empty-string $name
      * @param SpanKind::KIND_* $kind
      */

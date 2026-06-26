@@ -74,7 +74,7 @@ final class OpenTelemetryBundle extends Bundle
         $this->setEnvVariable(Variables::OTEL_PHP_AUTOLOAD_ENABLED, 'true', $usePutEnv);
 
         // require, not require_once: first include was a no-op because the env var was unset.
-        require sprintf('%1$s/_autoload.php', InstalledVersions::getInstallPath('open-telemetry/sdk'));
+        require \sprintf('%1$s/_autoload.php', InstalledVersions::getInstallPath('open-telemetry/sdk'));
     }
 
     private function bootSdkConfig(): void
@@ -108,7 +108,7 @@ final class OpenTelemetryBundle extends Bundle
 
         $new = [];
         foreach ($combined as $key => $value) {
-            $new[] = sprintf('%1$s=%2$s', $key, $value);
+            $new[] = \sprintf('%1$s=%2$s', $key, $value);
         }
 
         $this->setEnvVariable($name, implode(',', $new), $usePutEnv);
@@ -119,7 +119,7 @@ final class OpenTelemetryBundle extends Bundle
         $_SERVER[$name] = $_ENV[$name] = $value;
 
         if ($usePutEnv) {
-            putenv(sprintf('%1$s=%2$s', $name, $value));
+            putenv(\sprintf('%1$s=%2$s', $name, $value));
         }
     }
 }

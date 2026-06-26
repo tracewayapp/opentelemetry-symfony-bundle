@@ -17,7 +17,8 @@ final class CheckRunner
         private readonly GlobalsAccessorInterface $globals,
         private readonly EnvReaderInterface $env,
         private readonly ParameterBagInterface $params,
-    ) {}
+    ) {
+    }
 
     /** @param list<string> $only */
     public function run(bool $skipNetwork, array $only = [], float $networkTimeoutSeconds = 1.0): RunReport
@@ -52,7 +53,7 @@ final class CheckRunner
             } catch (\Throwable $e) {
                 $result = CheckResult::error(
                     $check->name(),
-                    sprintf('Check threw %s: %s', $e::class, $e->getMessage()),
+                    \sprintf('Check threw %s: %s', $e::class, $e->getMessage()),
                     'This is likely a bug in the bundle. Please open an issue at https://github.com/tracewayapp/opentelemetry-symfony-bundle/issues with the full output.',
                     [
                         'exception_class' => $e::class,
@@ -68,8 +69,7 @@ final class CheckRunner
         foreach (\Traceway\OpenTelemetryBundle\Command\Doctor\Check\CheckGroup::cases() as $index => $group) {
             $groupOrder[$group->value] = $index;
         }
-        usort($completed, static fn (CompletedCheck $a, CompletedCheck $b): int =>
-            $groupOrder[$a->group->value] <=> $groupOrder[$b->group->value]);
+        usort($completed, static fn (CompletedCheck $a, CompletedCheck $b): int => $groupOrder[$a->group->value] <=> $groupOrder[$b->group->value]);
 
         return new RunReport($completed);
     }

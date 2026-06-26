@@ -152,7 +152,17 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
 
         return new ResponseStream((function () use ($tracedMap, $underlyingResponses, $timeout) {
             foreach ($this->client->stream($underlyingResponses, $timeout) as $response => $chunk) {
-                yield $tracedMap[$response] => $chunk;
+                $traced = $tracedMap[$response];
+                if ($traced instanceof TracedResponse) {
+                    try {
+                        if ($chunk->isLast()) {
+                            $traced->finalizeFromStream();
+                        }
+                    } catch (\Throwable $e) {
+                        $traced->finalizeStreamError($e);
+                    }
+                }
+                yield $traced => $chunk;
             }
         })());
     }

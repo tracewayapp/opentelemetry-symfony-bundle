@@ -18,31 +18,31 @@ final class Configuration implements ConfigurationInterface
      * @var array<string, array{string, string|null, string}>
      */
     private const LEGACY_MAP = [
-        'traces_enabled'                     => ['traces', null,          'enabled'],
-        'tracer_name'                        => ['traces', null,          'tracer_name'],
-        'excluded_paths'                     => ['traces', null,          'excluded_paths'],
-        'record_client_ip'                   => ['traces', null,          'record_client_ip'],
-        'error_status_threshold'             => ['traces', null,          'error_status_threshold'],
-        'console_enabled'                    => ['traces', 'console',     'enabled'],
-        'console_excluded_commands'          => ['traces', 'console',     'excluded_commands'],
-        'http_client_enabled'                => ['traces', 'http_client', 'enabled'],
-        'http_client_excluded_hosts'         => ['traces', 'http_client', 'excluded_hosts'],
-        'messenger_enabled'                  => ['traces', 'messenger',   'enabled'],
-        'messenger_root_spans'               => ['traces', 'messenger',   'root_spans'],
-        'doctrine_enabled'                   => ['traces', 'doctrine',    'enabled'],
-        'doctrine_record_statements'         => ['traces', 'doctrine',    'record_statements'],
-        'cache_enabled'                      => ['traces', 'cache',       'enabled'],
-        'cache_excluded_pools'               => ['traces', 'cache',       'excluded_pools'],
-        'twig_enabled'                       => ['traces', 'twig',        'enabled'],
-        'twig_excluded_templates'            => ['traces', 'twig',        'excluded_templates'],
-        'scheduler_enabled'                  => ['traces', 'scheduler',   'enabled'],
-        'mailer_enabled'                     => ['traces', 'mailer',      'enabled'],
-        'mailer_record_subject'              => ['traces', 'mailer',      'record_subject'],
-        'monolog_enabled'                    => ['logs',   'correlation', 'enabled'],
-        'log_export_enabled'                 => ['logs',   'export',      'enabled'],
-        'log_export_level'                   => ['logs',   'export',      'level'],
+        'traces_enabled' => ['traces', null,          'enabled'],
+        'tracer_name' => ['traces', null,          'tracer_name'],
+        'excluded_paths' => ['traces', null,          'excluded_paths'],
+        'record_client_ip' => ['traces', null,          'record_client_ip'],
+        'error_status_threshold' => ['traces', null,          'error_status_threshold'],
+        'console_enabled' => ['traces', 'console',     'enabled'],
+        'console_excluded_commands' => ['traces', 'console',     'excluded_commands'],
+        'http_client_enabled' => ['traces', 'http_client', 'enabled'],
+        'http_client_excluded_hosts' => ['traces', 'http_client', 'excluded_hosts'],
+        'messenger_enabled' => ['traces', 'messenger',   'enabled'],
+        'messenger_root_spans' => ['traces', 'messenger',   'root_spans'],
+        'doctrine_enabled' => ['traces', 'doctrine',    'enabled'],
+        'doctrine_record_statements' => ['traces', 'doctrine',    'record_statements'],
+        'cache_enabled' => ['traces', 'cache',       'enabled'],
+        'cache_excluded_pools' => ['traces', 'cache',       'excluded_pools'],
+        'twig_enabled' => ['traces', 'twig',        'enabled'],
+        'twig_excluded_templates' => ['traces', 'twig',        'excluded_templates'],
+        'scheduler_enabled' => ['traces', 'scheduler',   'enabled'],
+        'mailer_enabled' => ['traces', 'mailer',      'enabled'],
+        'mailer_record_subject' => ['traces', 'mailer',      'record_subject'],
+        'monolog_enabled' => ['logs',   'correlation', 'enabled'],
+        'log_export_enabled' => ['logs',   'export',      'enabled'],
+        'log_export_level' => ['logs',   'export',      'level'],
         'log_export_capture_code_attributes' => ['logs',   'export',      'capture_code_attributes'],
-        'log_export_unprefixed_attributes'   => ['logs',   'export',      'unprefixed_attributes'],
+        'log_export_unprefixed_attributes' => ['logs',   'export',      'unprefixed_attributes'],
     ];
 
     public function getConfigTreeBuilder(): TreeBuilder
@@ -70,6 +70,7 @@ final class Configuration implements ConfigurationInterface
 
     /**
      * @param array<array-key, mixed> $config
+     *
      * @return array<array-key, mixed>
      */
     private static function migrateLegacyKeys(array $config): array
@@ -80,8 +81,8 @@ final class Configuration implements ConfigurationInterface
             }
 
             $newPath = null === $subsystem
-                ? sprintf('%s.%s', $group, $newKey)
-                : sprintf('%s.%s.%s', $group, $subsystem, $newKey);
+                ? \sprintf('%s.%s', $group, $newKey)
+                : \sprintf('%s.%s.%s', $group, $subsystem, $newKey);
 
             $nested = $config[$group] ?? null;
             $hasNested = false;
@@ -95,11 +96,7 @@ final class Configuration implements ConfigurationInterface
             }
 
             if ($hasNested) {
-                throw new InvalidConfigurationException(sprintf(
-                    'Cannot set both legacy "open_telemetry.%s" and nested "open_telemetry.%s" in the same configuration block. Use the nested form only.',
-                    $oldKey,
-                    $newPath,
-                ));
+                throw new InvalidConfigurationException(\sprintf('Cannot set both legacy "open_telemetry.%s" and nested "open_telemetry.%s" in the same configuration block. Use the nested form only.', $oldKey, $newPath));
             }
 
             trigger_deprecation(
@@ -172,11 +169,12 @@ final class Configuration implements ConfigurationInterface
                         ->then(static function (array $paths): array {
                             $normalized = [];
                             foreach ($paths as $p) {
-                                if (!\is_string($p)) {
+                                if (!\is_string($p) || '' === trim($p)) {
                                     continue;
                                 }
-                                $normalized[] = str_starts_with($p, '/') ? $p : '/' . $p;
+                                $normalized[] = str_starts_with($p, '/') ? $p : '/'.$p;
                             }
+
                             return $normalized;
                         })
                     ->end()
@@ -322,11 +320,12 @@ final class Configuration implements ConfigurationInterface
                                 ->then(static function (array $paths): array {
                                     $normalized = [];
                                     foreach ($paths as $p) {
-                                        if (!\is_string($p)) {
+                                        if (!\is_string($p) || '' === trim($p)) {
                                             continue;
                                         }
-                                        $normalized[] = str_starts_with($p, '/') ? $p : '/' . $p;
+                                        $normalized[] = str_starts_with($p, '/') ? $p : '/'.$p;
                                     }
+
                                     return $normalized;
                                 })
                             ->end()
@@ -352,6 +351,7 @@ final class Configuration implements ConfigurationInterface
             ->validate()
                 ->ifTrue(static function (array $c): bool {
                     $messenger = \is_array($c['messenger'] ?? null) ? $c['messenger'] : [];
+
                     return true === ($messenger['enabled'] ?? false) && true !== ($c['enabled'] ?? false);
                 })
                 ->thenInvalid('"open_telemetry.metrics.messenger.enabled" requires "open_telemetry.metrics.enabled" to be true.')
@@ -359,6 +359,7 @@ final class Configuration implements ConfigurationInterface
             ->validate()
                 ->ifTrue(static function (array $c): bool {
                     $doctrine = \is_array($c['doctrine'] ?? null) ? $c['doctrine'] : [];
+
                     return true === ($doctrine['enabled'] ?? false) && true !== ($c['enabled'] ?? false);
                 })
                 ->thenInvalid('"open_telemetry.metrics.doctrine.enabled" requires "open_telemetry.metrics.enabled" to be true.')
@@ -366,6 +367,7 @@ final class Configuration implements ConfigurationInterface
             ->validate()
                 ->ifTrue(static function (array $c): bool {
                     $httpServer = \is_array($c['http_server'] ?? null) ? $c['http_server'] : [];
+
                     return true === ($httpServer['enabled'] ?? false) && true !== ($c['enabled'] ?? false);
                 })
                 ->thenInvalid('"open_telemetry.metrics.http_server.enabled" requires "open_telemetry.metrics.enabled" to be true.')
@@ -373,6 +375,7 @@ final class Configuration implements ConfigurationInterface
             ->validate()
                 ->ifTrue(static function (array $c): bool {
                     $httpClient = \is_array($c['http_client'] ?? null) ? $c['http_client'] : [];
+
                     return true === ($httpClient['enabled'] ?? false) && true !== ($c['enabled'] ?? false);
                 })
                 ->thenInvalid('"open_telemetry.metrics.http_client.enabled" requires "open_telemetry.metrics.enabled" to be true.')
@@ -380,6 +383,7 @@ final class Configuration implements ConfigurationInterface
             ->validate()
                 ->ifTrue(static function (array $c): bool {
                     $mailer = \is_array($c['mailer'] ?? null) ? $c['mailer'] : [];
+
                     return true === ($mailer['enabled'] ?? false) && true !== ($c['enabled'] ?? false);
                 })
                 ->thenInvalid('"open_telemetry.metrics.mailer.enabled" requires "open_telemetry.metrics.enabled" to be true.')

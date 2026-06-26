@@ -41,14 +41,15 @@ final class HttpClientTracingPass implements CompilerPassInterface
         $clientIds = $this->findHttpClientServiceIds($container);
 
         foreach ($clientIds as $clientId) {
-            $decoratorId = $clientId . '.otel';
-            $innerId = $decoratorId . '.inner';
+            $decoratorId = $clientId.'.otel';
+            $innerId = $decoratorId.'.inner';
 
             $decorator = new Definition(TraceableHttpClient::class);
             $decorator->setArgument('$client', new Reference($innerId));
             $decorator->setArgument('$tracerName', $tracerName);
             $decorator->setArgument('$excludedHosts', $excludedHosts);
             $decorator->setDecoratedService($clientId, $innerId, -16);
+            $decorator->addTag('kernel.reset', ['method' => 'reset']);
 
             $container->setDefinition($decoratorId, $decorator);
         }

@@ -47,8 +47,8 @@ final class RouteTemplateCacheWarmer implements CacheWarmerInterface
             return [];
         }
 
-        $file = rtrim($buildDir ?? $cacheDir, '/') . '/' . self::CACHE_FILE;
-        @file_put_contents($file, '<?php return ' . var_export($map, true) . ';');
+        $file = rtrim($buildDir ?? $cacheDir, '/').'/'.self::CACHE_FILE;
+        @file_put_contents($file, '<?php return '.var_export($map, true).';');
 
         return [];
     }

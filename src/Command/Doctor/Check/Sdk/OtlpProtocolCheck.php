@@ -34,7 +34,7 @@ final class OtlpProtocolCheck implements CheckInterface
         if ('otlp' !== $exporter) {
             return CheckResult::skipped(
                 $this->name(),
-                sprintf('OTEL_TRACES_EXPORTER is %s, not otlp', $exporter),
+                \sprintf('OTEL_TRACES_EXPORTER is %s, not otlp', $exporter),
             );
         }
 
@@ -52,15 +52,15 @@ final class OtlpProtocolCheck implements CheckInterface
         if (\in_array($protocol, self::KNOWN_PROTOCOLS, true)) {
             return CheckResult::ok(
                 $this->name(),
-                sprintf('OTEL_EXPORTER_OTLP_PROTOCOL = %s', $protocol),
+                \sprintf('OTEL_EXPORTER_OTLP_PROTOCOL = %s', $protocol),
                 ['value' => $protocol],
             );
         }
 
         return CheckResult::warning(
             $this->name(),
-            sprintf('OTEL_EXPORTER_OTLP_PROTOCOL = "%s" is not recognized', $protocol),
-            sprintf('Expected one of: %s. Unrecognized values fall back to the SDK default.', implode(', ', self::KNOWN_PROTOCOLS)),
+            \sprintf('OTEL_EXPORTER_OTLP_PROTOCOL = "%s" is not recognized', $protocol),
+            \sprintf('Expected one of: %s. Unrecognized values fall back to the SDK default.', implode(', ', self::KNOWN_PROTOCOLS)),
             ['value' => $protocol],
         );
     }

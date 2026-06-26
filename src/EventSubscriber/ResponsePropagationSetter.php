@@ -12,7 +12,6 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * Used by the response propagator to set headers like Server-Timing or
  * traceresponse on outgoing HTTP responses, enabling browser-side correlation.
- *
  */
 final class ResponsePropagationSetter implements PropagationSetterInterface
 {

@@ -101,7 +101,7 @@ final class RouteTemplateResolverTest extends TestCase
 
     public function testWarmedMapIsPreferredAndAvoidsRouter(): void
     {
-        $cacheDir = sys_get_temp_dir() . '/otel-route-test-' . uniqid('', true);
+        $cacheDir = sys_get_temp_dir().'/otel-route-test-'.uniqid('', true);
         mkdir($cacheDir);
 
         try {
@@ -124,7 +124,7 @@ final class RouteTemplateResolverTest extends TestCase
 
             self::assertSame('/api/items/{id}', $resolver->resolve($request));
         } finally {
-            @unlink($cacheDir . '/' . \Traceway\OpenTelemetryBundle\Routing\RouteTemplateCacheWarmer::CACHE_FILE);
+            @unlink($cacheDir.'/'.\Traceway\OpenTelemetryBundle\Routing\RouteTemplateCacheWarmer::CACHE_FILE);
             @rmdir($cacheDir);
         }
     }
@@ -137,7 +137,7 @@ final class RouteTemplateResolverTest extends TestCase
         $router = $this->createStub(RouterInterface::class);
         $router->method('getRouteCollection')->willReturn($collection);
 
-        $resolver = new RouteTemplateResolver($router, sys_get_temp_dir() . '/does-not-exist-' . uniqid('', true));
+        $resolver = new RouteTemplateResolver($router, sys_get_temp_dir().'/does-not-exist-'.uniqid('', true));
         $request = Request::create('/api/items/5', 'GET');
         $request->attributes->set('_route', 'api_item_show');
 

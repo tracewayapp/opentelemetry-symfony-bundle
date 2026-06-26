@@ -38,7 +38,7 @@ final class TraceableStatementDbal3 extends AbstractStatementMiddleware
             return parent::execute($params);
         }
 
-        $span = DbSpanBuilder::create(
+        $span = DbSpanBuilder::startSpan(
             $this->getTracer(),
             $this->sql,
             $this->recordStatements,
@@ -46,7 +46,7 @@ final class TraceableStatementDbal3 extends AbstractStatementMiddleware
             $this->dbName,
             $this->serverAddress,
             $this->serverPort,
-        )->startSpan();
+        );
 
         try {
             $result = parent::execute($params);

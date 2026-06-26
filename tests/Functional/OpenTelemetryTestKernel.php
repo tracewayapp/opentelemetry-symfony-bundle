@@ -35,7 +35,7 @@ final class OpenTelemetryTestKernel extends Kernel
     private array $extraBundles;
 
     /**
-     * @param array<string, mixed> $otelConfig
+     * @param array<string, mixed>                                       $otelConfig
      * @param list<\Symfony\Component\HttpKernel\Bundle\BundleInterface> $extraBundles
      */
     public function __construct(
@@ -64,7 +64,7 @@ final class OpenTelemetryTestKernel extends Kernel
     {
         $otelConfig = $this->otelConfig;
 
-        $loader->load(function (ContainerBuilder $container) use ($otelConfig): void {
+        $loader->load(static function (ContainerBuilder $container) use ($otelConfig): void {
             $container->loadFromExtension('framework', [
                 'secret' => 'test',
                 'test' => true,
@@ -99,11 +99,11 @@ final class OpenTelemetryTestKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return sys_get_temp_dir() . '/otel_bundle_tests/' . getmypid() . '_' . $this->instanceId;
+        return sys_get_temp_dir().'/otel_bundle_tests/'.getmypid().'_'.$this->instanceId;
     }
 
     public function getLogDir(): string
     {
-        return sys_get_temp_dir() . '/otel_bundle_tests/logs';
+        return sys_get_temp_dir().'/otel_bundle_tests/logs';
     }
 }

@@ -11,7 +11,6 @@ use OpenTelemetry\Context\Propagation\PropagationSetterInterface;
  *
  * Symfony HttpClient accepts headers as ['Header-Name' => 'value'] or
  * ['Header-Name: value']. This setter uses the key-value style.
- *
  */
 final class HeadersPropagationSetter implements PropagationSetterInterface
 {

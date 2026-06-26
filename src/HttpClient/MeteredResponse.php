@@ -26,7 +26,8 @@ final class MeteredResponse implements ResponseInterface
         private readonly MeteredHttpClient $recorder,
         private readonly int|float $start,
         private array $attributes,
-    ) {}
+    ) {
+    }
 
     /**
      * Backfills required server.address/port from the effective URL when the
@@ -133,6 +134,16 @@ final class MeteredResponse implements ResponseInterface
     public function getInnerResponse(): ResponseInterface
     {
         return $this->response;
+    }
+
+    public function finalizeFromStream(): void
+    {
+        $this->safeFinalize(null);
+    }
+
+    public function finalizeStreamError(\Throwable $e): void
+    {
+        $this->finalizeWithError($e);
     }
 
     public function __destruct()

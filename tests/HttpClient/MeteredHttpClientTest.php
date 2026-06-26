@@ -135,7 +135,7 @@ final class MeteredHttpClientTest extends TestCase
 
     public function testTransportFailureAddsErrorType(): void
     {
-        $mockClient = new MockHttpClient(function () {
+        $mockClient = new MockHttpClient(static function () {
             throw new \RuntimeException('connection refused');
         });
         $client = new MeteredHttpClient($mockClient, 'test');
@@ -217,7 +217,7 @@ final class MeteredHttpClientTest extends TestCase
         foreach ($client->stream([$r1, $r2]) as $response => $chunk) {
             $yielded[] = $response;
             if ($chunk->isLast()) {
-                $chunks++;
+                ++$chunks;
             }
         }
 
@@ -269,7 +269,7 @@ final class MeteredHttpClientTest extends TestCase
 
     public function testNamespacedTransportFailureUsesFqcn(): void
     {
-        $mockClient = new MockHttpClient(function () {
+        $mockClient = new MockHttpClient(static function () {
             throw new \Symfony\Component\HttpClient\Exception\TransportException('connection refused');
         });
         $client = new MeteredHttpClient($mockClient, 'test');
@@ -290,7 +290,7 @@ final class MeteredHttpClientTest extends TestCase
 
     public function testAnonymousTransportFailureFallsBackToParentClass(): void
     {
-        $mockClient = new MockHttpClient(function () {
+        $mockClient = new MockHttpClient(static function () {
             throw new class('boom') extends \RuntimeException {};
         });
         $client = new MeteredHttpClient($mockClient, 'test');
@@ -335,7 +335,7 @@ final class MeteredHttpClientTest extends TestCase
     public function testRecordFailureDoesNotMaskTransportException(): void
     {
         $businessException = new \DomainException('connection refused');
-        $mockClient = new MockHttpClient(function () use ($businessException) {
+        $mockClient = new MockHttpClient(static function () use ($businessException) {
             throw $businessException;
         });
         $client = new MeteredHttpClient($mockClient, 'test');

@@ -173,7 +173,7 @@ final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterfac
         $exitCode = $event->getExitCode();
         $span->setAttribute('process.exit.code', $exitCode);
 
-        if ($exitCode !== Command::SUCCESS && !$errorRecorded && $span->isRecording()) {
+        if (Command::SUCCESS !== $exitCode && !$errorRecorded && $span->isRecording()) {
             $span->setAttribute('error.type', (string) $exitCode);
             $span->setStatus(StatusCode::STATUS_ERROR);
         }

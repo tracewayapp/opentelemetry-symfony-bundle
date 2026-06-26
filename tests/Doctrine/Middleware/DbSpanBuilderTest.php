@@ -6,6 +6,7 @@ namespace Traceway\OpenTelemetryBundle\Tests\Doctrine\Middleware;
 
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanKind;
+use OpenTelemetry\API\Trace\TracerInterface;
 use PHPUnit\Framework\TestCase;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\DbSpanBuilder;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
@@ -83,6 +84,18 @@ final class DbSpanBuilderTest extends TestCase
         self::assertSame('sessions', $attrs['db.collection.name']);
         self::assertArrayNotHasKey('db.query.text', $attrs);
         self::assertArrayNotHasKey('db.statement', $attrs);
+    }
+
+    public function testStartSpanDegradesToNonRecordingWhenTracerThrows(): void
+    {
+        $tracer = $this->createStub(TracerInterface::class);
+        $tracer->method('spanBuilder')->willThrowException(new \RuntimeException('tracer misconfigured'));
+
+        $span = DbSpanBuilder::startSpan($tracer, 'SELECT 1', true, 'mysql', 'app_db', 'localhost', 3306);
+
+        self::assertFalse($span->isRecording());
+        $span->end();
+        self::assertCount(0, $this->exporter->getSpans());
     }
 
     public function testCreateWithNullOptionals(): void

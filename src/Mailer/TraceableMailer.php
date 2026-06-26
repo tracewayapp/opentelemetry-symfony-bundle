@@ -43,7 +43,8 @@ final class TraceableMailer implements MailerInterface, ResetInterface
         private readonly MailerInterface $decorated,
         private readonly string $tracerName = 'opentelemetry-symfony',
         private readonly bool $recordSubject = false,
-    ) {}
+    ) {
+    }
 
     public function send(RawMessage $message, ?Envelope $envelope = null): void
     {
@@ -54,7 +55,7 @@ final class TraceableMailer implements MailerInterface, ResetInterface
         }
 
         $transportName = $this->extractTransportName($message);
-        $spanName = null !== $transportName ? sprintf('create %s', $transportName) : 'create';
+        $spanName = null !== $transportName ? \sprintf('create %s', $transportName) : 'create';
 
         $builder = $this->getTracer()
             ->spanBuilder($spanName)

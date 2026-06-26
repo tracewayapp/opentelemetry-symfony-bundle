@@ -14,5 +14,6 @@ final class CompletedCheck
         public readonly string $label,
         public readonly CheckGroup $group,
         public readonly CheckResult $result,
-    ) {}
+    ) {
+    }
 }

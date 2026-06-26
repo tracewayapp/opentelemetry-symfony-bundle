@@ -12,6 +12,7 @@ use Psr\Cache\CacheItemInterface;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Component\Cache\Adapter\AdapterInterface;
 use Symfony\Component\Cache\CacheItem;
+use Symfony\Component\Cache\PruneableInterface;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Service\ResetInterface;
@@ -27,7 +28,7 @@ use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
  * Implements AdapterInterface so Symfony's profiler TraceableAdapter
  * can safely wrap this decorator in dev mode.
  */
-class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInterface
+class TraceableCachePool implements CacheInterface, AdapterInterface, PruneableInterface, ResetInterface
 {
     private ?TracerInterface $tracer = null;
     private ?bool $enabled = null;
@@ -190,6 +191,11 @@ class TraceableCachePool implements CacheInterface, AdapterInterface, ResetInter
     public function commit(): bool
     {
         return $this->pool->commit();
+    }
+
+    public function prune(): bool
+    {
+        return $this->pool instanceof PruneableInterface ? $this->pool->prune() : false;
     }
 
     public function reset(): void

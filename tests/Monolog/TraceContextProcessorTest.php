@@ -6,7 +6,6 @@ namespace Traceway\OpenTelemetryBundle\Tests\Monolog;
 
 use Monolog\Level;
 use Monolog\LogRecord;
-use OpenTelemetry\API\Trace\Span;
 use PHPUnit\Framework\TestCase;
 use Traceway\OpenTelemetryBundle\Monolog\TraceContextProcessor;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
@@ -42,7 +41,7 @@ final class TraceContextProcessorTest extends TestCase
             self::assertArrayHasKey('span_id', $processed->extra);
             self::assertSame($span->getContext()->getTraceId(), $processed->extra['trace_id']);
             self::assertSame($span->getContext()->getSpanId(), $processed->extra['span_id']);
-            self::assertSame(sprintf('%02x', $span->getContext()->getTraceFlags()), $processed->extra['trace_flags']);
+            self::assertSame(\sprintf('%02x', $span->getContext()->getTraceFlags()), $processed->extra['trace_flags']);
         } finally {
             $scope->detach();
             $span->end();

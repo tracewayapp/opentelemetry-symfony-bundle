@@ -28,7 +28,7 @@ final class TextRenderer implements RendererInterface
                 continue;
             }
 
-            $output->writeln(sprintf('<comment>%s</comment>', $group->label()));
+            $output->writeln(\sprintf('<comment>%s</comment>', $group->label()));
             foreach ($byGroup[$group->value] as $check) {
                 $this->renderCheck($check, $output);
             }
@@ -36,7 +36,7 @@ final class TextRenderer implements RendererInterface
         }
 
         $counts = $report->counts();
-        $output->writeln(sprintf(
+        $output->writeln(\sprintf(
             'Results: <info>%d ok</info>, <comment>%d warning</comment>, <error>%d error</error>, %d skipped, %d info',
             $counts['ok'],
             $counts['warning'],
@@ -56,7 +56,7 @@ final class TextRenderer implements RendererInterface
             Status::Info => ['ℹ', 'comment'],
         };
 
-        $output->writeln(sprintf(
+        $output->writeln(\sprintf(
             '  <%s>%s</%s> %s',
             $tag,
             $glyph,
@@ -65,7 +65,7 @@ final class TextRenderer implements RendererInterface
         ));
 
         if (null !== $check->result->remediation) {
-            $output->writeln(sprintf(
+            $output->writeln(\sprintf(
                 '    <comment>└ %s</comment>',
                 $this->escape($check->result->remediation),
             ));

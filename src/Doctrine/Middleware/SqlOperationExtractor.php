@@ -19,7 +19,7 @@ final class SqlOperationExtractor
     public static function extract(string $sql): string
     {
         $sql = self::stripLeadingNoise($sql);
-        if ($sql === '' || !preg_match('/^([A-Za-z_][A-Za-z0-9_]*)/', $sql, $matches)) {
+        if ('' === $sql || !preg_match('/^([A-Za-z_][A-Za-z0-9_]*)/', $sql, $matches)) {
             return 'UNKNOWN';
         }
 
@@ -71,7 +71,7 @@ final class SqlOperationExtractor
             $char = $sql[$i];
 
             if ('(' === $char) {
-                $depth++;
+                ++$depth;
             } elseif (')' === $char) {
                 $depth = max(0, $depth - 1);
             } elseif ("'" === $char || '"' === $char || '`' === $char) {
@@ -86,7 +86,7 @@ final class SqlOperationExtractor
                 continue;
             }
 
-            $i++;
+            ++$i;
         }
 
         return null;
@@ -102,9 +102,9 @@ final class SqlOperationExtractor
                 return $i + 1;
             }
             if ('\\' === $sql[$i]) {
-                $i++;
+                ++$i;
             }
-            $i++;
+            ++$i;
         }
 
         return $length;
@@ -121,16 +121,16 @@ final class SqlOperationExtractor
     public static function extractTarget(string $sql): ?string
     {
         $sql = self::stripLeadingNoise($sql);
-        if ($sql === '') {
+        if ('' === $sql) {
             return null;
         }
 
         $patterns = [
-            '/^INSERT\s+(?:OR\s+\w+\s+)?INTO\s+(' . self::IDENT . ')/i',
-            '/^UPDATE\s+(?:OR\s+\w+\s+)?(' . self::IDENT . ')\s+SET\b/i',
-            '/^DELETE\s+FROM\s+(' . self::IDENT . ')/i',
-            '/^SELECT\b.*?\bFROM\s+(' . self::IDENT . ')/is',
-            '/^REPLACE\s+INTO\s+(' . self::IDENT . ')/i',
+            '/^INSERT\s+(?:OR\s+\w+\s+)?INTO\s+('.self::IDENT.')/i',
+            '/^UPDATE\s+(?:OR\s+\w+\s+)?('.self::IDENT.')\s+SET\b/i',
+            '/^DELETE\s+FROM\s+('.self::IDENT.')/i',
+            '/^SELECT\b.*?\bFROM\s+('.self::IDENT.')/is',
+            '/^REPLACE\s+INTO\s+('.self::IDENT.')/i',
         ];
 
         foreach ($patterns as $pattern) {
@@ -158,22 +158,22 @@ final class SqlOperationExtractor
         if ('UNKNOWN' === $operation) {
             $fallback = $target ?? $dbName ?? $dbSystem;
 
-            return ($fallback !== null && $fallback !== '') ? $fallback : 'db';
+            return (null !== $fallback && '' !== $fallback) ? $fallback : 'db';
         }
 
         $suffix = $target ?? $dbName;
 
-        return $suffix !== null ? $operation . ' ' . $suffix : $operation;
+        return null !== $suffix ? $operation.' '.$suffix : $operation;
     }
 
     private static function stripQuotes(string $ident): string
     {
-        if ($ident === '') {
+        if ('' === $ident) {
             return $ident;
         }
 
         $first = $ident[0];
-        if ($first === '`' || $first === '"' || $first === '[') {
+        if ('`' === $first || '"' === $first || '[' === $first) {
             return substr($ident, 1, -1);
         }
 

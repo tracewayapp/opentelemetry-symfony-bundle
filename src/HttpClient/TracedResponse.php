@@ -32,7 +32,8 @@ final class TracedResponse implements ResponseInterface
         private readonly ResponseInterface $response,
         private readonly SpanInterface $span,
         private readonly bool $hasServerAddress = true,
-    ) {}
+    ) {
+    }
 
     public function getStatusCode(): int
     {

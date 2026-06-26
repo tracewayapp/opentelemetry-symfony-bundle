@@ -72,8 +72,8 @@ final class CacheTracingPass implements CompilerPassInterface
             } else {
                 $decoratorClass = TraceableCachePool::class;
             }
-            $decoratorId = $id . '.otel';
-            $innerId = $decoratorId . '.inner';
+            $decoratorId = $id.'.otel';
+            $innerId = $decoratorId.'.inner';
 
             $decorator = new Definition($decoratorClass);
             $decorator->setArgument('$pool', new Reference($innerId));

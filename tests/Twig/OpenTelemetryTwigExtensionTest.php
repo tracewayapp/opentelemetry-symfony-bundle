@@ -6,9 +6,9 @@ namespace Traceway\OpenTelemetryBundle\Tests\Twig;
 
 use OpenTelemetry\API\Trace\SpanKind;
 use PHPUnit\Framework\TestCase;
-use Twig\Profiler\Profile;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 use Traceway\OpenTelemetryBundle\Twig\OpenTelemetryTwigExtension;
+use Twig\Profiler\Profile;
 
 final class OpenTelemetryTwigExtensionTest extends TestCase
 {

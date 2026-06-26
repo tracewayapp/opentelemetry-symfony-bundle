@@ -41,14 +41,14 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface, ResetInterfa
     private ?bool $enabled = null;
 
     /**
-     * @param string $tracerName              Instrumentation library name
-     * @param bool   $rootSpans               When true, consumed messages create root spans (no parent)
-     *                                        so task-oriented backends classify them as independent jobs
+     * @param string $tracerName               Instrumentation library name
+     * @param bool   $rootSpans                When true, consumed messages create root spans (no parent)
+     *                                         so task-oriented backends classify them as independent jobs
      * @param bool   $excludeScheduledMessages Skip envelopes carrying Symfony's ScheduledStamp on both dispatch and
-     *                                        consume paths. Enabled automatically when scheduler instrumentation is
-     *                                        active so the richer
-     *                                        {@see \Traceway\OpenTelemetryBundle\EventSubscriber\SchedulerSubscriber}
-     *                                        span owns scheduled-task observability without duplicate messenger spans.
+     *                                         consume paths. Enabled automatically when scheduler instrumentation is
+     *                                         active so the richer
+     *                                         {@see \Traceway\OpenTelemetryBundle\EventSubscriber\SchedulerSubscriber}
+     *                                         span owns scheduled-task observability without duplicate messenger spans.
      */
     public function __construct(
         private readonly string $tracerName = 'opentelemetry-symfony',
@@ -273,6 +273,6 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface, ResetInterfa
         $pos = strrpos($messageClass, '\\');
         $shortName = false !== $pos ? substr($messageClass, $pos + 1) : $messageClass;
 
-        return sprintf('%s %s', $operation, $shortName);
+        return \sprintf('%s %s', $operation, $shortName);
     }
 }

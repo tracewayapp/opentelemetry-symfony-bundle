@@ -36,7 +36,7 @@ final class MeteredConnectionDbal3Test extends TestCase
 
         $recorder = new DbMetricRecorder('test', 'mysql', 'app_db', 'localhost', 3306);
 
-        /** @phpstan-ignore-next-line */
+        /* @phpstan-ignore-next-line */
         $this->connection = new \Traceway\OpenTelemetryBundle\Doctrine\Middleware\MeteredConnectionDbal3(
             $this->inner,
             $recorder,

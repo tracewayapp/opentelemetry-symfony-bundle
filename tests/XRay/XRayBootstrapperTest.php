@@ -88,7 +88,7 @@ final class XRayBootstrapperTest extends TestCase
         new XRayBootstrapper('xray', 'default');
 
         $traceId = '58406520a006649127e371903a2de979';
-        $spanId  = '53995c3f42cd8ad8';
+        $spanId = '53995c3f42cd8ad8';
         $carrier = ['x-amzn-trace-id' => "Root=1-58406520-a006649127e371903a2de979;Parent={$spanId};Sampled=1"];
 
         $context = Globals::propagator()->extract($carrier);

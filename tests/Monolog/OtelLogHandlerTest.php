@@ -185,7 +185,7 @@ final class OtelLogHandlerTest extends TestCase
             message: 'test',
             extra: [
                 'trace_id' => 'deadbeef',
-                'span_id'  => 'cafef00d',
+                'span_id' => 'cafef00d',
                 'request_id' => 'abc-123',
             ],
         );
@@ -751,7 +751,7 @@ final class OtelLogHandlerTest extends TestCase
         $log = $logs[0];
         $attrs = $log->getAttributes()->toArray();
 
-        self::assertSame(self::class . '::emitThroughBundleFrame', $attrs['code.function.name']);
+        self::assertSame(self::class.'::emitThroughBundleFrame', $attrs['code.function.name']);
         self::assertSame(__FILE__, $attrs['code.file.path']);
         self::assertIsInt($attrs['code.line.number']);
     }

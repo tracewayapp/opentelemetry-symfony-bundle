@@ -32,7 +32,7 @@ final class OtlpEndpointConfiguredCheck implements CheckInterface
         if ('otlp' !== $exporter) {
             return CheckResult::skipped(
                 $this->name(),
-                sprintf('OTEL_TRACES_EXPORTER is %s, not otlp', $exporter),
+                \sprintf('OTEL_TRACES_EXPORTER is %s, not otlp', $exporter),
             );
         }
 
@@ -42,7 +42,7 @@ final class OtlpEndpointConfiguredCheck implements CheckInterface
         if (null !== $specific) {
             return CheckResult::ok(
                 $this->name(),
-                sprintf('OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = %s', $specific),
+                \sprintf('OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = %s', $specific),
                 ['endpoint' => $specific, 'source' => 'OTEL_EXPORTER_OTLP_TRACES_ENDPOINT'],
             );
         }
@@ -50,7 +50,7 @@ final class OtlpEndpointConfiguredCheck implements CheckInterface
         if (null !== $generic) {
             return CheckResult::ok(
                 $this->name(),
-                sprintf('OTEL_EXPORTER_OTLP_ENDPOINT = %s', $generic),
+                \sprintf('OTEL_EXPORTER_OTLP_ENDPOINT = %s', $generic),
                 ['endpoint' => $generic, 'source' => 'OTEL_EXPORTER_OTLP_ENDPOINT'],
             );
         }

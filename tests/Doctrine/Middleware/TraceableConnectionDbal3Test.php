@@ -38,7 +38,7 @@ final class TraceableConnectionDbal3Test extends TestCase
         $this->setUpOTel();
         $this->inner = $this->createStub(Connection::class);
 
-        /** @phpstan-ignore-next-line */
+        /* @phpstan-ignore-next-line */
         $this->connection = new \Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableConnectionDbal3(
             $this->inner,
             'test-tracer',

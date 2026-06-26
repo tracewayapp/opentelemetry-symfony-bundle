@@ -20,7 +20,6 @@ use OpenTelemetry\SemConv\Attributes\UrlAttributes;
 use OpenTelemetry\SemConv\Attributes\UserAgentAttributes;
 use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
-use Symfony\Contracts\Service\ResetInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Event\FinishRequestEvent;
@@ -28,6 +27,7 @@ use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\Event\TerminateEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
+use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
@@ -154,7 +154,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
             return;
         }
 
-        $span->updateName(sprintf('%s %s', HttpMethodResolver::spanNameMethod($request->getMethod()), $route));
+        $span->updateName(\sprintf('%s %s', HttpMethodResolver::spanNameMethod($request->getMethod()), $route));
         $span->setAttribute(HttpAttributes::HTTP_ROUTE, $route);
     }
 

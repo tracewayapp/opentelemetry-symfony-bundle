@@ -35,7 +35,8 @@ final class DbMetricRecorder implements ResetInterface
         private readonly ?string $dbName,
         private readonly ?string $serverAddress,
         private readonly ?int $serverPort,
-    ) {}
+    ) {
+    }
 
     public function record(string $sql, int|float $start, ?\Throwable $exception): void
     {

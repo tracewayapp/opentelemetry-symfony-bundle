@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Traceway\OpenTelemetryBundle;
 
 use OpenTelemetry\API\Trace\SpanKind;
-use Throwable;
 
 /**
  * Contract for the tracing helper.
@@ -20,14 +19,14 @@ interface TracingInterface
      *
      * @template T
      *
-     * @param non-empty-string $name Span name (e.g. "db.query", "http.client", "cache.get")
-     * @param callable(): T $callback The work to trace
+     * @param non-empty-string     $name       Span name (e.g. "db.query", "http.client", "cache.get")
+     * @param callable(): T        $callback   The work to trace
      * @param array<string, mixed> $attributes Span attributes set before the callback runs
-     * @param SpanKind::KIND_* $kind Span kind (defaults to INTERNAL)
+     * @param SpanKind::KIND_*     $kind       Span kind (defaults to INTERNAL)
      *
      * @return T The callback's return value
      *
-     * @throws Throwable
+     * @throws \Throwable
      */
     public function trace(
         string $name,

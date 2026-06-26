@@ -38,21 +38,21 @@ final class ProtobufExtensionCheck implements CheckInterface
         if (!$needsProtobuf) {
             return CheckResult::skipped(
                 $this->name(),
-                sprintf('protocol is %s; ext-protobuf not required', $protocol),
+                \sprintf('protocol is %s; ext-protobuf not required', $protocol),
             );
         }
 
         if ($loaded) {
             return CheckResult::ok(
                 $this->name(),
-                sprintf('ext-protobuf loaded (protocol: %s)', $protocol),
+                \sprintf('ext-protobuf loaded (protocol: %s)', $protocol),
                 ['protocol' => $protocol, 'loaded' => true],
             );
         }
 
         return CheckResult::warning(
             $this->name(),
-            sprintf('ext-protobuf not loaded but protocol is %s', $protocol),
+            \sprintf('ext-protobuf not loaded but protocol is %s', $protocol),
             'Install ext-protobuf for significantly faster OTLP encoding: pecl install protobuf. The pure-PHP fallback works but is slower for high-throughput services.',
             ['protocol' => $protocol, 'loaded' => false],
         );

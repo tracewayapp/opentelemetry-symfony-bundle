@@ -16,10 +16,7 @@ enum Severity: int
             'info' => self::Info,
             'warning' => self::Warning,
             'error' => self::Error,
-            default => throw new \InvalidArgumentException(sprintf(
-                'Unknown severity "%s". Expected one of: info, warning, error.',
-                $name,
-            )),
+            default => throw new \InvalidArgumentException(\sprintf('Unknown severity "%s". Expected one of: info, warning, error.', $name)),
         };
     }
 

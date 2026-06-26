@@ -39,7 +39,8 @@ final class MeterRegistry implements MeterRegistryInterface, ResetInterface
 
     public function __construct(
         private readonly string $meterName = 'opentelemetry-symfony',
-    ) {}
+    ) {
+    }
 
     public function counter(string $name, ?string $unit = null, ?string $description = null): CounterInterface
     {

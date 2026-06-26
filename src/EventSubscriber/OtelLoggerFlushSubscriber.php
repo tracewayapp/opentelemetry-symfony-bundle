@@ -45,7 +45,7 @@ final class OtelLoggerFlushSubscriber implements EventSubscriberInterface
                 $provider->forceFlush();
             }
         } catch (\Throwable $e) {
-            error_log(sprintf('OtelLoggerFlushSubscriber: forceFlush failed: %s', $e->getMessage()));
+            error_log(\sprintf('OtelLoggerFlushSubscriber: forceFlush failed: %s', $e->getMessage()));
         }
     }
 }

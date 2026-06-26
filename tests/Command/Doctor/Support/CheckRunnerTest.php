@@ -169,22 +169,36 @@ final class CheckRunnerTest extends TestCase
                 return $check;
             }
         }
-        self::fail(sprintf('No check named "%s" in report', $name));
+        self::fail(\sprintf('No check named "%s" in report', $name));
     }
 
     private function okCheck(string $name): CheckInterface
     {
-        return $this->resultCheck($name, CheckResult::ok($name, sprintf('%s passed', $name)));
+        return $this->resultCheck($name, CheckResult::ok($name, \sprintf('%s passed', $name)));
     }
 
     private function networkCheck(string $name): NetworkCheckInterface
     {
         return new class($name) implements NetworkCheckInterface {
-            public function __construct(private readonly string $name) {}
+            public function __construct(private readonly string $name)
+            {
+            }
 
-            public function name(): string { return $this->name; }
-            public function label(): string { return $this->name; }
-            public function group(): CheckGroup { return CheckGroup::Connectivity; }
+            public function name(): string
+            {
+                return $this->name;
+            }
+
+            public function label(): string
+            {
+                return $this->name;
+            }
+
+            public function group(): CheckGroup
+            {
+                return CheckGroup::Connectivity;
+            }
+
             public function run(CheckContext $context): CheckResult
             {
                 return CheckResult::ok($this->name, 'reachable');
@@ -195,34 +209,83 @@ final class CheckRunnerTest extends TestCase
     private function throwingCheck(string $name, \Throwable $error): CheckInterface
     {
         return new class($name, $error) implements CheckInterface {
-            public function __construct(private readonly string $name, private readonly \Throwable $error) {}
+            public function __construct(private readonly string $name, private readonly \Throwable $error)
+            {
+            }
 
-            public function name(): string { return $this->name; }
-            public function label(): string { return $this->name; }
-            public function group(): CheckGroup { return CheckGroup::Runtime; }
-            public function run(CheckContext $context): CheckResult { throw $this->error; }
+            public function name(): string
+            {
+                return $this->name;
+            }
+
+            public function label(): string
+            {
+                return $this->name;
+            }
+
+            public function group(): CheckGroup
+            {
+                return CheckGroup::Runtime;
+            }
+
+            public function run(CheckContext $context): CheckResult
+            {
+                throw $this->error;
+            }
         };
     }
 
     private function resultCheck(string $name, CheckResult $result): CheckInterface
     {
         return new class($name, $result) implements CheckInterface {
-            public function __construct(private readonly string $name, private readonly CheckResult $result) {}
+            public function __construct(private readonly string $name, private readonly CheckResult $result)
+            {
+            }
 
-            public function name(): string { return $this->name; }
-            public function label(): string { return $this->name; }
-            public function group(): CheckGroup { return CheckGroup::Runtime; }
-            public function run(CheckContext $context): CheckResult { return $this->result; }
+            public function name(): string
+            {
+                return $this->name;
+            }
+
+            public function label(): string
+            {
+                return $this->name;
+            }
+
+            public function group(): CheckGroup
+            {
+                return CheckGroup::Runtime;
+            }
+
+            public function run(CheckContext $context): CheckResult
+            {
+                return $this->result;
+            }
         };
     }
 
     private function globalsStub(): GlobalsAccessorInterface
     {
         return new class implements GlobalsAccessorInterface {
-            public function tracerProvider(): TracerProviderInterface { return new NoopTracerProvider(); }
-            public function meterProvider(): MeterProviderInterface { return new NoopMeterProvider(); }
-            public function loggerProvider(): LoggerProviderInterface { return new NoopLoggerProvider(); }
-            public function propagator(): TextMapPropagatorInterface { return NoopTextMapPropagator::getInstance(); }
+            public function tracerProvider(): TracerProviderInterface
+            {
+                return new NoopTracerProvider();
+            }
+
+            public function meterProvider(): MeterProviderInterface
+            {
+                return new NoopMeterProvider();
+            }
+
+            public function loggerProvider(): LoggerProviderInterface
+            {
+                return new NoopLoggerProvider();
+            }
+
+            public function propagator(): TextMapPropagatorInterface
+            {
+                return NoopTextMapPropagator::getInstance();
+            }
         };
     }
 
@@ -233,10 +296,19 @@ final class CheckRunnerTest extends TestCase
     {
         return new class($values) implements EnvReaderInterface {
             /** @param array<string, string> $values */
-            public function __construct(private readonly array $values) {}
+            public function __construct(private readonly array $values)
+            {
+            }
 
-            public function get(string $name): ?string { return $this->values[$name] ?? null; }
-            public function has(string $name): bool { return isset($this->values[$name]); }
+            public function get(string $name): ?string
+            {
+                return $this->values[$name] ?? null;
+            }
+
+            public function has(string $name): bool
+            {
+                return isset($this->values[$name]);
+            }
         };
     }
 }

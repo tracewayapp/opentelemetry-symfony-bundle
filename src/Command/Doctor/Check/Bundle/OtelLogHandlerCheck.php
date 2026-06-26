@@ -59,7 +59,7 @@ final class OtelLogHandlerCheck implements CheckInterface
 
         return CheckResult::ok(
             $this->name(),
-            sprintf('Log export wired (LoggerProvider: %s)', $this->shortClass($provider::class)),
+            \sprintf('Log export wired (LoggerProvider: %s)', $this->shortClass($provider::class)),
             ['provider_class' => $provider::class],
         );
     }

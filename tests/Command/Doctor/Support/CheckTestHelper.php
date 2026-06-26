@@ -49,10 +49,19 @@ final class CheckTestHelper
     {
         return new class($values) implements EnvReaderInterface {
             /** @param array<string, string> $values */
-            public function __construct(private readonly array $values) {}
+            public function __construct(private readonly array $values)
+            {
+            }
 
-            public function get(string $name): ?string { return $this->values[$name] ?? null; }
-            public function has(string $name): bool { return isset($this->values[$name]); }
+            public function get(string $name): ?string
+            {
+                return $this->values[$name] ?? null;
+            }
+
+            public function has(string $name): bool
+            {
+                return isset($this->values[$name]);
+            }
         };
     }
 
@@ -62,23 +71,34 @@ final class CheckTestHelper
         ?LoggerProviderInterface $logger = null,
         ?TextMapPropagatorInterface $propagator = null,
     ): GlobalsAccessorInterface {
-        return new class(
-            $tracer ?? new NoopTracerProvider(),
-            $meter ?? new NoopMeterProvider(),
-            $logger ?? new NoopLoggerProvider(),
-            $propagator ?? NoopTextMapPropagator::getInstance(),
-        ) implements GlobalsAccessorInterface {
+        return new class($tracer ?? new NoopTracerProvider(), $meter ?? new NoopMeterProvider(), $logger ?? new NoopLoggerProvider(), $propagator ?? NoopTextMapPropagator::getInstance()) implements GlobalsAccessorInterface {
             public function __construct(
                 private readonly TracerProviderInterface $tracer,
                 private readonly MeterProviderInterface $meter,
                 private readonly LoggerProviderInterface $logger,
                 private readonly TextMapPropagatorInterface $propagator,
-            ) {}
+            ) {
+            }
 
-            public function tracerProvider(): TracerProviderInterface { return $this->tracer; }
-            public function meterProvider(): MeterProviderInterface { return $this->meter; }
-            public function loggerProvider(): LoggerProviderInterface { return $this->logger; }
-            public function propagator(): TextMapPropagatorInterface { return $this->propagator; }
+            public function tracerProvider(): TracerProviderInterface
+            {
+                return $this->tracer;
+            }
+
+            public function meterProvider(): MeterProviderInterface
+            {
+                return $this->meter;
+            }
+
+            public function loggerProvider(): LoggerProviderInterface
+            {
+                return $this->logger;
+            }
+
+            public function propagator(): TextMapPropagatorInterface
+            {
+                return $this->propagator;
+            }
         };
     }
 }

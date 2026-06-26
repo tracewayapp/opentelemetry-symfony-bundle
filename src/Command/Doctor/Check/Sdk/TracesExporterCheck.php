@@ -43,15 +43,15 @@ final class TracesExporterCheck implements CheckInterface
         if (\in_array($exporter, self::KNOWN_EXPORTERS, true)) {
             return CheckResult::ok(
                 $this->name(),
-                sprintf('OTEL_TRACES_EXPORTER = %s', $exporter),
+                \sprintf('OTEL_TRACES_EXPORTER = %s', $exporter),
                 ['value' => $exporter],
             );
         }
 
         return CheckResult::error(
             $this->name(),
-            sprintf('OTEL_TRACES_EXPORTER = "%s" is not recognized', $exporter),
-            sprintf('Expected one of: %s. Unrecognized values silently disable export.', implode(', ', self::KNOWN_EXPORTERS)),
+            \sprintf('OTEL_TRACES_EXPORTER = "%s" is not recognized', $exporter),
+            \sprintf('Expected one of: %s. Unrecognized values silently disable export.', implode(', ', self::KNOWN_EXPORTERS)),
             ['value' => $exporter],
         );
     }

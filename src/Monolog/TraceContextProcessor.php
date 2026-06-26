@@ -27,7 +27,7 @@ final class TraceContextProcessor implements ProcessorInterface
         return $record->with(extra: array_merge($record->extra, [
             'trace_id' => $traceId,
             'span_id' => $spanId,
-            'trace_flags' => sprintf('%02x', $spanContext->getTraceFlags()),
+            'trace_flags' => \sprintf('%02x', $spanContext->getTraceFlags()),
         ]));
     }
 }

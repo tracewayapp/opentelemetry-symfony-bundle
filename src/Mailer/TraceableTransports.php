@@ -39,7 +39,8 @@ final class TraceableTransports implements TransportInterface, ResetInterface
     public function __construct(
         private readonly TransportInterface $decorated,
         private readonly string $tracerName = 'opentelemetry-symfony',
-    ) {}
+    ) {
+    }
 
     public function send(RawMessage $message, ?Envelope $envelope = null): ?SentMessage
     {
@@ -48,7 +49,7 @@ final class TraceableTransports implements TransportInterface, ResetInterface
         }
 
         $transportName = $this->extractTransportName($message);
-        $spanName = null !== $transportName ? sprintf('send %s', $transportName) : 'send';
+        $spanName = null !== $transportName ? \sprintf('send %s', $transportName) : 'send';
 
         $builder = $this->getTracer()
             ->spanBuilder($spanName)

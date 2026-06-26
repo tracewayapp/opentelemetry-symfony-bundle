@@ -14,7 +14,8 @@ final class CheckContext
         public readonly GlobalsAccessorInterface $globals,
         public readonly bool $skipNetwork,
         public readonly float $networkTimeoutSeconds = 1.0,
-    ) {}
+    ) {
+    }
 
     public function param(string $key, mixed $default = null): mixed
     {

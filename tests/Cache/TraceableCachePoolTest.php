@@ -183,18 +183,68 @@ final class TraceableCachePoolTest extends TestCase
     {
         $inner = new class implements AdapterInterface, CacheInterface, PruneableInterface {
             public bool $pruned = false;
-            public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed { return null; }
-            public function delete(string $key): bool { return true; }
-            public function getItem(mixed $key): CacheItem { throw new \LogicException('Not implemented'); }
-            public function getItems(array $keys = []): iterable { return []; }
-            public function hasItem(mixed $key): bool { return false; }
-            public function clear(string $prefix = ''): bool { return true; }
-            public function deleteItem(string $key): bool { return true; }
-            public function deleteItems(array $keys): bool { return true; }
-            public function save(CacheItemInterface $item): bool { return true; }
-            public function saveDeferred(CacheItemInterface $item): bool { return true; }
-            public function commit(): bool { return true; }
-            public function prune(): bool { $this->pruned = true; return true; }
+
+            public function get(string $key, callable $callback, ?float $beta = null, ?array &$metadata = null): mixed
+            {
+                return null;
+            }
+
+            public function delete(string $key): bool
+            {
+                return true;
+            }
+
+            public function getItem(mixed $key): CacheItem
+            {
+                throw new \LogicException('Not implemented');
+            }
+
+            public function getItems(array $keys = []): iterable
+            {
+                return [];
+            }
+
+            public function hasItem(mixed $key): bool
+            {
+                return false;
+            }
+
+            public function clear(string $prefix = ''): bool
+            {
+                return true;
+            }
+
+            public function deleteItem(string $key): bool
+            {
+                return true;
+            }
+
+            public function deleteItems(array $keys): bool
+            {
+                return true;
+            }
+
+            public function save(CacheItemInterface $item): bool
+            {
+                return true;
+            }
+
+            public function saveDeferred(CacheItemInterface $item): bool
+            {
+                return true;
+            }
+
+            public function commit(): bool
+            {
+                return true;
+            }
+
+            public function prune(): bool
+            {
+                $this->pruned = true;
+
+                return true;
+            }
         };
 
         $pool = new TraceableCachePool($inner, 'test-tracer', 'cache.app');

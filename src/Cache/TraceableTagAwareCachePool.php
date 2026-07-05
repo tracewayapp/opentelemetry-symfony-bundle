@@ -7,6 +7,7 @@ namespace Traceway\OpenTelemetryBundle\Cache;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use Psr\Cache\CacheItemPoolInterface;
+use Symfony\Component\Cache\Adapter\TagAwareAdapterInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
@@ -14,7 +15,7 @@ use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
  * Extends {@see TraceableCachePool} for tag-aware cache pools,
  * adding a span for invalidateTags().
  */
-final class TraceableTagAwareCachePool extends TraceableCachePool implements TagAwareCacheInterface
+final class TraceableTagAwareCachePool extends TraceableCachePool implements TagAwareCacheInterface, TagAwareAdapterInterface
 {
     private readonly TagAwareCacheInterface $tagAwarePool;
 

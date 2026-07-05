@@ -7,6 +7,9 @@ namespace Traceway\OpenTelemetryBundle\Tests\DependencyInjection\Compiler;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
+use Symfony\Component\Cache\Adapter\TraceableTagAwareAdapter;
+use Symfony\Component\Cache\DataCollector\CacheDataCollector;
+use Symfony\Component\Cache\DependencyInjection\CacheCollectorPass;
 use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
@@ -85,6 +88,22 @@ final class CacheTracingPassTest extends TestCase
 
         $decorator = $container->getDefinition('cache.app.taggable.otel');
         self::assertSame(TraceableTagAwareCachePool::class, $decorator->getClass());
+    }
+
+    public function testSymfonyProfilerKeepsTraceableTagAwarePoolTagAware(): void
+    {
+        $container = new ContainerBuilder();
+
+        $poolDef = new Definition(TraceableTagAwareCachePool::class);
+        $poolDef->addTag('cache.pool', ['name' => 'cache.app.taggable']);
+        $container->setDefinition('cache.app.taggable', $poolDef);
+        $container->setDefinition('data_collector.cache', new Definition(CacheDataCollector::class));
+
+        $collectorPass = new CacheCollectorPass();
+        $collectorPass->process($container);
+
+        $decorator = $container->getDefinition('cache.app.taggable');
+        self::assertSame(TraceableTagAwareAdapter::class, $decorator->getClass());
     }
 
     public function testSkipsWhenDisabled(): void

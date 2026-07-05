@@ -41,12 +41,14 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     public function prepend(ContainerBuilder $container): void
     {
         $configs = $container->getExtensionConfig($this->getAlias());
-        /** @var array{traces: array{messenger: array{enabled: bool}}, metrics: array{enabled: bool, messenger: array{enabled: bool}}, logs: array{export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}} $config */
+        /** @var array{traces: array{enabled: bool, messenger: array{enabled: bool}}, metrics: array{enabled: bool, messenger: array{enabled: bool}}, logs: array{export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}} $config */
         $config = $this->processConfiguration(new Configuration(), $configs);
+
+        $tracingEnabled = $config['traces']['enabled'];
 
         if ($this->isMessengerAvailable()) {
             $middlewares = [];
-            if ($config['traces']['messenger']['enabled']) {
+            if ($tracingEnabled && $config['traces']['messenger']['enabled']) {
                 $middlewares[] = OpenTelemetryMiddleware::class;
             }
             $metrics = $config['metrics'];
@@ -105,19 +107,21 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         $sdk = $config['sdk'];
 
         $traces = $config['traces'];
+        $tracingEnabled = $traces['enabled'];
         $tracerName = $traces['tracer_name'];
 
         $container->getDefinition(Tracing::class)
             ->setArgument('$tracerName', $tracerName);
 
-        $httpClientEnabled = $traces['http_client']['enabled'] && $this->isHttpClientAvailable();
+        $httpClientEnabled = $tracingEnabled && $traces['http_client']['enabled'] && $this->isHttpClientAvailable();
+        $messengerTracingEnabled = $tracingEnabled && $traces['messenger']['enabled'];
         $container->setParameter('open_telemetry.http_client_enabled', $httpClientEnabled);
         $container->setParameter('open_telemetry.tracer_name', $tracerName);
 
-        $container->setParameter('open_telemetry.traces.enabled', $traces['enabled']);
+        $container->setParameter('open_telemetry.traces.enabled', $tracingEnabled);
         $container->setParameter('open_telemetry.traces.propagator', $traces['propagator']);
         $container->setParameter('open_telemetry.traces.id_generator', $traces['id_generator']);
-        $container->setParameter('open_telemetry.traces.messenger.enabled', $traces['messenger']['enabled']);
+        $container->setParameter('open_telemetry.traces.messenger.enabled', $messengerTracingEnabled);
         $container->setParameter('open_telemetry.metrics.enabled', $config['metrics']['enabled']);
         $container->setParameter('open_telemetry.logs.export.enabled', $config['logs']['export']['enabled']);
 
@@ -129,7 +133,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->setParameter('open_telemetry.sdk.config', $sdk);
         }
 
-        if ($traces['enabled']) {
+        if ($tracingEnabled) {
             $container->getDefinition(OpenTelemetrySubscriber::class)
                 ->setArgument('$tracerName', $tracerName)
                 ->setArgument('$excludedPaths', $traces['excluded_paths'])
@@ -139,7 +143,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->removeDefinition(OpenTelemetrySubscriber::class);
         }
 
-        if ($traces['console']['enabled'] && $this->isConsoleAvailable()) {
+        if ($tracingEnabled && $traces['console']['enabled'] && $this->isConsoleAvailable()) {
             $container->getDefinition(ConsoleSubscriber::class)
                 ->setArgument('$tracerName', $tracerName)
                 ->setArgument('$excludedCommands', $traces['console']['excluded_commands']);
@@ -147,9 +151,9 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->removeDefinition(ConsoleSubscriber::class);
         }
 
-        $schedulerEnabled = $traces['scheduler']['enabled'] && $this->isSchedulerAvailable();
+        $schedulerEnabled = $tracingEnabled && $traces['scheduler']['enabled'] && $this->isSchedulerAvailable();
 
-        if ($traces['messenger']['enabled'] && $this->isMessengerAvailable()) {
+        if ($messengerTracingEnabled && $this->isMessengerAvailable()) {
             $container->getDefinition(OpenTelemetryMiddleware::class)
                 ->setArgument('$tracerName', $tracerName)
                 ->setArgument('$rootSpans', $traces['messenger']['root_spans'])
@@ -165,7 +169,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->setDefinition(SchedulerSubscriber::class, $schedulerDef);
         }
 
-        if ($traces['doctrine']['enabled'] && $this->isDoctrineAvailable()) {
+        if ($tracingEnabled && $traces['doctrine']['enabled'] && $this->isDoctrineAvailable()) {
             $definition = new Definition(DoctrineTraceableMiddleware::class);
             $definition->setArgument('$tracerName', $tracerName);
             $definition->setArgument('$recordStatements', $traces['doctrine']['record_statements']);
@@ -173,13 +177,13 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->setDefinition(DoctrineTraceableMiddleware::class, $definition);
         }
 
-        $cacheEnabled = $traces['cache']['enabled'] && $this->isCacheAvailable();
+        $cacheEnabled = $tracingEnabled && $traces['cache']['enabled'] && $this->isCacheAvailable();
         $container->setParameter('open_telemetry.cache_enabled', $cacheEnabled);
         /** @var string[] $cacheExcludedPools */
         $cacheExcludedPools = $traces['cache']['excluded_pools'];
         $container->setParameter('open_telemetry.cache_excluded_pools', $cacheExcludedPools);
 
-        if ($traces['twig']['enabled'] && $this->isTwigAvailable()) {
+        if ($tracingEnabled && $traces['twig']['enabled'] && $this->isTwigAvailable()) {
             /** @var string[] $twigExcluded */
             $twigExcluded = $traces['twig']['excluded_templates'];
             $twigExtDef = new Definition(OpenTelemetryTwigExtension::class);
@@ -190,7 +194,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->setDefinition(OpenTelemetryTwigExtension::class, $twigExtDef);
         }
 
-        if ($traces['mailer']['enabled'] && $this->isMailerAvailable()) {
+        if ($tracingEnabled && $traces['mailer']['enabled'] && $this->isMailerAvailable()) {
             $mailerDef = new Definition(TraceableMailer::class);
             $mailerDef->setDecoratedService('mailer.mailer', null, 0, ContainerInterface::IGNORE_ON_INVALID_REFERENCE);
             $mailerDef->setArgument('$decorated', new Reference('.inner'));

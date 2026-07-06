@@ -66,6 +66,22 @@ final class TracedResponseTest extends TestCase
         self::assertSame(5, $attributes['http.response.body.size']);
     }
 
+    public function testToStreamReturnsSeekableStreamAndFinalizesSpan(): void
+    {
+        $response = $this->makeResponse(200, 'streamed');
+
+        $stream = $response->toStream(false);
+
+        self::assertIsResource($stream);
+        self::assertSame('streamed', stream_get_contents($stream));
+        self::assertSame(0, fseek($stream, 0));
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        $attributes = $spans[0]->getAttributes()->toArray();
+        self::assertSame(200, $attributes['http.response.status_code']);
+    }
+
     public function testToArrayFinalizesSpan(): void
     {
         $body = '{"key":"value"}';
@@ -191,6 +207,23 @@ final class TracedResponseTest extends TestCase
 
         try {
             $response->getContent(true);
+            self::fail('Expected exception');
+        } catch (\Throwable) {
+        }
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
+        self::assertNotEmpty($spans[0]->getEvents());
+        self::assertSame('exception', $spans[0]->getEvents()[0]->getName());
+    }
+
+    public function testToStreamThrowsOnErrorAndRecordsException(): void
+    {
+        $response = $this->makeResponse(500, 'Server Error');
+
+        try {
+            $response->toStream(true);
             self::fail('Expected exception');
         } catch (\Throwable) {
         }

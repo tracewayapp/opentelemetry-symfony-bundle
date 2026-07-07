@@ -12,6 +12,7 @@ use OpenTelemetry\SemConv\Attributes\NetworkAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
 use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
+use Symfony\Component\HttpClient\Response\StreamableInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 use Traceway\OpenTelemetryBundle\Util\UrlSanitizer;
@@ -24,7 +25,7 @@ use Traceway\OpenTelemetryBundle\Util\UrlSanitizer;
  * wrapper ensures the span captures the real status code and ends at the
  * right time.
  */
-final class TracedResponse implements ResponseInterface
+final class TracedResponse implements ResponseInterface, StreamableInterface
 {
     private bool $spanEnded = false;
 
@@ -111,6 +112,31 @@ final class TracedResponse implements ResponseInterface
     public function getInfo(?string $type = null): mixed
     {
         return $this->response->getInfo($type);
+    }
+
+    /**
+     * @return resource
+     */
+    public function toStream(bool $throw = true)
+    {
+        try {
+            if ($throw) {
+                $this->response->getHeaders(true);
+            }
+
+            if (!$this->response instanceof StreamableInterface) {
+                throw new \LogicException('Response does not implement StreamableInterface.');
+            }
+
+            $stream = $this->response->toStream(false);
+        } catch (\Throwable $e) {
+            $this->finalizeSpanWithError($e);
+            throw $e;
+        }
+
+        $this->safeFinalize();
+
+        return $stream;
     }
 
     public function getInnerResponse(): ResponseInterface

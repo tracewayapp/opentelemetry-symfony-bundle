@@ -56,10 +56,12 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
                 $middlewares[] = OpenTelemetryMetricsMiddleware::class;
             }
             if ([] !== $middlewares) {
+                $busName = $this->getMessengerDefaultBusName($container);
+
                 $container->prependExtensionConfig('framework', [
                     'messenger' => [
                         'buses' => [
-                            'messenger.bus.default' => [
+                            $busName => [
                                 'middleware' => $middlewares,
                             ],
                         ],
@@ -331,5 +333,24 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     private function isXRayAvailable(): bool
     {
         return class_exists(\OpenTelemetry\Contrib\Aws\Xray\Propagator::class);
+    }
+
+    private function getMessengerDefaultBusName(ContainerBuilder $container): string
+    {
+        $busName = null;
+
+        foreach ($container->getExtensionConfig('framework') as $frameworkConfig) {
+            if (!isset($frameworkConfig['messenger']) || !\is_array($frameworkConfig['messenger'])) {
+                continue;
+            }
+
+            $defaultBus = $frameworkConfig['messenger']['default_bus'] ?? null;
+
+            if (\is_string($defaultBus) && '' !== $defaultBus) {
+                $busName = $defaultBus;
+            }
+        }
+
+        return $busName ?? 'messenger.bus.default';
     }
 }

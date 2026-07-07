@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-07-07
+
+### Fixed
+
+- **Tag-aware cache pools stay tag-aware under the Symfony profiler** — `TraceableTagAwareCachePool` now implements `TagAwareAdapterInterface`, so Symfony's `CacheCollectorPass` wraps it in `TraceableTagAwareAdapter` rather than the plain `TraceableAdapter`. Injecting a decorated pool as a `TagAwareCacheInterface` previously failed with a type error in dev/profiler mode ([#59](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/59) — thanks @d-mitrofanov-v).
+- **Messenger middleware respects a configured `default_bus`** — the tracing/metrics middleware is now prepended to the bus named by `framework.messenger.default_bus` (falling back to `messenger.bus.default`), instead of always targeting `messenger.bus.default`. Apps using a custom default bus no longer have to wire the middleware manually ([#60](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/60) — thanks @d-mitrofanov-v).
+- **`traces.enabled` now acts as a master switch** — setting `traces.enabled: false` disables every trace subsystem (console, HTTP client, messenger, doctrine, cache, twig, scheduler, mailer) instead of only the request subscriber, so a single flag turns tracing off (e.g. in the test environment). Metrics and logs are unaffected ([#61](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/61) — thanks @d-mitrofanov-v).
+- **Streamable traced responses cast to a real stream** — `TracedResponse` now implements `StreamableInterface`/`toStream()`, so Symfony's `TraceableResponse::toStream()` streams the underlying response instead of falling back to a lazy `StreamWrapper`; the span is finalized (or the error recorded) when the stream is produced ([#62](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/62) — thanks @d-mitrofanov-v).
+
 ## [3.0.1] - 2026-06-26
 
 ### Fixed

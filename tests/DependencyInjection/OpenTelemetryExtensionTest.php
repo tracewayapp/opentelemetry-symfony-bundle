@@ -148,6 +148,29 @@ final class OpenTelemetryExtensionTest extends TestCase
         self::assertContains(OpenTelemetryMiddleware::class, $middleware);
     }
 
+    public function testPrependRegistersMessengerMiddlewareOnConfiguredDefaultBus(): void
+    {
+        $container = new ContainerBuilder();
+        $container->prependExtensionConfig('framework', [
+            'messenger' => [
+                'default_bus' => 'messenger.bus.commands',
+            ],
+        ]);
+
+        $extension = new OpenTelemetryExtension();
+        $extension->prepend($container);
+
+        $frameworkConfigs = $container->getExtensionConfig('framework');
+        self::assertNotEmpty($frameworkConfigs);
+
+        $messengerConfig = $frameworkConfigs[0]['messenger'] ?? null;
+        self::assertNotNull($messengerConfig);
+
+        $middleware = $messengerConfig['buses']['messenger.bus.commands']['middleware'] ?? [];
+        self::assertContains(OpenTelemetryMiddleware::class, $middleware);
+        self::assertArrayNotHasKey('messenger.bus.default', $messengerConfig['buses']);
+    }
+
     public function testPrependSkippedWhenMessengerDisabled(): void
     {
         $container = new ContainerBuilder();

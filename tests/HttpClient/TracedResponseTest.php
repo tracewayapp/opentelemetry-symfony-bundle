@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\Tests\HttpClient;
 
+use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
+use Symfony\Contracts\HttpClient\ResponseInterface;
 use Traceway\OpenTelemetryBundle\HttpClient\TraceableHttpClient;
 use Traceway\OpenTelemetryBundle\HttpClient\TracedResponse;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
@@ -64,6 +66,22 @@ final class TracedResponseTest extends TestCase
         $attributes = $spans[0]->getAttributes()->toArray();
         self::assertSame(200, $attributes['http.response.status_code']);
         self::assertSame(5, $attributes['http.response.body.size']);
+    }
+
+    public function testToStreamReturnsSeekableStreamAndFinalizesSpan(): void
+    {
+        $response = $this->makeResponse(200, 'streamed');
+
+        $stream = $response->toStream(false);
+
+        self::assertIsResource($stream);
+        self::assertSame('streamed', stream_get_contents($stream));
+        self::assertSame(0, fseek($stream, 0));
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        $attributes = $spans[0]->getAttributes()->toArray();
+        self::assertSame(200, $attributes['http.response.status_code']);
     }
 
     public function testToArrayFinalizesSpan(): void
@@ -193,6 +211,42 @@ final class TracedResponseTest extends TestCase
             $response->getContent(true);
             self::fail('Expected exception');
         } catch (\Throwable) {
+        }
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
+        self::assertNotEmpty($spans[0]->getEvents());
+        self::assertSame('exception', $spans[0]->getEvents()[0]->getName());
+    }
+
+    public function testToStreamThrowsOnErrorAndRecordsException(): void
+    {
+        $response = $this->makeResponse(500, 'Server Error');
+
+        try {
+            $response->toStream(true);
+            self::fail('Expected exception');
+        } catch (\Throwable) {
+        }
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
+        self::assertNotEmpty($spans[0]->getEvents());
+        self::assertSame('exception', $spans[0]->getEvents()[0]->getName());
+    }
+
+    public function testToStreamThrowsAndRecordsExceptionForNonStreamableInnerResponse(): void
+    {
+        $span = Globals::tracerProvider()->getTracer('test')->spanBuilder('GET')->startSpan();
+        $response = new TracedResponse($this->createStub(ResponseInterface::class), $span);
+
+        try {
+            $response->toStream(false);
+            self::fail('Expected exception');
+        } catch (\LogicException $e) {
+            self::assertSame('Response does not implement StreamableInterface.', $e->getMessage());
         }
 
         $spans = $this->exporter->getSpans();

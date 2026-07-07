@@ -11,6 +11,9 @@ use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableMiddleware as Doct
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OtelLoggerFlushSubscriber;
+use Traceway\OpenTelemetryBundle\EventSubscriber\SchedulerSubscriber;
+use Traceway\OpenTelemetryBundle\Mailer\TraceableMailer;
+use Traceway\OpenTelemetryBundle\Mailer\TraceableTransports;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
 use Traceway\OpenTelemetryBundle\Monolog\OtelLogHandler;
 use Traceway\OpenTelemetryBundle\Monolog\TraceContextProcessor;
@@ -71,6 +74,36 @@ final class OpenTelemetryExtensionTest extends TestCase
 
         self::assertFalse($container->hasDefinition(OpenTelemetrySubscriber::class));
         self::assertTrue($container->hasDefinition(Tracing::class));
+    }
+
+    public function testTraceSubsystemsDisabledWhenTracesDisabled(): void
+    {
+        $container = $this->buildContainer([
+            'traces' => [
+                'enabled' => false,
+                'http_client' => ['enabled' => true],
+                'console' => ['enabled' => true],
+                'messenger' => ['enabled' => true],
+                'doctrine' => ['enabled' => true],
+                'cache' => ['enabled' => true],
+                'twig' => ['enabled' => true],
+                'scheduler' => ['enabled' => true],
+                'mailer' => ['enabled' => true],
+            ],
+        ]);
+
+        self::assertFalse($container->getParameter('open_telemetry.http_client_enabled'));
+        self::assertFalse($container->getParameter('open_telemetry.traces.messenger.enabled'));
+        self::assertFalse($container->getParameter('open_telemetry.cache_enabled'));
+
+        self::assertFalse($container->hasDefinition(OpenTelemetrySubscriber::class));
+        self::assertFalse($container->hasDefinition(ConsoleSubscriber::class));
+        self::assertFalse($container->hasDefinition(OpenTelemetryMiddleware::class));
+        self::assertFalse($container->hasDefinition(DoctrineTraceableMiddleware::class));
+        self::assertFalse($container->hasDefinition(OpenTelemetryTwigExtension::class));
+        self::assertFalse($container->hasDefinition(SchedulerSubscriber::class));
+        self::assertFalse($container->hasDefinition(TraceableMailer::class));
+        self::assertFalse($container->hasDefinition(TraceableTransports::class));
     }
 
     public function testConsoleSubscriberRemovedWhenDisabled(): void
@@ -175,6 +208,23 @@ final class OpenTelemetryExtensionTest extends TestCase
     {
         $container = new ContainerBuilder();
         $container->prependExtensionConfig('open_telemetry', ['traces' => ['messenger' => ['enabled' => false]]]);
+
+        $extension = new OpenTelemetryExtension();
+        $extension->prepend($container);
+
+        $frameworkConfigs = $container->getExtensionConfig('framework');
+        self::assertEmpty($frameworkConfigs);
+    }
+
+    public function testPrependSkippedWhenTracesDisabled(): void
+    {
+        $container = new ContainerBuilder();
+        $container->prependExtensionConfig('open_telemetry', [
+            'traces' => [
+                'enabled' => false,
+                'messenger' => ['enabled' => true],
+            ],
+        ]);
 
         $extension = new OpenTelemetryExtension();
         $extension->prepend($container);

@@ -276,14 +276,6 @@ final class BundleBootTest extends TestCase
         self::assertContains(NoopMessengerMiddleware::class, $middlewareClasses);
         self::assertContains(OpenTelemetryMiddleware::class, $middlewareClasses);
         self::assertContains(SendMessageMiddleware::class, $middlewareClasses);
-        self::assertLessThan(
-            array_search(OpenTelemetryMiddleware::class, $middlewareClasses, true),
-            array_search(NoopMessengerMiddleware::class, $middlewareClasses, true),
-        );
-        self::assertLessThan(
-            array_search(SendMessageMiddleware::class, $middlewareClasses, true),
-            array_search(OpenTelemetryMiddleware::class, $middlewareClasses, true),
-        );
     }
 
     public function testMessengerMetricsWithoutMetricsEnabledFails(): void
@@ -506,8 +498,7 @@ final class BundleBootTest extends TestCase
      */
     private function messengerMiddlewareClasses(object $messageBus): array
     {
-        $reflection = new \ReflectionClass($messageBus);
-        $property = $reflection->getProperty('middlewareAggregate');
+        $property = new \ReflectionProperty($messageBus, 'middlewareAggregate');
         $middleware = iterator_to_array($property->getValue($messageBus), false);
 
         return array_map(

@@ -8,7 +8,6 @@ use Composer\InstalledVersions;
 use OpenTelemetry\SDK\Common\Configuration\Configuration;
 use OpenTelemetry\SDK\Common\Configuration\Variables;
 use OpenTelemetry\SemConv\TraceAttributes;
-use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\CacheTracingPass;
@@ -58,7 +57,7 @@ final class OpenTelemetryBundle extends Bundle
         $container->addCompilerPass(new HttpClientTracingPass());
         $container->addCompilerPass(new HttpClientMetricsPass());
         $container->addCompilerPass(new CacheTracingPass());
-        $container->addCompilerPass(new MessengerMiddlewarePass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 10);
+        $container->addCompilerPass(new MessengerMiddlewarePass(), priority: 10);
     }
 
     public function boot(): void

@@ -13,37 +13,14 @@ use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
 
 final class MessengerMiddlewarePassTest extends TestCase
 {
-    public function testInsertsTracingMiddlewareBeforeTerminalMessengerMiddleware(): void
-    {
-        $container = $this->containerWithDefaultBus('default');
-        $container->setParameter('open_telemetry.metrics.enabled', false);
-        $container->setDefinition(OpenTelemetryMiddleware::class, new Definition(OpenTelemetryMiddleware::class));
-        $container->setParameter('default.middleware', [
-            ['id' => 'add_default_stamps_middleware'],
-            ['id' => 'doctrine_ping_connection'],
-            ['id' => 'doctrine_close_connection'],
-            ['id' => 'send_message'],
-            ['id' => 'handle_message'],
-        ]);
-
-        (new MessengerMiddlewarePass())->process($container);
-
-        self::assertSame([
-            'add_default_stamps_middleware',
-            'doctrine_ping_connection',
-            'doctrine_close_connection',
-            OpenTelemetryMiddleware::class,
-            'send_message',
-            'handle_message',
-        ], $this->middlewareIds($container, 'default.middleware'));
-    }
-
-    public function testUsesConfiguredDefaultBusAlias(): void
+    public function testInsertsAvailableMiddlewareOnConfiguredDefaultBus(): void
     {
         $container = $this->containerWithDefaultBus('command.bus');
-        $container->setParameter('open_telemetry.metrics.enabled', false);
         $container->setDefinition(OpenTelemetryMiddleware::class, new Definition(OpenTelemetryMiddleware::class));
+        $container->setDefinition(OpenTelemetryMetricsMiddleware::class, new Definition(OpenTelemetryMetricsMiddleware::class));
         $container->setParameter('command.bus.middleware', [
+            ['id' => 'add_default_stamps_middleware'],
+            ['id' => 'application_middleware'],
             ['id' => 'send_message'],
             ['id' => 'handle_message'],
         ]);
@@ -52,95 +29,109 @@ final class MessengerMiddlewarePassTest extends TestCase
             ['id' => 'handle_message'],
         ]);
 
-        (new MessengerMiddlewarePass())->process($container);
+        $pass = new MessengerMiddlewarePass();
+        $pass->process($container);
 
-        self::assertSame([
-            OpenTelemetryMiddleware::class,
-            'send_message',
-            'handle_message',
-        ], $this->middlewareIds($container, 'command.bus.middleware'));
-        self::assertSame([
-            'send_message',
-            'handle_message',
-        ], $this->middlewareIds($container, 'event.bus.middleware'));
-    }
-
-    public function testInsertsMetricsMiddlewareWhenMetricsAreEnabled(): void
-    {
-        $container = $this->containerWithDefaultBus('default');
-        $container->setParameter('open_telemetry.metrics.enabled', true);
-        $container->setDefinition(OpenTelemetryMiddleware::class, new Definition(OpenTelemetryMiddleware::class));
-        $container->setDefinition(OpenTelemetryMetricsMiddleware::class, new Definition(OpenTelemetryMetricsMiddleware::class));
-        $container->setParameter('default.middleware', [
-            ['id' => 'send_message'],
-            ['id' => 'handle_message'],
-        ]);
-
-        (new MessengerMiddlewarePass())->process($container);
-
-        self::assertSame([
-            OpenTelemetryMiddleware::class,
-            OpenTelemetryMetricsMiddleware::class,
-            'send_message',
-            'handle_message',
-        ], $this->middlewareIds($container, 'default.middleware'));
-    }
-
-    public function testDoesNotInsertMetricsMiddlewareWhenMetricsAreDisabled(): void
-    {
-        $container = $this->containerWithDefaultBus('default');
-        $container->setParameter('open_telemetry.metrics.enabled', false);
-        $container->setDefinition(OpenTelemetryMiddleware::class, new Definition(OpenTelemetryMiddleware::class));
-        $container->setDefinition(OpenTelemetryMetricsMiddleware::class, new Definition(OpenTelemetryMetricsMiddleware::class));
-        $container->setParameter('default.middleware', [
-            ['id' => 'send_message'],
-            ['id' => 'handle_message'],
-        ]);
-
-        (new MessengerMiddlewarePass())->process($container);
-
-        self::assertSame([
-            OpenTelemetryMiddleware::class,
-            'send_message',
-            'handle_message',
-        ], $this->middlewareIds($container, 'default.middleware'));
+        self::assertSame(
+            [
+                'add_default_stamps_middleware',
+                'application_middleware',
+                OpenTelemetryMiddleware::class,
+                OpenTelemetryMetricsMiddleware::class,
+                'send_message',
+                'handle_message',
+            ],
+            $this->middlewareIds($container, 'command.bus.middleware'),
+        );
+        self::assertSame(
+            ['send_message', 'handle_message'],
+            $this->middlewareIds($container, 'event.bus.middleware'),
+        );
     }
 
     public function testDoesNotDuplicateManuallyConfiguredMiddleware(): void
     {
         $container = $this->containerWithDefaultBus('default');
-        $container->setParameter('open_telemetry.metrics.enabled', false);
         $container->setDefinition(OpenTelemetryMiddleware::class, new Definition(OpenTelemetryMiddleware::class));
+        $container->setDefinition(OpenTelemetryMetricsMiddleware::class, new Definition(OpenTelemetryMetricsMiddleware::class));
         $container->setParameter('default.middleware', [
             ['id' => OpenTelemetryMiddleware::class],
+            ['id' => 'messenger.middleware.'.OpenTelemetryMetricsMiddleware::class],
             ['id' => 'send_message'],
             ['id' => 'handle_message'],
         ]);
 
-        (new MessengerMiddlewarePass())->process($container);
+        $pass = new MessengerMiddlewarePass();
+        $pass->process($container);
 
-        self::assertSame([
-            OpenTelemetryMiddleware::class,
-            'send_message',
-            'handle_message',
-        ], $this->middlewareIds($container, 'default.middleware'));
+        self::assertSame(
+            [
+                OpenTelemetryMiddleware::class,
+                'messenger.middleware.'.OpenTelemetryMetricsMiddleware::class,
+                'send_message',
+                'handle_message',
+            ],
+            $this->middlewareIds($container, 'default.middleware'),
+        );
     }
 
-    public function testSkipsWhenMiddlewareServiceDoesNotExist(): void
+    public function testAppendsMiddlewareWhenDefaultMiddlewareIsDisabled(): void
     {
         $container = $this->containerWithDefaultBus('default');
-        $container->setParameter('open_telemetry.metrics.enabled', false);
+        $container->setDefinition(OpenTelemetryMiddleware::class, new Definition(OpenTelemetryMiddleware::class));
+        $container->setParameter('default.middleware', [
+            ['id' => 'application_middleware'],
+        ]);
+
+        $pass = new MessengerMiddlewarePass();
+        $pass->process($container);
+
+        self::assertSame(
+            ['application_middleware', OpenTelemetryMiddleware::class],
+            $this->middlewareIds($container, 'default.middleware'),
+        );
+    }
+
+    public function testSkipsWhenMiddlewareServicesDoNotExist(): void
+    {
+        $container = $this->containerWithDefaultBus('default');
         $container->setParameter('default.middleware', [
             ['id' => 'send_message'],
             ['id' => 'handle_message'],
         ]);
 
-        (new MessengerMiddlewarePass())->process($container);
+        $pass = new MessengerMiddlewarePass();
+        $pass->process($container);
 
-        self::assertSame([
-            'send_message',
-            'handle_message',
-        ], $this->middlewareIds($container, 'default.middleware'));
+        self::assertSame(
+            ['send_message', 'handle_message'],
+            $this->middlewareIds($container, 'default.middleware'),
+        );
+    }
+
+    public function testSkipsWithoutDefaultBusAliasOrMiddlewareParameter(): void
+    {
+        $containerWithoutAlias = new ContainerBuilder();
+        $containerWithoutAlias->setDefinition(OpenTelemetryMiddleware::class, new Definition(OpenTelemetryMiddleware::class));
+        $containerWithoutAlias->setParameter('default.middleware', [
+            ['id' => 'send_message'],
+            ['id' => 'handle_message'],
+        ]);
+
+        $pass = new MessengerMiddlewarePass();
+        $pass->process($containerWithoutAlias);
+
+        self::assertSame(
+            ['send_message', 'handle_message'],
+            $this->middlewareIds($containerWithoutAlias, 'default.middleware'),
+        );
+
+        $containerWithoutParameter = $this->containerWithDefaultBus('default');
+        $containerWithoutParameter->setDefinition(OpenTelemetryMiddleware::class, new Definition(OpenTelemetryMiddleware::class));
+
+        $pass->process($containerWithoutParameter);
+
+        self::assertFalse($containerWithoutParameter->hasParameter('default.middleware'));
     }
 
     private function containerWithDefaultBus(string $busId): ContainerBuilder
@@ -152,16 +143,13 @@ final class MessengerMiddlewarePassTest extends TestCase
     }
 
     /**
-     * @return list<string|null>
+     * @return list<string>
      */
     private function middlewareIds(ContainerBuilder $container, string $parameter): array
     {
+        /** @var list<array{id: string}> $middleware */
         $middleware = $container->getParameter($parameter);
-        \assert(\is_array($middleware));
 
-        return array_map(
-            static fn (mixed $item): ?string => \is_array($item) && \is_string($item['id'] ?? null) ? $item['id'] : null,
-            array_values($middleware),
-        );
+        return array_column($middleware, 'id');
     }
 }

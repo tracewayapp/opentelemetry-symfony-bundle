@@ -79,9 +79,7 @@ final class OpenTelemetryTestKernel extends Kernel
                 'http_method_override' => false,
             ], $frameworkConfig));
 
-            if (class_exists(NoopMessengerMiddleware::class)) {
-                $container->setDefinition(NoopMessengerMiddleware::class, new Definition(NoopMessengerMiddleware::class));
-            }
+            $container->setDefinition(NoopMessengerMiddleware::class, new Definition(NoopMessengerMiddleware::class));
 
             if ([] !== $otelConfig) {
                 $container->loadFromExtension('open_telemetry', $otelConfig);

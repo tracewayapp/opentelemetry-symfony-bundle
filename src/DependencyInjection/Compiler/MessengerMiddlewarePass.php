@@ -18,122 +18,68 @@ use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
  */
 final class MessengerMiddlewarePass implements CompilerPassInterface
 {
+    private const OPENTELEMETRY_MIDDLEWARE_IDS = [
+        OpenTelemetryMiddleware::class,
+        OpenTelemetryMetricsMiddleware::class,
+    ];
+
+    private const TERMINAL_MIDDLEWARE_IDS = [
+        'send_message',
+        'messenger.middleware.send_message',
+        'handle_message',
+        'messenger.middleware.handle_message',
+    ];
+
     public function process(ContainerBuilder $container): void
     {
-        $busId = $this->resolveDefaultBusId($container);
-        if (null === $busId) {
+        if (!$container->hasAlias('messenger.default_bus')) {
             return;
         }
 
-        $parameter = $busId.'.middleware';
+        $parameter = $container->getAlias('messenger.default_bus').'.middleware';
         if (!$container->hasParameter($parameter)) {
             return;
         }
 
-        $middleware = $container->getParameter($parameter);
-        if (!\is_array($middleware)) {
+        /** @var list<array{id: string, arguments?: array<int|string, mixed>}> $middlewares */
+        $middlewares = $container->getParameter($parameter);
+        $middlewareIds = array_column($middlewares, 'id');
+        $middlewareToInsert = [];
+
+        foreach (self::OPENTELEMETRY_MIDDLEWARE_IDS as $serviceId) {
+            if (!$container->has($serviceId)) {
+                continue;
+            }
+
+            if (\in_array($serviceId, $middlewareIds, true)) {
+                continue;
+            }
+
+            if (\in_array('messenger.middleware.'.$serviceId, $middlewareIds, true)) {
+                continue;
+            }
+
+            $middlewareToInsert[] = ['id' => $serviceId];
+        }
+
+        if ([] === $middlewareToInsert) {
             return;
         }
 
-        if ($container->has(OpenTelemetryMiddleware::class)) {
-            $middleware = $this->insertMiddleware($middleware, OpenTelemetryMiddleware::class);
-        }
-
-        if ($this->isMetricsEnabled($container) && $container->has(OpenTelemetryMetricsMiddleware::class)) {
-            $middleware = $this->insertMiddleware($middleware, OpenTelemetryMetricsMiddleware::class);
-        }
-
-        $container->setParameter($parameter, $middleware);
-    }
-
-    private function resolveDefaultBusId(ContainerBuilder $container): ?string
-    {
-        if ($container->hasAlias('messenger.default_bus')) {
-            return (string) $container->getAlias('messenger.default_bus');
-        }
-
-        $busIds = array_keys($container->findTaggedServiceIds('messenger.bus'));
-        if (1 === \count($busIds)) {
-            return $busIds[0];
-        }
-
-        if ($container->hasParameter('messenger.bus.default.middleware')) {
-            return 'messenger.bus.default';
-        }
-
-        return null;
-    }
-
-    /**
-     * @param array<int|string, mixed> $middleware
-     *
-     * @return array<int|string, mixed>
-     */
-    private function insertMiddleware(array $middleware, string $serviceId): array
-    {
-        if ($this->hasMiddleware($middleware, $serviceId)) {
-            return $middleware;
-        }
-
-        $position = $this->findTerminalMiddlewarePosition($middleware);
-        array_splice($middleware, $position, 0, [['id' => $serviceId]]);
-
-        return $middleware;
-    }
-
-    /**
-     * @param array<int|string, mixed> $middleware
-     */
-    private function hasMiddleware(array $middleware, string $serviceId): bool
-    {
-        foreach ($middleware as $item) {
-            $id = $this->middlewareId($item);
-            if ($serviceId === $id || 'messenger.middleware.'.$serviceId === $id) {
-                return true;
+        $position = \count($middlewares);
+        foreach ($middlewareIds as $key => $id) {
+            if (\in_array($id, self::TERMINAL_MIDDLEWARE_IDS, true)) {
+                $position = $key;
+                break;
             }
         }
 
-        return false;
-    }
+        $newMiddlewares = [
+            ...\array_slice($middlewares, 0, $position),
+            ...$middlewareToInsert,
+            ...\array_slice($middlewares, $position),
+        ];
 
-    /**
-     * @param array<int|string, mixed> $middleware
-     */
-    private function findTerminalMiddlewarePosition(array $middleware): int
-    {
-        foreach ($middleware as $position => $item) {
-            if (\in_array($this->middlewareId($item), [
-                'send_message',
-                'messenger.middleware.send_message',
-                'handle_message',
-                'messenger.middleware.handle_message',
-            ], true)) {
-                return (int) $position;
-            }
-        }
-
-        return \count($middleware);
-    }
-
-    private function middlewareId(mixed $item): ?string
-    {
-        if (\is_string($item)) {
-            return $item;
-        }
-
-        if (!\is_array($item) || !isset($item['id'])) {
-            return null;
-        }
-
-        return \is_string($item['id']) ? $item['id'] : null;
-    }
-
-    private function isMetricsEnabled(ContainerBuilder $container): bool
-    {
-        if (!$container->hasParameter('open_telemetry.metrics.enabled')) {
-            return false;
-        }
-
-        return true === $container->getParameter('open_telemetry.metrics.enabled');
+        $container->setParameter($parameter, $newMiddlewares);
     }
 }

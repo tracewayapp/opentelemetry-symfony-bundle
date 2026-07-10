@@ -7,6 +7,7 @@ namespace Traceway\OpenTelemetryBundle\Tests\Functional;
 use Symfony\Component\Config\Loader\LoaderInterface;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\HttpKernel\Kernel;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
@@ -34,17 +35,23 @@ final class OpenTelemetryTestKernel extends Kernel
     /** @var list<\Symfony\Component\HttpKernel\Bundle\BundleInterface> */
     private array $extraBundles;
 
+    /** @var array<string, mixed> */
+    private array $frameworkConfig;
+
     /**
      * @param array<string, mixed>                                       $otelConfig
      * @param list<\Symfony\Component\HttpKernel\Bundle\BundleInterface> $extraBundles
+     * @param array<string, mixed>                                       $frameworkConfig
      */
     public function __construct(
         array $otelConfig = [],
         array $extraBundles = [],
+        array $frameworkConfig = [],
     ) {
         $this->instanceId = ++self::$instanceCounter;
         $this->otelConfig = $otelConfig;
         $this->extraBundles = $extraBundles;
+        $this->frameworkConfig = $frameworkConfig;
 
         parent::__construct('test', false);
     }
@@ -63,13 +70,18 @@ final class OpenTelemetryTestKernel extends Kernel
     public function registerContainerConfiguration(LoaderInterface $loader): void
     {
         $otelConfig = $this->otelConfig;
+        $frameworkConfig = $this->frameworkConfig;
 
-        $loader->load(static function (ContainerBuilder $container) use ($otelConfig): void {
-            $container->loadFromExtension('framework', [
+        $loader->load(static function (ContainerBuilder $container) use ($otelConfig, $frameworkConfig): void {
+            $container->loadFromExtension('framework', array_replace_recursive([
                 'secret' => 'test',
                 'test' => true,
                 'http_method_override' => false,
-            ]);
+            ], $frameworkConfig));
+
+            if (class_exists(NoopMessengerMiddleware::class)) {
+                $container->setDefinition(NoopMessengerMiddleware::class, new Definition(NoopMessengerMiddleware::class));
+            }
 
             if ([] !== $otelConfig) {
                 $container->loadFromExtension('open_telemetry', $otelConfig);

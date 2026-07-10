@@ -7,6 +7,7 @@ namespace Traceway\OpenTelemetryBundle\Tests\Functional;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
+use Symfony\Component\Messenger\Middleware\SendMessageMiddleware;
 use Traceway\OpenTelemetryBundle\Command\Doctor\Support\CheckRunner;
 use Traceway\OpenTelemetryBundle\Command\DoctorCommand;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\MeteredMiddleware as DoctrineMeteredMiddleware;
@@ -255,6 +256,36 @@ final class BundleBootTest extends TestCase
         );
     }
 
+    public function testMessengerMiddlewareIsWiredWhenApplicationDefinesBusMiddleware(): void
+    {
+        $container = $this->boot([], [], [
+            'messenger' => [
+                'default_bus' => 'default',
+                'buses' => [
+                    'default' => [
+                        'middleware' => [
+                            NoopMessengerMiddleware::class,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $middlewareClasses = $this->messengerMiddlewareClasses($container->get('messenger.default_bus'));
+
+        self::assertContains(NoopMessengerMiddleware::class, $middlewareClasses);
+        self::assertContains(OpenTelemetryMiddleware::class, $middlewareClasses);
+        self::assertContains(SendMessageMiddleware::class, $middlewareClasses);
+        self::assertLessThan(
+            array_search(OpenTelemetryMiddleware::class, $middlewareClasses, true),
+            array_search(NoopMessengerMiddleware::class, $middlewareClasses, true),
+        );
+        self::assertLessThan(
+            array_search(SendMessageMiddleware::class, $middlewareClasses, true),
+            array_search(OpenTelemetryMiddleware::class, $middlewareClasses, true),
+        );
+    }
+
     public function testMessengerMetricsWithoutMetricsEnabledFails(): void
     {
         $this->expectException(InvalidConfigurationException::class);
@@ -460,12 +491,28 @@ final class BundleBootTest extends TestCase
     /**
      * @param array<string, mixed>                                       $otelConfig
      * @param list<\Symfony\Component\HttpKernel\Bundle\BundleInterface> $extraBundles
+     * @param array<string, mixed>                                       $frameworkConfig
      */
-    private function boot(array $otelConfig = [], array $extraBundles = []): \Symfony\Component\DependencyInjection\ContainerInterface
+    private function boot(array $otelConfig = [], array $extraBundles = [], array $frameworkConfig = []): \Symfony\Component\DependencyInjection\ContainerInterface
     {
-        $this->kernel = new OpenTelemetryTestKernel($otelConfig, $extraBundles);
+        $this->kernel = new OpenTelemetryTestKernel($otelConfig, $extraBundles, $frameworkConfig);
         $this->kernel->boot();
 
         return $this->kernel->getContainer();
+    }
+
+    /**
+     * @return list<class-string>
+     */
+    private function messengerMiddlewareClasses(object $messageBus): array
+    {
+        $reflection = new \ReflectionClass($messageBus);
+        $property = $reflection->getProperty('middlewareAggregate');
+        $middleware = iterator_to_array($property->getValue($messageBus), false);
+
+        return array_map(
+            static fn (object $middleware): string => $middleware::class,
+            $middleware,
+        );
     }
 }

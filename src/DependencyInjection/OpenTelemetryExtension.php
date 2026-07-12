@@ -43,7 +43,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         $configs = $container->getExtensionConfig($this->getAlias());
 
         try {
-            /** @var array{traces: array{enabled: bool, messenger: array{enabled: bool}}, metrics: array{enabled: bool, messenger: array{enabled: bool}}, logs: array{export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}} $config */
+            /** @var array{logs: array{export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}} $config */
             $config = $this->processConfiguration(new Configuration(), $configs);
         } catch (\Symfony\Component\Config\Definition\Exception\InvalidTypeException $e) {
             if ($this->containsEnvPlaceholder($configs)) {
@@ -51,32 +51,6 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             }
 
             throw $e;
-        }
-
-        $tracingEnabled = $config['traces']['enabled'];
-
-        if ($this->isMessengerAvailable()) {
-            $middlewares = [];
-            if ($tracingEnabled && $config['traces']['messenger']['enabled']) {
-                $middlewares[] = OpenTelemetryMiddleware::class;
-            }
-            $metrics = $config['metrics'];
-            if ($metrics['enabled'] && $metrics['messenger']['enabled']) {
-                $middlewares[] = OpenTelemetryMetricsMiddleware::class;
-            }
-            if ([] !== $middlewares) {
-                $busName = $this->getMessengerDefaultBusName($container);
-
-                $container->prependExtensionConfig('framework', [
-                    'messenger' => [
-                        'buses' => [
-                            $busName => [
-                                'middleware' => $middlewares,
-                            ],
-                        ],
-                    ],
-                ]);
-            }
         }
 
         if ($config['logs']['export']['enabled']) {
@@ -355,40 +329,5 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     private function isXRayAvailable(): bool
     {
         return class_exists(\OpenTelemetry\Contrib\Aws\Xray\Propagator::class);
-    }
-
-    private function getMessengerDefaultBusName(ContainerBuilder $container): string
-    {
-        $busName = null;
-        $configuredBuses = [];
-
-        foreach ($container->getExtensionConfig('framework') as $frameworkConfig) {
-            if (!isset($frameworkConfig['messenger']) || !\is_array($frameworkConfig['messenger'])) {
-                continue;
-            }
-
-            $defaultBus = $frameworkConfig['messenger']['default_bus'] ?? null;
-
-            if (\is_string($defaultBus) && '' !== $defaultBus) {
-                $busName = $defaultBus;
-            }
-
-            if (isset($frameworkConfig['messenger']['buses']) && \is_array($frameworkConfig['messenger']['buses'])) {
-                foreach (array_keys($frameworkConfig['messenger']['buses']) as $configuredBus) {
-                    $configuredBuses[(string) $configuredBus] = true;
-                }
-            }
-        }
-
-        if (null !== $busName) {
-            return $busName;
-        }
-
-        // With exactly one custom bus and no default_bus, FrameworkBundle infers it; mirror that.
-        if (1 === \count($configuredBuses)) {
-            return array_key_first($configuredBuses);
-        }
-
-        return 'messenger.bus.default';
     }
 }

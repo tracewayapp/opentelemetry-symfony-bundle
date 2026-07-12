@@ -165,64 +165,13 @@ final class OpenTelemetryExtensionTest extends TestCase
         self::assertFalse($def->getArgument('$rootSpans'));
     }
 
-    public function testPrependRegistersMessengerMiddleware(): void
+    public function testPrependDoesNotInjectMessengerMiddlewareConfig(): void
     {
         $container = new ContainerBuilder();
         $extension = new OpenTelemetryExtension();
         $extension->prepend($container);
 
-        $frameworkConfigs = $container->getExtensionConfig('framework');
-        self::assertNotEmpty($frameworkConfigs);
-
-        $messengerConfig = $frameworkConfigs[0]['messenger'] ?? null;
-        self::assertNotNull($messengerConfig);
-
-        $middleware = $messengerConfig['buses']['messenger.bus.default']['middleware'] ?? [];
-        self::assertContains(OpenTelemetryMiddleware::class, $middleware);
-    }
-
-    public function testPrependRegistersMessengerMiddlewareOnConfiguredDefaultBus(): void
-    {
-        $container = new ContainerBuilder();
-        $container->prependExtensionConfig('framework', [
-            'messenger' => [
-                'default_bus' => 'messenger.bus.commands',
-            ],
-        ]);
-
-        $extension = new OpenTelemetryExtension();
-        $extension->prepend($container);
-
-        $frameworkConfigs = $container->getExtensionConfig('framework');
-        self::assertNotEmpty($frameworkConfigs);
-
-        $messengerConfig = $frameworkConfigs[0]['messenger'] ?? null;
-        self::assertNotNull($messengerConfig);
-
-        $middleware = $messengerConfig['buses']['messenger.bus.commands']['middleware'] ?? [];
-        self::assertContains(OpenTelemetryMiddleware::class, $middleware);
-        self::assertArrayNotHasKey('messenger.bus.default', $messengerConfig['buses']);
-    }
-
-    public function testPrependInfersSingleCustomBusWithoutDefaultBus(): void
-    {
-        $container = new ContainerBuilder();
-        $container->prependExtensionConfig('framework', [
-            'messenger' => [
-                'buses' => ['command.bus' => ['middleware' => ['validation']]],
-            ],
-        ]);
-
-        $extension = new OpenTelemetryExtension();
-        $extension->prepend($container);
-
-        $frameworkConfigs = $container->getExtensionConfig('framework');
-        $messengerConfig = $frameworkConfigs[0]['messenger'] ?? null;
-        self::assertNotNull($messengerConfig);
-
-        $middleware = $messengerConfig['buses']['command.bus']['middleware'] ?? [];
-        self::assertContains(OpenTelemetryMiddleware::class, $middleware);
-        self::assertArrayNotHasKey('messenger.bus.default', $messengerConfig['buses'], 'must not add a second bus, which would abort compilation');
+        self::assertSame([], $container->getExtensionConfig('framework'));
     }
 
     public function testPrependRejectsEnvPlaceholdersWithClearError(): void
@@ -237,35 +186,6 @@ final class OpenTelemetryExtensionTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessageMatches('/placeholders are not supported/');
         $extension->prepend($container);
-    }
-
-    public function testPrependSkippedWhenMessengerDisabled(): void
-    {
-        $container = new ContainerBuilder();
-        $container->prependExtensionConfig('open_telemetry', ['traces' => ['messenger' => ['enabled' => false]]]);
-
-        $extension = new OpenTelemetryExtension();
-        $extension->prepend($container);
-
-        $frameworkConfigs = $container->getExtensionConfig('framework');
-        self::assertEmpty($frameworkConfigs);
-    }
-
-    public function testPrependSkippedWhenTracesDisabled(): void
-    {
-        $container = new ContainerBuilder();
-        $container->prependExtensionConfig('open_telemetry', [
-            'traces' => [
-                'enabled' => false,
-                'messenger' => ['enabled' => true],
-            ],
-        ]);
-
-        $extension = new OpenTelemetryExtension();
-        $extension->prepend($container);
-
-        $frameworkConfigs = $container->getExtensionConfig('framework');
-        self::assertEmpty($frameworkConfigs);
     }
 
     public function testDoctrineMiddlewareRegisteredWhenEnabled(): void

@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\CacheTracingPass;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\HttpClientTracingPass;
+use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\MessengerMiddlewarePass;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
 final class OpenTelemetryBundleTest extends TestCase
@@ -57,6 +58,24 @@ final class OpenTelemetryBundleTest extends TestCase
         }
 
         self::assertTrue($found, 'CacheTracingPass should be registered');
+    }
+
+    public function testBuildRegistersMessengerMiddlewarePass(): void
+    {
+        $container = new ContainerBuilder();
+        $bundle = new OpenTelemetryBundle();
+        $bundle->build($container);
+
+        $passes = $container->getCompilerPassConfig()->getBeforeOptimizationPasses();
+        $found = false;
+        foreach ($passes as $pass) {
+            if ($pass instanceof MessengerMiddlewarePass) {
+                $found = true;
+                break;
+            }
+        }
+
+        self::assertTrue($found, 'MessengerMiddlewarePass should be registered');
     }
 
     public function testBootDoesNotSetOpenTelemetryConfigWithoutConfiguration(): void
@@ -293,6 +312,30 @@ final class OpenTelemetryBundleTest extends TestCase
         self::assertSame($expectedExporterOtlpHeaders, getenv(Variables::OTEL_EXPORTER_OTLP_HEADERS));
 
         self::assertSame(['other-config-value' => 'abc', 'custom.header' => 'custom.abc', 'Authorization' => 'api-key'], Configuration::getMap(Variables::OTEL_EXPORTER_OTLP_HEADERS));
+    }
+
+    public function testMergeEnvVariablePercentEncodesReservedCharacters(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.sdk.config', [
+            'enabled' => true,
+            'autoload_enabled' => false,
+            'use_putenv' => false,
+            'resource_attributes' => [],
+            'exporter_otlp_headers' => ['Authorization' => 'Basic a,b=c'],
+        ]);
+
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
+
+        // "," and "=" in the value must not corrupt the baggage-format variable.
+        self::assertSame('Authorization=Basic%20a%2Cb%3Dc', $_SERVER[Variables::OTEL_EXPORTER_OTLP_HEADERS]);
+        self::assertSame(
+            'Basic a,b=c',
+            rawurldecode(Configuration::getMap(Variables::OTEL_EXPORTER_OTLP_HEADERS)['Authorization']),
+            'the OTLP exporter rawurldecodes header values, so the round-trip must be lossless',
+        );
     }
 
     protected function tearDown(): void

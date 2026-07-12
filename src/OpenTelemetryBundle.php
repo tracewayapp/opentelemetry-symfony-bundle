@@ -13,6 +13,7 @@ use Symfony\Component\HttpKernel\Bundle\Bundle;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\CacheTracingPass;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\HttpClientMetricsPass;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\HttpClientTracingPass;
+use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\MessengerMiddlewarePass;
 
 final class OpenTelemetryBundle extends Bundle
 {
@@ -61,6 +62,7 @@ final class OpenTelemetryBundle extends Bundle
         $container->addCompilerPass(new HttpClientTracingPass());
         $container->addCompilerPass(new HttpClientMetricsPass());
         $container->addCompilerPass(new CacheTracingPass());
+        $container->addCompilerPass(new MessengerMiddlewarePass(), priority: 10);
     }
 
     public function boot(): void

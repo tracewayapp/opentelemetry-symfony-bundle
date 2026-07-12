@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\CacheTracingPass;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\HttpClientTracingPass;
+use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\MessengerMiddlewarePass;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
 final class OpenTelemetryBundleTest extends TestCase
@@ -57,6 +58,24 @@ final class OpenTelemetryBundleTest extends TestCase
         }
 
         self::assertTrue($found, 'CacheTracingPass should be registered');
+    }
+
+    public function testBuildRegistersMessengerMiddlewarePass(): void
+    {
+        $container = new ContainerBuilder();
+        $bundle = new OpenTelemetryBundle();
+        $bundle->build($container);
+
+        $passes = $container->getCompilerPassConfig()->getBeforeOptimizationPasses();
+        $found = false;
+        foreach ($passes as $pass) {
+            if ($pass instanceof MessengerMiddlewarePass) {
+                $found = true;
+                break;
+            }
+        }
+
+        self::assertTrue($found, 'MessengerMiddlewarePass should be registered');
     }
 
     public function testBootDoesNotSetOpenTelemetryConfigWithoutConfiguration(): void

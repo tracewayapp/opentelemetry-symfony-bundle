@@ -398,7 +398,8 @@ final class OpenTelemetrySubscriberTest extends TestCase
         $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
 
         $spans = $this->exporter->getSpans();
-        self::assertSame('GET /api/items', $spans[0]->getName());
+        self::assertSame('GET', $spans[0]->getName(), 'no template can be synthesized, so the span keeps the bare method name');
+        self::assertFalse($spans[0]->getAttributes()->has('http.route'), 'a raw concrete path must not be emitted as http.route');
     }
 
     public function testOnRouteWithoutSpanIsNoop(): void

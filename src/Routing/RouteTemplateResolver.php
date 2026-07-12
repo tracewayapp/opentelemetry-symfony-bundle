@@ -31,6 +31,7 @@ final class RouteTemplateResolver implements ResetInterface
     public function __construct(
         private readonly ?RouterInterface $router = null,
         private readonly ?string $cacheDir = null,
+        private readonly ?string $buildDir = null,
     ) {
     }
 
@@ -64,27 +65,30 @@ final class RouteTemplateResolver implements ResetInterface
      */
     private function loadWarmedMap(): ?array
     {
-        if (null === $this->cacheDir) {
-            return null;
+        // The warmer writes to the build dir when the kernel separates them.
+        foreach ([$this->buildDir, $this->cacheDir] as $dir) {
+            if (null === $dir) {
+                continue;
+            }
+
+            $file = rtrim($dir, '/').'/'.RouteTemplateCacheWarmer::CACHE_FILE;
+            if (!is_file($file)) {
+                continue;
+            }
+
+            try {
+                $map = require $file;
+            } catch (\Throwable) {
+                continue;
+            }
+
+            if (\is_array($map)) {
+                /** @var array<string, string> $map */
+                return $map;
+            }
         }
 
-        $file = rtrim($this->cacheDir, '/').'/'.RouteTemplateCacheWarmer::CACHE_FILE;
-        if (!is_file($file)) {
-            return null;
-        }
-
-        try {
-            $map = require $file;
-        } catch (\Throwable) {
-            return null;
-        }
-
-        if (!\is_array($map)) {
-            return null;
-        }
-
-        /** @var array<string, string> $map */
-        return $map;
+        return null;
     }
 
     /**
@@ -114,16 +118,17 @@ final class RouteTemplateResolver implements ResetInterface
         return $this->templateCache[$routeName] = $path;
     }
 
-    private function synthesize(Request $request): string
+    private function synthesize(Request $request): ?string
     {
         $path = $request->getPathInfo();
         $routeParams = $request->attributes->get('_route_params');
 
         if (!\is_array($routeParams) || [] === $routeParams) {
-            return $path;
+            return null;
         }
 
         $segments = explode('/', $path);
+        $replaced = false;
 
         foreach ($routeParams as $name => $value) {
             if ((!\is_string($value) && !\is_int($value)) || '' === (string) $value) {
@@ -133,9 +138,15 @@ final class RouteTemplateResolver implements ResetInterface
             foreach ($segments as $i => $segment) {
                 if ($segment === (string) $value) {
                     $segments[$i] = '{'.$name.'}';
+                    $replaced = true;
                     break;
                 }
             }
+        }
+
+        // A raw concrete path is not a template; per semconv, emit no http.route instead.
+        if (!$replaced) {
+            return null;
         }
 
         return implode('/', $segments);

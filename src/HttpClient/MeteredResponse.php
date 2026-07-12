@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\HttpClient;
 
+use Symfony\Component\HttpClient\Response\StreamableInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
+use Traceway\OpenTelemetryBundle\Util\UrlParts;
 
 /**
  * Wraps a response to finalize HTTP client metrics once the response resolves.
@@ -14,7 +16,7 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
  * This wrapper ensures metrics are recorded at that moment with the correct
  * status code and body size, mirroring {@see TracedResponse} on the trace side.
  */
-final class MeteredResponse implements ResponseInterface
+final class MeteredResponse implements ResponseInterface, StreamableInterface
 {
     private bool $finalized = false;
 
@@ -26,6 +28,7 @@ final class MeteredResponse implements ResponseInterface
         private readonly MeteredHttpClient $recorder,
         private readonly int|float $start,
         private array $attributes,
+        private readonly ?int $requestBodySize = null,
     ) {
     }
 
@@ -45,25 +48,27 @@ final class MeteredResponse implements ResponseInterface
             return;
         }
 
-        if (!\is_string($effectiveUrl) || !\is_array($parsed = parse_url($effectiveUrl)) || !isset($parsed['host'])) {
+        if (!\is_string($effectiveUrl) || !\is_array($parsed = parse_url($effectiveUrl)) || null === ($host = UrlParts::host($parsed))) {
             return;
         }
 
-        $this->attributes['server.address'] = $parsed['host'];
+        $this->attributes['server.address'] = $host;
 
-        $port = $parsed['port'] ?? match (strtolower($parsed['scheme'] ?? '')) {
-            'https' => 443,
-            'http' => 80,
-            default => null,
-        };
+        $port = UrlParts::port($parsed);
         if (null !== $port) {
-            $this->attributes['server.port'] = (int) $port;
+            $this->attributes['server.port'] = $port;
         }
     }
 
     public function getStatusCode(): int
     {
-        $statusCode = $this->response->getStatusCode();
+        try {
+            $statusCode = $this->response->getStatusCode();
+        } catch (\Throwable $e) {
+            $this->finalizeWithError($e);
+            throw $e;
+        }
+
         $this->finalize($statusCode, null);
 
         return $statusCode;
@@ -97,10 +102,25 @@ final class MeteredResponse implements ResponseInterface
             throw $e;
         }
 
-        $bodySize = '' !== $content ? \strlen($content) : null;
+        $bodySize = $this->contentLengthFromHeaders() ?? ('' !== $content ? \strlen($content) : null);
         $this->safeFinalize($bodySize);
 
         return $content;
+    }
+
+    private function contentLengthFromHeaders(): ?int
+    {
+        try {
+            $headers = $this->response->getHeaders(false);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (isset($headers['content-length'][0]) && is_numeric($headers['content-length'][0])) {
+            return (int) $headers['content-length'][0];
+        }
+
+        return null;
     }
 
     /**
@@ -122,8 +142,38 @@ final class MeteredResponse implements ResponseInterface
 
     public function cancel(): void
     {
-        $this->finalized = true;
+        if (!$this->finalized) {
+            $this->finalized = true;
+            $this->backfillServerAttributes();
+            $this->recorder->recordCancellation($this->start, $this->attributes, $this->requestBodySize);
+        }
+
         $this->response->cancel();
+    }
+
+    /**
+     * @return resource
+     */
+    public function toStream(bool $throw = true)
+    {
+        try {
+            if ($throw) {
+                $this->getHeaders(true);
+            }
+
+            if (!$this->response instanceof StreamableInterface) {
+                throw new \LogicException('Response does not implement StreamableInterface.');
+            }
+
+            $stream = $this->response->toStream(false);
+        } catch (\Throwable $e) {
+            $this->finalizeWithError($e);
+            throw $e;
+        }
+
+        $this->safeFinalize(null);
+
+        return $stream;
     }
 
     public function getInfo(?string $type = null): mixed
@@ -181,7 +231,7 @@ final class MeteredResponse implements ResponseInterface
 
         $this->finalized = true;
         $this->backfillServerAttributes();
-        $this->recorder->recordResponse($this->start, $this->attributes, $statusCode, $bodySize);
+        $this->recorder->recordResponse($this->start, $this->attributes, $statusCode, $bodySize, $this->requestBodySize);
     }
 
     private function finalizeWithError(\Throwable $e): void
@@ -192,6 +242,6 @@ final class MeteredResponse implements ResponseInterface
 
         $this->finalized = true;
         $this->backfillServerAttributes();
-        $this->recorder->recordFailure($this->start, $this->attributes, $e);
+        $this->recorder->recordFailure($this->start, $this->attributes, $e, $this->requestBodySize);
     }
 }

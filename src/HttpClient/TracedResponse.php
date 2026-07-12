@@ -15,6 +15,7 @@ use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
 use Symfony\Component\HttpClient\Response\StreamableInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
+use Traceway\OpenTelemetryBundle\Util\UrlParts;
 use Traceway\OpenTelemetryBundle\Util\UrlSanitizer;
 
 /**
@@ -59,7 +60,7 @@ final class TracedResponse implements ResponseInterface, StreamableInterface
             throw $e;
         }
 
-        if (!$this->spanEnded && isset($headers['content-length'][0])) {
+        if (!$this->spanEnded && isset($headers['content-length'][0]) && is_numeric($headers['content-length'][0])) {
             $this->span->setAttribute(HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE, (int) $headers['content-length'][0]);
         }
 
@@ -78,7 +79,7 @@ final class TracedResponse implements ResponseInterface, StreamableInterface
         }
 
         if ('' !== $content && !$this->spanEnded) {
-            $this->span->setAttribute(HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE, \strlen($content));
+            $this->span->setAttribute(HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE, $this->contentLengthFromHeaders() ?? \strlen($content));
         }
 
         $this->safeFinalize();
@@ -105,7 +106,11 @@ final class TracedResponse implements ResponseInterface, StreamableInterface
 
     public function cancel(): void
     {
-        $this->endSpan();
+        if (!$this->spanEnded) {
+            $this->span->setAttribute(ErrorAttributes::ERROR_TYPE, 'cancelled');
+            $this->endSpan();
+        }
+
         $this->response->cancel();
     }
 
@@ -121,7 +126,8 @@ final class TracedResponse implements ResponseInterface, StreamableInterface
     {
         try {
             if ($throw) {
-                $this->response->getHeaders(true);
+                // Via the wrapper so the content-length attribute is captured before the span ends.
+                $this->getHeaders(true);
             }
 
             if (!$this->response instanceof StreamableInterface) {
@@ -161,6 +167,21 @@ final class TracedResponse implements ResponseInterface, StreamableInterface
 
     public function __destruct()
     {
+        if ($this->spanEnded) {
+            return;
+        }
+
+        try {
+            $statusCode = $this->response->getInfo('http_code');
+            if (\is_int($statusCode) && $statusCode > 0) {
+                $this->finalizeSpan($statusCode);
+
+                return;
+            }
+        } catch (\Throwable) {
+            // Destructor must not throw.
+        }
+
         $this->endSpan();
     }
 
@@ -171,6 +192,21 @@ final class TracedResponse implements ResponseInterface, StreamableInterface
         } catch (\Throwable $e) {
             $this->finalizeSpanWithError($e);
         }
+    }
+
+    private function contentLengthFromHeaders(): ?int
+    {
+        try {
+            $headers = $this->response->getHeaders(false);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (isset($headers['content-length'][0]) && is_numeric($headers['content-length'][0])) {
+            return (int) $headers['content-length'][0];
+        }
+
+        return null;
     }
 
     private function finalizeSpan(int $statusCode): void
@@ -247,17 +283,13 @@ final class TracedResponse implements ResponseInterface, StreamableInterface
 
         if (!$this->hasServerAddress) {
             $effectiveUrl = $info['url'] ?? null;
-            if (\is_string($effectiveUrl) && \is_array($parsed = parse_url($effectiveUrl)) && isset($parsed['host'])) {
-                $this->span->setAttribute(ServerAttributes::SERVER_ADDRESS, $parsed['host']);
+            if (\is_string($effectiveUrl) && \is_array($parsed = parse_url($effectiveUrl)) && null !== ($host = UrlParts::host($parsed))) {
+                $this->span->setAttribute(ServerAttributes::SERVER_ADDRESS, $host);
                 $this->span->setAttribute(UrlAttributes::URL_FULL, UrlSanitizer::sanitizeUrl($effectiveUrl));
 
-                $port = $parsed['port'] ?? match (strtolower($parsed['scheme'] ?? '')) {
-                    'https' => 443,
-                    'http' => 80,
-                    default => null,
-                };
+                $port = UrlParts::port($parsed);
                 if (null !== $port) {
-                    $this->span->setAttribute(ServerAttributes::SERVER_PORT, (int) $port);
+                    $this->span->setAttribute(ServerAttributes::SERVER_PORT, $port);
                 }
             }
         }

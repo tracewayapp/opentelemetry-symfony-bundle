@@ -14,6 +14,7 @@ services:
         arguments:
             $router: '@?router'
             $cacheDir: '%kernel.cache_dir%'
+            $buildDir: '%kernel.build_dir%'
 
     Traceway\OpenTelemetryBundle\Routing\RouteTemplateCacheWarmer:
         autoconfigure: true

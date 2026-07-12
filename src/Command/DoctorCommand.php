@@ -72,14 +72,25 @@ HELP);
         $only = $this->parseOnlyOption(\is_string($onlyRaw) ? $onlyRaw : '');
         $skipNetwork = (bool) $input->getOption('skip-network');
         $timeoutRaw = $input->getOption('timeout');
-        $timeout = is_numeric($timeoutRaw) ? (float) $timeoutRaw : 1.0;
+        if (!is_numeric($timeoutRaw)) {
+            $output->writeln(\sprintf('<error>Invalid --timeout "%s". Expected a positive number of seconds.</error>', \is_scalar($timeoutRaw) ? (string) $timeoutRaw : get_debug_type($timeoutRaw)));
+
+            return Command::INVALID;
+        }
+        $timeout = (float) $timeoutRaw;
         if ($timeout <= 0.0) {
             $output->writeln('<error>--timeout must be a positive number of seconds.</error>');
 
             return Command::INVALID;
         }
 
-        $report = $this->runner->run($skipNetwork, $only, $timeout);
+        try {
+            $report = $this->runner->run($skipNetwork, $only, $timeout);
+        } catch (\InvalidArgumentException $e) {
+            $output->writeln(\sprintf('<error>%s</error>', $e->getMessage()));
+
+            return Command::INVALID;
+        }
 
         $renderer = 'json' === $format
             ? new JsonRenderer($failOn)

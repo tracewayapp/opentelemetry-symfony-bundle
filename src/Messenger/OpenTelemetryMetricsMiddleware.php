@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\Messenger;
 
-use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Metrics\CounterInterface;
 use OpenTelemetry\API\Metrics\HistogramInterface;
-use OpenTelemetry\API\Metrics\MeterInterface;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\Middleware\MiddlewareInterface;
 use Symfony\Component\Messenger\Middleware\StackInterface;
@@ -15,8 +13,8 @@ use Symfony\Component\Messenger\Stamp\ConsumedByWorkerStamp;
 use Symfony\Component\Messenger\Stamp\ReceivedStamp;
 use Symfony\Component\Messenger\Stamp\SentStamp;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\Instrumentation\MeterAwareTrait;
 use Traceway\OpenTelemetryBundle\Metrics\DurationBoundaries;
-use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
@@ -47,10 +45,14 @@ use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
  *
  * excluded_queues matches the transport name on both sides (one config,
  * symmetric semantics).
+ *
+ * Scheduled messages (ScheduledStamp) are deliberately NOT excluded here,
+ * unlike the trace middleware: SchedulerSubscriber has no metrics
+ * counterpart, so this middleware is the only metrics coverage they get.
  */
 final class OpenTelemetryMetricsMiddleware implements MiddlewareInterface, ResetInterface
 {
-    private ?MeterInterface $meter = null;
+    use MeterAwareTrait;
     private ?HistogramInterface $duration = null;
     private ?CounterInterface $messages = null;
     private ?HistogramInterface $dispatchDuration = null;
@@ -80,7 +82,7 @@ final class OpenTelemetryMetricsMiddleware implements MiddlewareInterface, Reset
 
     public function reset(): void
     {
-        $this->meter = null;
+        $this->resetMeter();
         $this->duration = null;
         $this->messages = null;
         $this->dispatchDuration = null;
@@ -91,6 +93,7 @@ final class OpenTelemetryMetricsMiddleware implements MiddlewareInterface, Reset
     {
         /** @var ReceivedStamp|null $receivedStamp */
         $receivedStamp = $envelope->last(ReceivedStamp::class);
+        // ConsumedByWorkerStamp-only envelopes have no transport name, so excluded_queues cannot match them.
         $destination = null !== $receivedStamp ? $receivedStamp->getTransportName() : null;
 
         if (null !== $destination && $this->isExcluded($destination)) {
@@ -212,15 +215,6 @@ final class OpenTelemetryMetricsMiddleware implements MiddlewareInterface, Reset
     private function isExcluded(string $destination): bool
     {
         return \in_array($destination, $this->excludedQueues, true);
-    }
-
-    private function getMeter(): MeterInterface
-    {
-        return $this->meter ??= Globals::meterProvider()->getMeter(
-            $this->meterName,
-            OpenTelemetryBundle::version(),
-            OpenTelemetryBundle::SCHEMA_URL,
-        );
     }
 
     private function getDurationHistogram(): HistogramInterface

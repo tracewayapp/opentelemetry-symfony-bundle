@@ -204,6 +204,41 @@ final class OpenTelemetryExtensionTest extends TestCase
         self::assertArrayNotHasKey('messenger.bus.default', $messengerConfig['buses']);
     }
 
+    public function testPrependInfersSingleCustomBusWithoutDefaultBus(): void
+    {
+        $container = new ContainerBuilder();
+        $container->prependExtensionConfig('framework', [
+            'messenger' => [
+                'buses' => ['command.bus' => ['middleware' => ['validation']]],
+            ],
+        ]);
+
+        $extension = new OpenTelemetryExtension();
+        $extension->prepend($container);
+
+        $frameworkConfigs = $container->getExtensionConfig('framework');
+        $messengerConfig = $frameworkConfigs[0]['messenger'] ?? null;
+        self::assertNotNull($messengerConfig);
+
+        $middleware = $messengerConfig['buses']['command.bus']['middleware'] ?? [];
+        self::assertContains(OpenTelemetryMiddleware::class, $middleware);
+        self::assertArrayNotHasKey('messenger.bus.default', $messengerConfig['buses'], 'must not add a second bus, which would abort compilation');
+    }
+
+    public function testPrependRejectsEnvPlaceholdersWithClearError(): void
+    {
+        $container = new ContainerBuilder();
+        $container->prependExtensionConfig('open_telemetry', [
+            'traces' => ['enabled' => '%env(bool:OTEL_ENABLED)%'],
+        ]);
+
+        $extension = new OpenTelemetryExtension();
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessageMatches('/placeholders are not supported/');
+        $extension->prepend($container);
+    }
+
     public function testPrependSkippedWhenMessengerDisabled(): void
     {
         $container = new ContainerBuilder();

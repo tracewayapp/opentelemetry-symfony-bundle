@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle;
 
-use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
-use OpenTelemetry\API\Trace\TracerInterface;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\Instrumentation\TracerAwareTrait;
 
 /**
  * Lightweight helper for creating OpenTelemetry spans with minimal boilerplate.
@@ -21,8 +20,7 @@ use Symfony\Contracts\Service\ResetInterface;
  */
 final class Tracing implements TracingInterface, ResetInterface
 {
-    private ?TracerInterface $tracer = null;
-    private ?bool $enabled = null;
+    use TracerAwareTrait;
 
     public function __construct(
         private readonly string $tracerName = 'opentelemetry-symfony',
@@ -52,10 +50,8 @@ final class Tracing implements TracingInterface, ResetInterface
         $scope = $span->activate();
 
         try {
-            $result = $callback();
-            $span->setStatus(StatusCode::STATUS_OK);
-
-            return $result;
+            // Status stays UNSET on success, per the OTel spec for instrumentation.
+            return $callback();
         } catch (\Throwable $e) {
             $span->recordException($e);
             $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
@@ -69,21 +65,6 @@ final class Tracing implements TracingInterface, ResetInterface
 
     public function reset(): void
     {
-        $this->tracer = null;
-        $this->enabled = null;
-    }
-
-    private function isEnabled(): bool
-    {
-        return $this->enabled ??= $this->getTracer()->isEnabled();
-    }
-
-    private function getTracer(): TracerInterface
-    {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer(
-            $this->tracerName,
-            OpenTelemetryBundle::version(),
-            OpenTelemetryBundle::SCHEMA_URL,
-        );
+        $this->resetTracer();
     }
 }

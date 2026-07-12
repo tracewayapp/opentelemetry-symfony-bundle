@@ -7,10 +7,9 @@ namespace Traceway\OpenTelemetryBundle\Metrics;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Metrics\CounterInterface;
 use OpenTelemetry\API\Metrics\HistogramInterface;
-use OpenTelemetry\API\Metrics\MeterInterface;
 use OpenTelemetry\API\Metrics\UpDownCounterInterface;
 use Symfony\Contracts\Service\ResetInterface;
-use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
+use Traceway\OpenTelemetryBundle\Instrumentation\MeterAwareTrait;
 
 /**
  * Lazily creates and caches OpenTelemetry instruments bound to a single meter.
@@ -26,7 +25,7 @@ use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
  */
 final class MeterRegistry implements MeterRegistryInterface, ResetInterface
 {
-    private ?MeterInterface $meter = null;
+    use MeterAwareTrait;
 
     /** @var array<string, CounterInterface> */
     private array $counters = [];
@@ -44,33 +43,25 @@ final class MeterRegistry implements MeterRegistryInterface, ResetInterface
 
     public function counter(string $name, ?string $unit = null, ?string $description = null): CounterInterface
     {
-        return $this->counters[$name] ??= $this->getMeter()->createCounter($name, $unit, $description);
+        // Keyed by name+unit so a same-named instrument with a different unit isn't silently reused.
+        return $this->counters[$name."\0".$unit] ??= $this->getMeter()->createCounter($name, $unit, $description);
     }
 
     public function histogram(string $name, ?string $unit = null, ?string $description = null): HistogramInterface
     {
-        return $this->histograms[$name] ??= $this->getMeter()->createHistogram($name, $unit, $description);
+        return $this->histograms[$name."\0".$unit] ??= $this->getMeter()->createHistogram($name, $unit, $description);
     }
 
     public function upDownCounter(string $name, ?string $unit = null, ?string $description = null): UpDownCounterInterface
     {
-        return $this->upDownCounters[$name] ??= $this->getMeter()->createUpDownCounter($name, $unit, $description);
+        return $this->upDownCounters[$name."\0".$unit] ??= $this->getMeter()->createUpDownCounter($name, $unit, $description);
     }
 
     public function reset(): void
     {
-        $this->meter = null;
+        $this->resetMeter();
         $this->counters = [];
         $this->histograms = [];
         $this->upDownCounters = [];
-    }
-
-    private function getMeter(): MeterInterface
-    {
-        return $this->meter ??= Globals::meterProvider()->getMeter(
-            $this->meterName,
-            OpenTelemetryBundle::version(),
-            OpenTelemetryBundle::SCHEMA_URL,
-        );
     }
 }

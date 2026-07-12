@@ -60,13 +60,23 @@ final class RouteTemplateResolverTest extends TestCase
         self::assertSame('/api/items/{key}', $resolver->resolve($request));
     }
 
-    public function testSynthesisWithoutParamsReturnsPath(): void
+    public function testSynthesisWithoutParamsReturnsNull(): void
     {
         $resolver = new RouteTemplateResolver();
         $request = Request::create('/api/items', 'GET');
         $request->attributes->set('_route', 'api_item_list');
 
-        self::assertSame('/api/items', $resolver->resolve($request));
+        self::assertNull($resolver->resolve($request), 'a raw path is not a template and would explode http.route cardinality');
+    }
+
+    public function testSynthesisWithUnmatchableParamsReturnsNull(): void
+    {
+        $resolver = new RouteTemplateResolver();
+        $request = Request::create('/api/items/abc', 'GET');
+        $request->attributes->set('_route', 'api_item_show');
+        $request->attributes->set('_route_params', ['id' => 'transformed-value']);
+
+        self::assertNull($resolver->resolve($request), 'no substitution happened, so no template can be claimed');
     }
 
     public function testRouterLookupIsCachedPerRouteName(): void

@@ -17,6 +17,8 @@
                            expectUserDeprecationMessage() calls.
         -->
         <env name="SYMFONY_DEPRECATIONS_HELPER" value="max[self]=0"/>
+        <!-- Unset so the SDK's ComposerHandler guard doesn't no-op _autoload.php under `composer test`. -->
+        <env name="COMPOSER_DEV_MODE" value="" force="true"/>
     </php>
 
     <testsuites>

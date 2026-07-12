@@ -19,9 +19,9 @@ use Traceway\OpenTelemetryBundle\HttpClient\MeteredHttpClient;
  * In Symfony's {@see \Symfony\Component\DependencyInjection\Compiler\DecoratorServicePass},
  * decorators are processed via a max-heap priority queue: the highest priority
  * is processed first and the lowest priority wins the public alias, so HIGHER
- * priority = DEEPER nesting. The metric recording therefore happens INSIDE the
- * active trace span scope, which is what enables SDK-level exemplar linkage
- * from metric data points back to the corresponding trace.
+ * priority = DEEPER nesting. The metered client's request() therefore runs
+ * INSIDE the traced client's span scope; note that duration histograms record
+ * later, at response-finalize time, outside that scope.
  */
 final class HttpClientMetricsPass implements CompilerPassInterface
 {

@@ -4,20 +4,17 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\Cache;
 
-use OpenTelemetry\API\Trace\SpanKind;
-use OpenTelemetry\API\Trace\StatusCode;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Component\Cache\Adapter\TagAwareAdapterInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
-use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
  * Extends {@see TraceableCachePool} for tag-aware cache pools,
  * adding a span for invalidateTags().
  */
-final class TraceableTagAwareCachePool extends TraceableCachePool implements TagAwareCacheInterface, TagAwareAdapterInterface
+class TraceableTagAwareCachePool extends TraceableCachePool implements TagAwareCacheInterface, TagAwareAdapterInterface
 {
-    private readonly TagAwareCacheInterface $tagAwarePool;
+    protected TagAwareCacheInterface $tagAwarePool;
 
     public function __construct(
         CacheItemPoolInterface $pool,
@@ -38,23 +35,12 @@ final class TraceableTagAwareCachePool extends TraceableCachePool implements Tag
             return $this->tagAwarePool->invalidateTags($tags);
         }
 
-        $span = $this->getTracer()
-            ->spanBuilder('cache.invalidate_tags')
-            ->setSpanKind(SpanKind::KIND_INTERNAL)
-            ->setAttribute('cache.pool', $this->poolName)
-            ->setAttribute('cache.tags', array_values(array_map('strval', $tags)))
-            ->startSpan();
+        $pool = $this->tagAwarePool;
 
-        try {
-            return $this->tagAwarePool->invalidateTags($tags);
-        } catch (\Throwable $e) {
-            $span->recordException($e);
-            $span->setAttribute('error.type', ErrorTypeResolver::resolve($e));
-            $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
-
-            throw $e;
-        } finally {
-            $span->end();
-        }
+        return $this->traced(
+            'cache.invalidate_tags',
+            ['cache.tags' => array_values(array_map('strval', $tags))],
+            static fn (): bool => $pool->invalidateTags($tags),
+        );
     }
 }

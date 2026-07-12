@@ -8,7 +8,6 @@ use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
-use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\Context\Context;
 use OpenTelemetry\Context\ScopeInterface;
 use OpenTelemetry\SemConv\Attributes\ClientAttributes;
@@ -28,7 +27,7 @@ use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\Event\TerminateEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Contracts\Service\ResetInterface;
-use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
+use Traceway\OpenTelemetryBundle\Instrumentation\TracerAwareTrait;
 use Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 use Traceway\OpenTelemetryBundle\Util\HttpMethodResolver;
@@ -42,11 +41,11 @@ use Traceway\OpenTelemetryBundle\Util\UrlSanitizer;
  */
 final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetInterface
 {
+    use TracerAwareTrait;
+
     /** @var string[] */
     private readonly array $excludedPaths;
 
-    private ?TracerInterface $tracer = null;
-    private ?bool $enabled = null;
     private readonly RouteTemplateResolver $routeTemplateResolver;
 
     /** @var \WeakMap<Request, array{span?: SpanInterface, scope?: ScopeInterface, exception?: \Throwable}> */
@@ -191,12 +190,12 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
         $span->setAttribute(HttpAttributes::HTTP_RESPONSE_STATUS_CODE, $statusCode);
 
         $requestBodySize = $event->getRequest()->headers->get('Content-Length');
-        if (null !== $requestBodySize) {
+        if (null !== $requestBodySize && ctype_digit($requestBodySize)) {
             $span->setAttribute(HttpIncubatingAttributes::HTTP_REQUEST_BODY_SIZE, (int) $requestBodySize);
         }
 
         $responseBodySize = $response->headers->get('Content-Length');
-        if (null !== $responseBodySize) {
+        if (null !== $responseBodySize && ctype_digit($responseBodySize)) {
             $span->setAttribute(HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE, (int) $responseBodySize);
         }
 
@@ -258,23 +257,18 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
 
     public function reset(): void
     {
-        $this->tracer = null;
-        $this->enabled = null;
+        $this->resetTracer();
+
+        // Drain in-flight entries so aborted requests can't corrupt the context stack.
+        foreach ($this->requestData as $data) {
+            if (isset($data['scope'])) {
+                $data['scope']->detach();
+            }
+            if (isset($data['span'])) {
+                $data['span']->end();
+            }
+        }
         $this->requestData = new \WeakMap();
-    }
-
-    private function isEnabled(): bool
-    {
-        return $this->enabled ??= $this->getTracer()->isEnabled();
-    }
-
-    private function getTracer(): TracerInterface
-    {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer(
-            $this->tracerName,
-            OpenTelemetryBundle::version(),
-            OpenTelemetryBundle::SCHEMA_URL,
-        );
     }
 
     private function isExcluded(Request $request): bool

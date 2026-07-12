@@ -16,6 +16,7 @@ use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Contracts\Cache\NamespacedPoolInterface;
 use Traceway\OpenTelemetryBundle\Cache\TraceableCachePool;
 use Traceway\OpenTelemetryBundle\Cache\TraceableNamespacedCachePool;
+use Traceway\OpenTelemetryBundle\Cache\TraceableNamespacedTagAwareCachePool;
 use Traceway\OpenTelemetryBundle\Cache\TraceableTagAwareCachePool;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\CacheTracingPass;
 
@@ -87,7 +88,10 @@ final class CacheTracingPassTest extends TestCase
         self::assertTrue($container->hasDefinition('cache.app.taggable.otel'));
 
         $decorator = $container->getDefinition('cache.app.taggable.otel');
-        self::assertSame(TraceableTagAwareCachePool::class, $decorator->getClass());
+        $expectedClass = interface_exists(NamespacedPoolInterface::class) && is_subclass_of(TagAwareAdapter::class, NamespacedPoolInterface::class)
+            ? TraceableNamespacedTagAwareCachePool::class
+            : TraceableTagAwareCachePool::class;
+        self::assertSame($expectedClass, $decorator->getClass());
     }
 
     public function testSymfonyProfilerKeepsTraceableTagAwarePoolTagAware(): void

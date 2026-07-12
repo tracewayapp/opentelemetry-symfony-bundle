@@ -65,6 +65,11 @@ final class OtlpEndpointReachabilityCheck implements NetworkCheckInterface
             ?? $context->env->get('OTEL_EXPORTER_OTLP_PROTOCOL')
             ?? 'http/protobuf';
 
+        // gRPC servers reject HTTP/1.1, so a HEAD probe would report a healthy collector as down.
+        if ('grpc' === $protocol && null === $this->httpClient) {
+            return $this->probeTcp($endpoint, $context->networkTimeoutSeconds);
+        }
+
         $probeUrl = $this->normalizeForProbe($endpoint, $protocol);
 
         $client = $this->httpClient ?? HttpClient::create([
@@ -113,5 +118,45 @@ final class OtlpEndpointReachabilityCheck implements NetworkCheckInterface
         }
 
         return $endpoint;
+    }
+
+    private function probeTcp(string $endpoint, float $timeoutSeconds): CheckResult
+    {
+        $parsed = parse_url(str_contains($endpoint, '://') ? $endpoint : 'tcp://'.$endpoint);
+        $host = \is_array($parsed) ? ($parsed['host'] ?? null) : null;
+
+        if (null === $host) {
+            return CheckResult::error(
+                $this->name(),
+                \sprintf('Cannot parse gRPC endpoint "%s" for a TCP probe.', $endpoint),
+                'Set OTEL_EXPORTER_OTLP_ENDPOINT to host:port (e.g. collector:4317) for the grpc protocol.',
+                ['endpoint' => $endpoint],
+            );
+        }
+
+        $port = \is_array($parsed) && isset($parsed['port']) ? (int) $parsed['port'] : 4317;
+
+        $started = microtime(true);
+        $errno = 0;
+        $error = '';
+        $socket = @stream_socket_client(\sprintf('tcp://%s:%d', $host, $port), $errno, $error, $timeoutSeconds);
+        $elapsed = (int) round((microtime(true) - $started) * 1000);
+
+        if (false === $socket) {
+            return CheckResult::error(
+                $this->name(),
+                \sprintf('OTLP gRPC endpoint unreachable: %s (errno %d)', '' !== $error ? $error : 'connection failed', $errno),
+                'Verify OTEL_EXPORTER_OTLP_ENDPOINT is correct, the collector is running, and any firewall/proxy allows the connection. Use --skip-network to silence this check (e.g. in CI without backend access).',
+                ['endpoint' => $endpoint, 'host' => $host, 'port' => $port, 'error' => $error],
+            );
+        }
+
+        fclose($socket);
+
+        return CheckResult::ok(
+            $this->name(),
+            \sprintf('OTLP gRPC endpoint reachable (TCP %s:%d, %dms)', $host, $port, $elapsed),
+            ['endpoint' => $endpoint, 'host' => $host, 'port' => $port, 'elapsed_ms' => $elapsed],
+        );
     }
 }

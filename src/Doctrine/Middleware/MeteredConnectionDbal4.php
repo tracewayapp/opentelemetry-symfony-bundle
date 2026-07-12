@@ -12,6 +12,8 @@ use Traceway\OpenTelemetryBundle\Doctrine\Metrics\DbMetricRecorder;
 
 final class MeteredConnectionDbal4 extends AbstractConnectionMiddleware
 {
+    use MeteredDbalTrait;
+
     public function __construct(
         Connection $connection,
         private readonly DbMetricRecorder $recorder,
@@ -26,81 +28,26 @@ final class MeteredConnectionDbal4 extends AbstractConnectionMiddleware
 
     public function query(string $sql): Result
     {
-        $start = hrtime(true);
-        $exception = null;
-
-        try {
-            return parent::query($sql);
-        } catch (\Throwable $e) {
-            $exception = $e;
-
-            throw $e;
-        } finally {
-            $this->recorder->record($sql, $start, $exception);
-        }
+        return $this->metered($sql, fn (): Result => parent::query($sql));
     }
 
     public function exec(string $sql): int
     {
-        $start = hrtime(true);
-        $exception = null;
-
-        try {
-            return (int) parent::exec($sql);
-        } catch (\Throwable $e) {
-            $exception = $e;
-
-            throw $e;
-        } finally {
-            $this->recorder->record($sql, $start, $exception);
-        }
+        return (int) $this->metered($sql, fn (): int|string => parent::exec($sql));
     }
 
     public function beginTransaction(): void
     {
-        $start = hrtime(true);
-        $exception = null;
-
-        try {
-            parent::beginTransaction();
-        } catch (\Throwable $e) {
-            $exception = $e;
-
-            throw $e;
-        } finally {
-            $this->recorder->record('BEGIN', $start, $exception);
-        }
+        $this->metered('BEGIN', function (): void { parent::beginTransaction(); });
     }
 
     public function commit(): void
     {
-        $start = hrtime(true);
-        $exception = null;
-
-        try {
-            parent::commit();
-        } catch (\Throwable $e) {
-            $exception = $e;
-
-            throw $e;
-        } finally {
-            $this->recorder->record('COMMIT', $start, $exception);
-        }
+        $this->metered('COMMIT', function (): void { parent::commit(); });
     }
 
     public function rollBack(): void
     {
-        $start = hrtime(true);
-        $exception = null;
-
-        try {
-            parent::rollBack();
-        } catch (\Throwable $e) {
-            $exception = $e;
-
-            throw $e;
-        } finally {
-            $this->recorder->record('ROLLBACK', $start, $exception);
-        }
+        $this->metered('ROLLBACK', function (): void { parent::rollBack(); });
     }
 }

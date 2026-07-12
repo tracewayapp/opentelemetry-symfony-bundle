@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **X-Ray tracer provider registers a shutdown flush** — with `traces.id_generator: xray`, the custom `TracerProvider` never registered a shutdown handler, so the default `BatchSpanProcessor` silently dropped most spans in short-lived PHP-FPM processes. `XRayBootstrapper` now registers `ShutdownHandler::register($provider->shutdown(...))` like the SDK autoloader does.
+- **Failed requests first touched via `getStatusCode()` now record a failure metric** — `MeteredResponse::getStatusCode()` had no try/catch (unlike every other accessor), so a DNS/connect failure surfacing there left the request invisible in `http.client.request.duration`.
+- **`toStream()` works with tracing and metrics both enabled** — the decorator stack is `TracedResponse` wrapping `MeteredResponse`, and `MeteredResponse` didn't implement `StreamableInterface`, so `TracedResponse::toStream()` always threw `LogicException` and flagged a successful request as an error. `MeteredResponse` now implements `StreamableInterface` and finalizes metrics at stream time.
+- **Route-template warmer output is found on read-only-container deploys** — the warmer writes to `kernel.build_dir` but the resolver only searched `kernel.cache_dir`; on kernels separating the two, every process fell back to rebuilding the route collection at runtime. The resolver now checks both.
+- **Messenger consumer `error.type` reflects the real handler exception** — `HandlerFailedException` wrappers (single-wrapped) are unwrapped via `getWrappedExceptions()` in `ErrorTypeResolver`, so error breakdowns no longer show a constant wrapper FQCN on consumer spans and metrics.
+- **Single custom-named Messenger bus no longer breaks compilation** — when `default_bus` is omitted and exactly one bus is configured, the middleware prepend now targets that bus instead of adding a second `messenger.bus.default` (which aborted compilation with "You must specify the `default_bus`...").
+- **`OpenTelemetryBundle::version()` no longer throws when not Composer-installed** — `InstalledVersions::getPrettyVersion()` throws `OutOfBoundsException` (rather than returning null) for unknown packages; the documented `"unknown"` fallback now actually applies (phar/single-file deploys).
+- **Tag-aware pools keep `withSubNamespace()`** — Symfony 7.3+ `TagAwareAdapter` implements `NamespacedPoolInterface`, but the tag-aware decorator hid it, fataling on `withSubNamespace()`. Such pools now get the new `TraceableNamespacedTagAwareCachePool`.
+- **SQL operation/target extraction hardened** — a comment between a CTE list and its body no longer wins keyword matching (`WITH x AS (...) /* delete old */ SELECT ...` reported `DELETE`), and `db.collection.name` for SELECTs now comes from the depth-zero `FROM`, so string literals (`SELECT 'from paris' ...`) and scalar subqueries in the select list can't hijack the table name. Doubled-quote escapes (`'it''s'`) are handled.
+- **DBAL3 transaction methods return the driver result** — `beginTransaction()`/`commit()`/`rollBack()` on the traced DBAL3 connection discarded the inner result and always returned `true`.
+- **DSN-style credentials and SigV2 signatures redacted** — `UrlSanitizer` now also redacts `AWSAccessKeyId`/`Signature` query params (SigV2 pre-signed URLs), handles protocol-relative URLs, and fully redacts userinfo containing a literal `@`.
+- **HTTP server metrics drop `server.address`/`server.port`** — semconv marks them Opt-In on `http.server.request.duration`/`active_requests` because the Host header is client-controlled; keeping them allowed unbounded time-series cardinality from arbitrary Host headers.
+- **`http.route` is never a raw concrete path** — when the route template can't be resolved and whole-segment substitution replaces nothing, the resolver now returns no route at all (per semconv) instead of emitting the request path as a metric dimension.
+- **Long-running worker hygiene** — `OpenTelemetrySubscriber::reset()` now detaches scopes and ends spans for in-flight requests instead of dropping them (context-stack corruption on RoadRunner/FrankenPHP resets); `ConsoleSubscriber` no longer leaks a previous orphan span when commands without a `Command` instance run back-to-back; cached tracers no longer pin a pre-SDK-init noop tracer forever.
+- **`OTEL_EXPORTER_OTLP_HEADERS`/`OTEL_RESOURCE_ATTRIBUTES` values are percent-encoded on merge** — values containing `,` or `=` no longer corrupt the whole variable; existing values are decoded before merging so the round-trip is lossless (the SDK/exporter url-decode on read per spec).
+- **`traceway:doctor` correctness** — unknown `--only` names now error instead of running zero checks and exiting 0 in CI; non-numeric `--timeout` returns INVALID like other bad options; gRPC endpoints are probed with a TCP connect instead of an HTTP/1.1 HEAD that healthy collectors reject.
+- **`composer test` no longer fails the SDK autoload test** — composer scripts export `COMPOSER_DEV_MODE`, which makes the SDK's `_autoload.php` a no-op; phpunit now clears it.
+- **`Tracing::trace()` leaves span status UNSET on success** — per the OTel spec, instrumentation should not set `Ok`; error paths still set `ERROR`.
+- **Trace/metrics parity** — the HTTP metrics subscriber honors `traces.error_status_threshold` (was hardcoded ≥ 500) and the trace subscriber validates `Content-Length` with the same `ctype_digit` guard as the metrics side. Cancelled HTTP client requests now record their span/duration with `error.type: cancelled` instead of vanishing.
+- **`http.client.request.body.size` records with the final attribute set** — it was recorded pre-flight without `http.response.status_code`/`error.type`, so its dimensions never aligned with the duration histogram.
+- **`server.address` for IPv6 hosts is emitted bare** (`::1`, not `[::1]`) across HTTP client spans and metrics.
+- **`MeterRegistry` caches instruments by name + unit** — requesting a same-named instrument with a different unit no longer silently returns the first one.
+- **`TraceContextProcessor` uses `SpanContext::isValid()`** instead of comparing against an all-zero trace id, so invalid-but-nonzero propagation input is not injected into logs.
+
+### Changed
+
+- **Config**: `excluded_paths` entries that are numeric scalars are now cast to path prefixes instead of silently dropped; `traces.enabled` info text documents master-switch behavior; using `%env()%` placeholders in `open_telemetry` config now fails with a clear explanation (the config is consumed at compile time) instead of a confusing type error.
+- **Internal**: duplicated tracer/meter boilerplate, host-exclusion logic, transport-name extraction, short-class-name and default-port/IPv6 parsing consolidated into shared traits/helpers (`TracerAwareTrait`, `MeterAwareTrait`, `HostExclusionTrait`, `TraceableDbalTrait`/`MeteredDbalTrait`, `TransportNameResolver`, `ClassName`, `UrlParts`); the DBAL 3/4 middleware pairs are now thin signature shims and the cache decorators share one `traced()` span wrapper; dead code removed (`isConsoleAvailable()`, unused cache-pool tag lookup, `DbMetricRecorder`'s unreachable `reset()`).
+
 ## [3.0.2] - 2026-07-07
 
 ### Fixed

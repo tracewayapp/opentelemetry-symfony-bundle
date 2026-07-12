@@ -7,7 +7,6 @@ namespace Traceway\OpenTelemetryBundle\HttpClient;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
-use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\Context\Context;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\HttpAttributes;
@@ -18,9 +17,10 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 use Symfony\Contracts\HttpClient\ResponseStreamInterface;
 use Symfony\Contracts\Service\ResetInterface;
-use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
+use Traceway\OpenTelemetryBundle\Instrumentation\TracerAwareTrait;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 use Traceway\OpenTelemetryBundle\Util\HttpMethodResolver;
+use Traceway\OpenTelemetryBundle\Util\UrlParts;
 use Traceway\OpenTelemetryBundle\Util\UrlSanitizer;
 
 /**
@@ -34,16 +34,11 @@ use Traceway\OpenTelemetryBundle\Util\UrlSanitizer;
  */
 final class TraceableHttpClient implements HttpClientInterface, ResetInterface
 {
-    private ?TracerInterface $tracer = null;
-    private ?bool $enabled = null;
-    private ?string $otlpEndpoint = null;
-    private bool $otlpEndpointResolved = false;
+    use HostExclusionTrait;
+    use TracerAwareTrait;
 
     /** Prevents recursive instrumentation when the exporter uses this client. */
     private bool $inFlight = false;
-
-    /** @var string[] */
-    private readonly array $excludedHosts;
 
     /**
      * @param string[] $excludedHosts Hostnames to skip tracing for (e.g. OTLP collector)
@@ -79,16 +74,12 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
         }
 
         if (\is_array($parsedUrl)) {
-            if (isset($parsedUrl['host'])) {
-                $spanBuilder->setAttribute(ServerAttributes::SERVER_ADDRESS, $parsedUrl['host']);
+            if (null !== ($host = UrlParts::host($parsedUrl))) {
+                $spanBuilder->setAttribute(ServerAttributes::SERVER_ADDRESS, $host);
 
-                $port = $parsedUrl['port'] ?? match (strtolower($parsedUrl['scheme'] ?? '')) {
-                    'https' => 443,
-                    'http' => 80,
-                    default => null,
-                };
+                $port = UrlParts::port($parsedUrl);
                 if (null !== $port) {
-                    $spanBuilder->setAttribute(ServerAttributes::SERVER_PORT, (int) $port);
+                    $spanBuilder->setAttribute(ServerAttributes::SERVER_PORT, $port);
                 }
             }
             if (isset($parsedUrl['path'])) {
@@ -180,59 +171,12 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
 
     public function reset(): void
     {
-        $this->tracer = null;
-        $this->enabled = null;
-        $this->otlpEndpoint = null;
-        $this->otlpEndpointResolved = false;
+        $this->resetTracer();
+        $this->resetHostExclusion();
         $this->inFlight = false;
 
         if ($this->client instanceof ResetInterface) {
             $this->client->reset();
         }
-    }
-
-    private function isEnabled(): bool
-    {
-        return $this->enabled ??= $this->getTracer()->isEnabled();
-    }
-
-    private function getTracer(): TracerInterface
-    {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer(
-            $this->tracerName,
-            OpenTelemetryBundle::version(),
-            OpenTelemetryBundle::SCHEMA_URL,
-        );
-    }
-
-    private function isExcluded(string $url): bool
-    {
-        if ([] === $this->excludedHosts) {
-            return $this->isOtlpEndpoint($url);
-        }
-
-        $host = strtolower((string) (parse_url($url, \PHP_URL_HOST) ?? ''));
-
-        foreach ($this->excludedHosts as $excluded) {
-            if ($host === $excluded) {
-                return true;
-            }
-        }
-
-        return $this->isOtlpEndpoint($url);
-    }
-
-    private function isOtlpEndpoint(string $url): bool
-    {
-        if (!$this->otlpEndpointResolved) {
-            $endpoint = $_SERVER['OTEL_EXPORTER_OTLP_ENDPOINT']
-                ?? $_ENV['OTEL_EXPORTER_OTLP_ENDPOINT']
-                ?? getenv('OTEL_EXPORTER_OTLP_ENDPOINT');
-
-            $this->otlpEndpoint = (\is_string($endpoint) && '' !== $endpoint) ? $endpoint : null;
-            $this->otlpEndpointResolved = true;
-        }
-
-        return null !== $this->otlpEndpoint && str_starts_with($url, $this->otlpEndpoint);
     }
 }

@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\EventSubscriber;
 
-use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Metrics\HistogramInterface;
 use OpenTelemetry\API\Metrics\MeterInterface;
 use OpenTelemetry\API\Metrics\UpDownCounterInterface;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\HttpAttributes;
-use OpenTelemetry\SemConv\Attributes\ServerAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -20,8 +18,8 @@ use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\Instrumentation\MeterAwareTrait;
 use Traceway\OpenTelemetryBundle\Metrics\DurationBoundaries;
-use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 use Traceway\OpenTelemetryBundle\Util\HttpMethodResolver;
@@ -46,16 +44,17 @@ use Traceway\OpenTelemetryBundle\Util\HttpMethodResolver;
  *   - url.scheme                     (required) [Stable]
  *   - http.route                     (conditional, if matched) [Stable]
  *   - http.response.status_code      (conditional, on response) [Stable]
- *   - server.address                 [Stable]
- *   - server.port                    [Stable]
  *   - error.type                     (conditional, on failure) [Stable]
+ *
+ * server.address/server.port are deliberately omitted: semconv marks them
+ * Opt-In on HTTP server metrics because the Host header is client-controlled
+ * and would allow unbounded time-series cardinality.
  */
 final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, ResetInterface
 {
+    use MeterAwareTrait;
     /** @var list<string> */
     private readonly array $excludedPaths;
-
-    private ?MeterInterface $meter = null;
     private ?HistogramInterface $duration = null;
     private ?UpDownCounterInterface $activeRequests = null;
     private ?HistogramInterface $requestBodySize = null;
@@ -73,6 +72,7 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
         private readonly string $meterName = 'opentelemetry-symfony',
         array $excludedPaths = [],
         ?RouteTemplateResolver $routeTemplateResolver = null,
+        private readonly int $errorStatusThreshold = 500,
     ) {
         $this->excludedPaths = array_values($excludedPaths);
         $this->requestData = new \WeakMap();
@@ -185,7 +185,7 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
 
             if (isset($data['exception'])) {
                 $attributes[ErrorAttributes::ERROR_TYPE] = ErrorTypeResolver::resolve($data['exception']);
-            } elseif ($statusCode >= 500) {
+            } elseif ($statusCode >= $this->errorStatusThreshold) {
                 $attributes[ErrorAttributes::ERROR_TYPE] = (string) $statusCode;
             }
 
@@ -229,7 +229,7 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
 
     public function reset(): void
     {
-        $this->meter = null;
+        $this->resetMeter();
         $this->duration = null;
         $this->activeRequests = null;
         $this->requestBodySize = null;
@@ -242,18 +242,10 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
      */
     private function baseAttributes(Request $request): array
     {
-        $attributes = [
+        return [
             HttpAttributes::HTTP_REQUEST_METHOD => HttpMethodResolver::normalize($request->getMethod()),
             UrlAttributes::URL_SCHEME => $request->getScheme(),
-            ServerAttributes::SERVER_ADDRESS => $request->getHost(),
         ];
-
-        $port = $request->getPort();
-        if (null !== $port) {
-            $attributes[ServerAttributes::SERVER_PORT] = $port;
-        }
-
-        return $attributes;
     }
 
     private function isExcluded(Request $request): bool
@@ -267,15 +259,6 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
         }
 
         return false;
-    }
-
-    private function getMeter(): MeterInterface
-    {
-        return $this->meter ??= Globals::meterProvider()->getMeter(
-            $this->meterName,
-            OpenTelemetryBundle::version(),
-            OpenTelemetryBundle::SCHEMA_URL,
-        );
     }
 
     private function getDurationHistogram(): HistogramInterface

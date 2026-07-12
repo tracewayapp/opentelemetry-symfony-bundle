@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\EventSubscriber;
 
-use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
-use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\Context\ScopeInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\ConsoleEvents;
@@ -17,7 +15,7 @@ use Symfony\Component\Console\Event\ConsoleErrorEvent;
 use Symfony\Component\Console\Event\ConsoleTerminateEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Contracts\Service\ResetInterface;
-use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
+use Traceway\OpenTelemetryBundle\Instrumentation\TracerAwareTrait;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
@@ -29,8 +27,7 @@ use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
  */
 final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterface
 {
-    private ?TracerInterface $tracer = null;
-    private ?bool $enabled = null;
+    use TracerAwareTrait;
 
     /** @var \SplObjectStorage<Command, array{SpanInterface, ScopeInterface, bool}> */
     private \SplObjectStorage $commandSpans;
@@ -72,8 +69,7 @@ final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterfac
 
     public function reset(): void
     {
-        $this->tracer = null;
-        $this->enabled = null;
+        $this->resetTracer();
     }
 
     public function onCommand(ConsoleCommandEvent $event): void
@@ -130,6 +126,13 @@ final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterfac
         if (null !== $command) {
             $this->commandSpans[$command] = $entry;
         } else {
+            // Same stale-entry handling as commandSpans: never overwrite a live orphan.
+            if (null !== $this->orphanSpan) {
+                [$staleSpan, $staleScope] = $this->orphanSpan;
+                $this->orphanSpan = null;
+                $staleSpan->end();
+                @$staleScope->detach();
+            }
             $this->orphanSpan = $entry;
         }
     }
@@ -224,20 +227,6 @@ final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterfac
             }
             $this->orphanSpan = null;
         }
-    }
-
-    private function isEnabled(): bool
-    {
-        return $this->enabled ??= $this->getTracer()->isEnabled();
-    }
-
-    private function getTracer(): TracerInterface
-    {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer(
-            $this->tracerName,
-            OpenTelemetryBundle::version(),
-            OpenTelemetryBundle::SCHEMA_URL,
-        );
     }
 
     private function isExcluded(string $commandName): bool

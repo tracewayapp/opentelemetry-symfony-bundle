@@ -13,15 +13,17 @@ use Symfony\Contracts\Cache\NamespacedPoolInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 use Traceway\OpenTelemetryBundle\Cache\TraceableCachePool;
 use Traceway\OpenTelemetryBundle\Cache\TraceableNamespacedCachePool;
+use Traceway\OpenTelemetryBundle\Cache\TraceableNamespacedTagAwareCachePool;
 use Traceway\OpenTelemetryBundle\Cache\TraceableTagAwareCachePool;
 
 /**
  * Decorates all services tagged with 'cache.pool' with our tracing wrapper.
  *
- * Tag-aware pools get {@see TraceableTagAwareCachePool}, namespaced pools
- * (Symfony 7.3+) get {@see TraceableNamespacedCachePool}, and others get
- * {@see TraceableCachePool}. Decoration priority -32 ensures we wrap
- * after Symfony's own TraceableAdapter (profiler) at -16.
+ * Tag-aware pools get {@see TraceableTagAwareCachePool} (or
+ * {@see TraceableNamespacedTagAwareCachePool} when also namespaced),
+ * namespaced pools (Symfony 7.3+) get {@see TraceableNamespacedCachePool},
+ * and others get {@see TraceableCachePool}. Decoration priority -32 ensures
+ * we wrap after Symfony's own TraceableAdapter (profiler) at -16.
  */
 final class CacheTracingPass implements CompilerPassInterface
 {
@@ -43,16 +45,14 @@ final class CacheTracingPass implements CompilerPassInterface
             ? $container->getParameter('open_telemetry.cache_excluded_pools')
             : [];
 
-        foreach ($container->findTaggedServiceIds('cache.pool') as $id => $tags) {
+        foreach (array_keys($container->findTaggedServiceIds('cache.pool')) as $id) {
             $definition = $container->getDefinition($id);
 
             if ($definition->isAbstract() || \in_array($id, $excludedPools, true)) {
                 continue;
             }
 
-            $firstTag = $tags[0];
-            \assert(\is_array($firstTag));
-            $poolName = \is_string($firstTag['name'] ?? null) ? $firstTag['name'] : $id;
+            $poolName = $id;
             $class = $definition->getClass();
             while ($definition instanceof ChildDefinition) {
                 $definition = $container->findDefinition($definition->getParent());
@@ -60,12 +60,13 @@ final class CacheTracingPass implements CompilerPassInterface
             }
 
             $isTagAware = null !== $class && is_subclass_of($class, TagAwareCacheInterface::class);
-            $isNamespaced = !$isTagAware
-                && interface_exists(NamespacedPoolInterface::class)
+            $isNamespaced = interface_exists(NamespacedPoolInterface::class)
                 && null !== $class
                 && is_subclass_of($class, NamespacedPoolInterface::class);
 
-            if ($isTagAware) {
+            if ($isTagAware && $isNamespaced) {
+                $decoratorClass = TraceableNamespacedTagAwareCachePool::class;
+            } elseif ($isTagAware) {
                 $decoratorClass = TraceableTagAwareCachePool::class;
             } elseif ($isNamespaced) {
                 $decoratorClass = TraceableNamespacedCachePool::class;

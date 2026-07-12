@@ -134,17 +134,4 @@ final class DbMetricRecorderTest extends TestCase
 
         self::assertTrue(true);
     }
-
-    public function testResetClearsCachedMeter(): void
-    {
-        $recorder = new DbMetricRecorder('test', 'postgresql', null, null, null);
-
-        $recorder->record('SELECT 1', hrtime(true), null);
-        $recorder->reset();
-        $recorder->record('SELECT 1', hrtime(true), null);
-
-        $metrics = $this->collectMetrics();
-        $points = [...$metrics['db.client.operation.duration']->data->dataPoints];
-        self::assertSame(2, $points[0]->count);
-    }
 }

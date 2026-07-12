@@ -42,7 +42,7 @@ final class TracingTest extends TestCase
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
         self::assertSame('my.operation', $spans[0]->getName());
-        self::assertSame(StatusCode::STATUS_OK, $spans[0]->getStatus()->getCode());
+        self::assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
     }
 
     public function testTraceRecordsAttributes(): void
@@ -108,22 +108,19 @@ final class TracingTest extends TestCase
         self::assertInstanceOf(ResetInterface::class, new Tracing());
     }
 
-    public function testResetClearsCachedTracerAndEnabled(): void
+    public function testResetClearsCachedTracer(): void
     {
         $tracing = new Tracing('test-tracer');
         $tracing->trace('warm-up', static fn () => null);
 
         $reflection = new \ReflectionClass($tracing);
         $tracerProp = $reflection->getProperty('tracer');
-        $enabledProp = $reflection->getProperty('enabled');
 
         self::assertNotNull($tracerProp->getValue($tracing));
-        self::assertNotNull($enabledProp->getValue($tracing));
 
         $tracing->reset();
 
         self::assertNull($tracerProp->getValue($tracing));
-        self::assertNull($enabledProp->getValue($tracing));
     }
 
     public function testNestedTracesCreateParentChild(): void

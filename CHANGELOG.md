@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Config**: `excluded_paths` entries that are numeric scalars are now cast to path prefixes instead of silently dropped; `traces.enabled` info text documents master-switch behavior; using `%env()%` placeholders in `open_telemetry` config now fails with a clear explanation (the config is consumed at compile time) instead of a confusing type error.
-- **Internal**: duplicated tracer/meter boilerplate, host-exclusion logic, transport-name extraction, short-class-name and default-port/IPv6 parsing consolidated into shared traits/helpers (`TracerAwareTrait`, `MeterAwareTrait`, `HostExclusionTrait`, `TraceableDbalTrait`/`MeteredDbalTrait`, `TransportNameResolver`, `ClassName`, `UrlParts`); the DBAL 3/4 middleware pairs are now thin signature shims and the cache decorators share one `traced()` span wrapper; dead code removed (`isConsoleAvailable()`, unused cache-pool tag lookup, `DbMetricRecorder`'s unreachable `reset()`).
+- **Internal**: duplicated tracer/meter boilerplate, host-exclusion logic, transport-name extraction, short-class-name and default-port/IPv6 parsing consolidated into shared traits/helpers (`TracerAwareTrait`, `MeterAwareTrait`, `HostExclusionTrait`, `TraceableDbalTrait`/`MeteredDbalTrait`, `TransportNameResolver`, `ClassName`, `UrlParts`); the DBAL 3/4 middleware pairs are now thin signature shims and the cache decorators share one `traced()` span wrapper; dead code removed (`isConsoleAvailable()`, `DbMetricRecorder`'s unreachable `reset()`). The `cache.pool` attribute still prefers the tag's `name` attribute (FrameworkBundle's `tags: true` pools) over the service id, now pinned by a test.
 
 ## [3.0.2] - 2026-07-07
 

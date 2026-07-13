@@ -45,14 +45,16 @@ final class CacheTracingPass implements CompilerPassInterface
             ? $container->getParameter('open_telemetry.cache_excluded_pools')
             : [];
 
-        foreach (array_keys($container->findTaggedServiceIds('cache.pool')) as $id) {
+        foreach ($container->findTaggedServiceIds('cache.pool') as $id => $tags) {
             $definition = $container->getDefinition($id);
 
             if ($definition->isAbstract() || \in_array($id, $excludedPools, true)) {
                 continue;
             }
 
-            $poolName = $id;
+            // CachePoolPass (priority 32) strips `name` before us; fallback kept for custom orderings/manual tags.
+            $firstTag = $tags[0] ?? null;
+            $poolName = \is_array($firstTag) && \is_string($firstTag['name'] ?? null) ? $firstTag['name'] : $id;
             $class = $definition->getClass();
             while ($definition instanceof ChildDefinition) {
                 $definition = $container->findDefinition($definition->getParent());

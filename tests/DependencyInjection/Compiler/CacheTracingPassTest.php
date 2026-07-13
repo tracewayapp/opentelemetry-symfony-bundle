@@ -72,6 +72,24 @@ final class CacheTracingPassTest extends TestCase
         self::assertSame('cache.app', $decorator->getArgument('$poolName'));
     }
 
+    public function testPoolNamePrefersTagNameAttributeOverServiceId(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.cache_enabled', true);
+        $container->setParameter('open_telemetry.tracer_name', 'test-tracer');
+
+        // Mirrors FrameworkBundle's `tags: true` pools: inner service id, user-facing tag name.
+        $poolDef = new Definition(FilesystemAdapter::class);
+        $poolDef->addTag('cache.pool', ['name' => 'my_pool']);
+        $container->setDefinition('.my_pool.inner', $poolDef);
+
+        $pass = new CacheTracingPass();
+        $pass->process($container);
+
+        $decorator = $container->getDefinition('.my_pool.inner.otel');
+        self::assertSame('my_pool', $decorator->getArgument('$poolName'));
+    }
+
     public function testDecoratesTagAwarePool(): void
     {
         $container = new ContainerBuilder();

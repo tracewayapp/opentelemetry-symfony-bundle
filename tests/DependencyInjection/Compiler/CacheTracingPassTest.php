@@ -78,7 +78,7 @@ final class CacheTracingPassTest extends TestCase
         $container->setParameter('open_telemetry.cache_enabled', true);
         $container->setParameter('open_telemetry.tracer_name', 'test-tracer');
 
-        // Mirrors FrameworkBundle's `tags: true` pools: inner service id, user-facing tag name.
+        // In real kernels CachePoolPass strips `name` first; this pins the fallback for custom orderings.
         $poolDef = new Definition(FilesystemAdapter::class);
         $poolDef->addTag('cache.pool', ['name' => 'my_pool']);
         $container->setDefinition('.my_pool.inner', $poolDef);

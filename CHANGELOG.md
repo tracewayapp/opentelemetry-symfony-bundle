@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-07-14
+
 ### Fixed
 
 - **X-Ray tracer provider registers a shutdown flush** — with `traces.id_generator: xray`, the custom `TracerProvider` never registered a shutdown handler, so the default `BatchSpanProcessor` silently dropped most spans in short-lived PHP-FPM processes. `XRayBootstrapper` now registers `ShutdownHandler::register($provider->shutdown(...))` like the SDK autoloader does.

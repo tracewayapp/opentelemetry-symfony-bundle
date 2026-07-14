@@ -8,15 +8,10 @@ use Doctrine\DBAL\Driver\Connection;
 use Doctrine\DBAL\Driver\Middleware\AbstractConnectionMiddleware;
 use Doctrine\DBAL\Driver\Result;
 use Doctrine\DBAL\Driver\Statement;
-use OpenTelemetry\API\Globals;
-use OpenTelemetry\API\Trace\SpanInterface;
-use OpenTelemetry\API\Trace\TracerInterface;
-use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
 final class TraceableConnectionDbal4 extends AbstractConnectionMiddleware
 {
-    private ?TracerInterface $tracer = null;
-    private ?bool $enabled = null;
+    use TraceableDbalTrait;
 
     public function __construct(
         Connection $connection,
@@ -46,135 +41,26 @@ final class TraceableConnectionDbal4 extends AbstractConnectionMiddleware
 
     public function query(string $sql): Result
     {
-        if (!$this->isEnabled()) {
-            return parent::query($sql);
-        }
-
-        $span = $this->startSpan($sql);
-
-        try {
-            $result = parent::query($sql);
-        } catch (\Throwable $e) {
-            DbSpanBuilder::recordFailure($span, $e);
-
-            throw $e;
-        } finally {
-            $span->end();
-        }
-
-        return $result;
+        return $this->traced($sql, fn (): Result => parent::query($sql));
     }
 
     public function exec(string $sql): int
     {
-        if (!$this->isEnabled()) {
-            return (int) parent::exec($sql);
-        }
-
-        $span = $this->startSpan($sql);
-
-        try {
-            $result = parent::exec($sql);
-        } catch (\Throwable $e) {
-            DbSpanBuilder::recordFailure($span, $e);
-
-            throw $e;
-        } finally {
-            $span->end();
-        }
-
-        return (int) $result;
+        return (int) $this->traced($sql, fn (): int|string => parent::exec($sql));
     }
 
     public function beginTransaction(): void
     {
-        if (!$this->isEnabled()) {
-            parent::beginTransaction();
-
-            return;
-        }
-
-        $span = $this->startSpan('BEGIN');
-
-        try {
-            parent::beginTransaction();
-        } catch (\Throwable $e) {
-            DbSpanBuilder::recordFailure($span, $e);
-
-            throw $e;
-        } finally {
-            $span->end();
-        }
+        $this->traced('BEGIN', function (): void { parent::beginTransaction(); });
     }
 
     public function commit(): void
     {
-        if (!$this->isEnabled()) {
-            parent::commit();
-
-            return;
-        }
-
-        $span = $this->startSpan('COMMIT');
-
-        try {
-            parent::commit();
-        } catch (\Throwable $e) {
-            DbSpanBuilder::recordFailure($span, $e);
-
-            throw $e;
-        } finally {
-            $span->end();
-        }
+        $this->traced('COMMIT', function (): void { parent::commit(); });
     }
 
     public function rollBack(): void
     {
-        if (!$this->isEnabled()) {
-            parent::rollBack();
-
-            return;
-        }
-
-        $span = $this->startSpan('ROLLBACK');
-
-        try {
-            parent::rollBack();
-        } catch (\Throwable $e) {
-            DbSpanBuilder::recordFailure($span, $e);
-
-            throw $e;
-        } finally {
-            $span->end();
-        }
-    }
-
-    private function isEnabled(): bool
-    {
-        return $this->enabled ??= $this->getTracer()->isEnabled();
-    }
-
-    private function getTracer(): TracerInterface
-    {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer(
-            $this->tracerName,
-            OpenTelemetryBundle::version(),
-            OpenTelemetryBundle::SCHEMA_URL,
-        );
-    }
-
-    private function startSpan(string $sql): SpanInterface
-    {
-        $tracer = $this->getTracer();
-
-        return DbSpanBuilder::startSpan(
-            $tracer,
-            $sql,
-            $this->recordStatements,
-            $this->dbSystem,
-            $this->dbName,
-            $this->serverAddress,
-            $this->serverPort,
-        );
+        $this->traced('ROLLBACK', function (): void { parent::rollBack(); });
     }
 }

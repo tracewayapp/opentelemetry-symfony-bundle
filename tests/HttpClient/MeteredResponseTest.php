@@ -129,14 +129,38 @@ final class MeteredResponseTest extends TestCase
         self::assertArrayHasKey('error.type', $attr);
     }
 
-    public function testCancelMarksResponseFinalisedSilently(): void
+    public function testGetStatusCodeFinalisesWithErrorOnTransportFailure(): void
+    {
+        $response = $this->wrap(new MockResponse('', [
+            'http_code' => 0,
+            'error' => 'connection refused',
+        ]));
+
+        try {
+            $response->getStatusCode();
+            self::fail('Expected exception');
+        } catch (\Throwable) {
+        }
+
+        $attr = [...$this->collectMetrics()['http.client.request.duration']->data->dataPoints][0]->attributes->toArray();
+        self::assertArrayHasKey('error.type', $attr, 'a failure surfacing via getStatusCode() must still record a failure metric');
+    }
+
+    public function testCancelRecordsDurationWithCancelledErrorType(): void
     {
         $response = $this->wrap(new MockResponse('ok', ['http_code' => 200]));
 
         $response->cancel();
 
-        // No metric emitted because the response is marked finalized before any record call.
-        self::assertSame([], $this->collectMetrics());
+        $metrics = $this->collectMetrics();
+        self::assertArrayHasKey('http.client.request.duration', $metrics);
+        $attr = [...$metrics['http.client.request.duration']->data->dataPoints][0]->attributes->toArray();
+        self::assertSame('cancelled', $attr['error.type']);
+
+        // A second touch must not double-record.
+        $response->cancel();
+        $after = $this->collectMetrics();
+        self::assertSame([], [...($after['http.client.request.duration']->data->dataPoints ?? [])]);
     }
 
     public function testGetInfoIsPassThrough(): void
@@ -186,6 +210,64 @@ final class MeteredResponseTest extends TestCase
         unset($response);
 
         self::assertArrayHasKey('http.client.request.duration', $this->collectMetrics());
+    }
+
+    public function testStackedTracedResponseCanStream(): void
+    {
+        $inner = new class implements ResponseInterface, \Symfony\Component\HttpClient\Response\StreamableInterface {
+            public function getStatusCode(): int
+            {
+                return 200;
+            }
+
+            public function getHeaders(bool $throw = true): array
+            {
+                return [];
+            }
+
+            public function getContent(bool $throw = true): string
+            {
+                return 'ok';
+            }
+
+            public function toArray(bool $throw = true): array
+            {
+                return [];
+            }
+
+            public function cancel(): void
+            {
+            }
+
+            public function getInfo(?string $type = null): mixed
+            {
+                return null === $type ? [] : null;
+            }
+
+            /** @return resource */
+            public function toStream(bool $throw = true)
+            {
+                $stream = fopen('php://memory', 'r');
+                \assert(false !== $stream);
+
+                return $stream;
+            }
+        };
+
+        $recorder = new MeteredHttpClient(new MockHttpClient(), 'test');
+        $metered = new MeteredResponse($inner, $recorder, hrtime(true), ['http.request.method' => 'GET']);
+
+        $span = \OpenTelemetry\API\Globals::tracerProvider()->getTracer('test')->spanBuilder('HTTP GET')->startSpan();
+        $traced = new \Traceway\OpenTelemetryBundle\HttpClient\TracedResponse($metered, $span);
+
+        // Regression: with metrics + tracing stacked, toStream() used to throw LogicException.
+        $stream = $traced->toStream();
+        self::assertIsResource($stream);
+
+        $metrics = $this->collectMetrics();
+        self::assertArrayHasKey('http.client.request.duration', $metrics);
+        $attr = [...$metrics['http.client.request.duration']->data->dataPoints][0]->attributes->toArray();
+        self::assertArrayNotHasKey('error.type', $attr);
     }
 
     private function wrap(MockResponse $mock): MeteredResponse

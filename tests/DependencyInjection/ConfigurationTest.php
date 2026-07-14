@@ -272,8 +272,9 @@ final class ConfigurationTest extends TestCase
         ]]);
 
         self::assertSame(
-            ['/health', '/_profiler', '/_wdt'],
+            ['/health', '/_profiler', '/42', '/_wdt'],
             $config['metrics']['http_server']['excluded_paths'],
+            'numeric entries are cast to path prefixes instead of silently dropped',
         );
     }
 

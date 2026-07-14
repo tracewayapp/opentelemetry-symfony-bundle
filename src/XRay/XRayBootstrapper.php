@@ -9,6 +9,7 @@ use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Instrumentation\Configurator;
 use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
 use OpenTelemetry\Context\Propagation\MultiTextMapPropagator;
+use OpenTelemetry\SDK\Common\Util\ShutdownHandler;
 use OpenTelemetry\SDK\Trace\ExporterFactory;
 use OpenTelemetry\SDK\Trace\SamplerFactory;
 use OpenTelemetry\SDK\Trace\SpanProcessorFactory;
@@ -87,12 +88,17 @@ final class XRayBootstrapper implements EventSubscriberInterface
 
         $spanProcessor = (new SpanProcessorFactory())->create($exporter);
 
-        return new TracerProvider(
+        $provider = new TracerProvider(
             $spanProcessor,
             $sampler,
             null,
             null,
             new \OpenTelemetry\Contrib\Aws\Xray\IdGenerator(),
         );
+
+        // Without this, BatchSpanProcessor never flushes in short-lived FPM processes.
+        ShutdownHandler::register($provider->shutdown(...));
+
+        return $provider;
     }
 }

@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\HttpClient;
 
-use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Metrics\HistogramInterface;
-use OpenTelemetry\API\Metrics\MeterInterface;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\HttpAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
@@ -16,10 +14,11 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 use Symfony\Contracts\HttpClient\ResponseStreamInterface;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\Instrumentation\MeterAwareTrait;
 use Traceway\OpenTelemetryBundle\Metrics\DurationBoundaries;
-use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 use Traceway\OpenTelemetryBundle\Util\HttpMethodResolver;
+use Traceway\OpenTelemetryBundle\Util\UrlParts;
 
 /**
  * Decorates any Symfony HttpClient to emit OpenTelemetry metrics for
@@ -45,19 +44,15 @@ use Traceway\OpenTelemetryBundle\Util\HttpMethodResolver;
  */
 final class MeteredHttpClient implements HttpClientInterface, ResetInterface
 {
-    private ?MeterInterface $meter = null;
+    use HostExclusionTrait;
+
+    use MeterAwareTrait;
     private ?HistogramInterface $duration = null;
     private ?HistogramInterface $requestBodySize = null;
     private ?HistogramInterface $responseBodySize = null;
 
-    private ?string $otlpEndpoint = null;
-    private bool $otlpEndpointResolved = false;
-
     /** Prevents recursive instrumentation when the exporter uses this client. */
     private bool $inFlight = false;
-
-    /** @var list<string> */
-    private readonly array $excludedHosts;
 
     /**
      * @param string[] $excludedHosts Hostnames to skip metrics for (e.g. OTLP collector)
@@ -82,27 +77,20 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
         $attributes = $this->requestAttributes($method, $url);
         $bodySize = $this->extractRequestBodySize($options);
 
-        if (null !== $bodySize) {
-            try {
-                $this->getRequestBodySizeHistogram()->record($bodySize, $attributes);
-            } catch (\Throwable) {
-            }
-        }
-
         $start = hrtime(true);
         $this->inFlight = true;
 
         try {
             $response = $this->client->request($method, $url, $options);
         } catch (\Throwable $e) {
-            $this->recordFailure($start, $attributes, $e);
+            $this->recordFailure($start, $attributes, $e, $bodySize);
 
             throw $e;
         } finally {
             $this->inFlight = false;
         }
 
-        return new MeteredResponse($response, $this, $start, $attributes);
+        return new MeteredResponse($response, $this, $start, $attributes, $bodySize);
     }
 
     public function stream(ResponseInterface|iterable $responses, ?float $timeout = null): ResponseStreamInterface
@@ -155,12 +143,11 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
 
     public function reset(): void
     {
-        $this->meter = null;
+        $this->resetMeter();
         $this->duration = null;
         $this->requestBodySize = null;
         $this->responseBodySize = null;
-        $this->otlpEndpoint = null;
-        $this->otlpEndpointResolved = false;
+        $this->resetHostExclusion();
         $this->inFlight = false;
 
         if ($this->client instanceof ResetInterface) {
@@ -173,7 +160,7 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
      *
      * @param array<non-empty-string, string|int> $attributes
      */
-    public function recordResponse(int|float $start, array $attributes, int $statusCode, ?int $responseBodySize): void
+    public function recordResponse(int|float $start, array $attributes, int $statusCode, ?int $responseBodySize, ?int $requestBodySize = null): void
     {
         try {
             $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE] = $statusCode;
@@ -182,8 +169,7 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
                 $attributes[ErrorAttributes::ERROR_TYPE] = (string) $statusCode;
             }
 
-            $durationSeconds = (hrtime(true) - $start) / 1_000_000_000;
-            $this->getDurationHistogram()->record($durationSeconds, $attributes);
+            $this->recordDuration($start, $attributes, $requestBodySize);
 
             if (null !== $responseBodySize) {
                 $this->getResponseBodySizeHistogram()->record($responseBodySize, $attributes);
@@ -197,14 +183,42 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
      *
      * @param array<non-empty-string, string|int> $attributes
      */
-    public function recordFailure(int|float $start, array $attributes, \Throwable $exception): void
+    public function recordFailure(int|float $start, array $attributes, \Throwable $exception, ?int $requestBodySize = null): void
     {
         try {
             $attributes[ErrorAttributes::ERROR_TYPE] = ErrorTypeResolver::resolve($exception);
 
-            $durationSeconds = (hrtime(true) - $start) / 1_000_000_000;
-            $this->getDurationHistogram()->record($durationSeconds, $attributes);
+            $this->recordDuration($start, $attributes, $requestBodySize);
         } catch (\Throwable) {
+        }
+    }
+
+    /**
+     * @internal called by {@see MeteredResponse} when the caller cancels the response
+     *
+     * @param array<non-empty-string, string|int> $attributes
+     */
+    public function recordCancellation(int|float $start, array $attributes, ?int $requestBodySize = null): void
+    {
+        try {
+            $attributes[ErrorAttributes::ERROR_TYPE] = 'cancelled';
+
+            $this->recordDuration($start, $attributes, $requestBodySize);
+        } catch (\Throwable) {
+        }
+    }
+
+    /**
+     * @param array<non-empty-string, string|int> $attributes
+     */
+    private function recordDuration(int|float $start, array $attributes, ?int $requestBodySize): void
+    {
+        $durationSeconds = (hrtime(true) - $start) / 1_000_000_000;
+        $this->getDurationHistogram()->record($durationSeconds, $attributes);
+
+        // Recorded here, not pre-flight, so the attribute set matches the duration histogram.
+        if (null !== $requestBodySize) {
+            $this->getRequestBodySizeHistogram()->record($requestBodySize, $attributes);
         }
     }
 
@@ -220,16 +234,12 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
         ];
 
         if (\is_array($parsed)) {
-            if (isset($parsed['host'])) {
-                $attributes[ServerAttributes::SERVER_ADDRESS] = $parsed['host'];
+            if (null !== ($host = UrlParts::host($parsed))) {
+                $attributes[ServerAttributes::SERVER_ADDRESS] = $host;
 
-                $port = $parsed['port'] ?? match (strtolower($parsed['scheme'] ?? '')) {
-                    'https' => 443,
-                    'http' => 80,
-                    default => null,
-                };
+                $port = UrlParts::port($parsed);
                 if (null !== $port) {
-                    $attributes[ServerAttributes::SERVER_PORT] = (int) $port;
+                    $attributes[ServerAttributes::SERVER_PORT] = $port;
                 }
             }
             if (isset($parsed['scheme'])) {
@@ -262,46 +272,6 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
         }
 
         return null;
-    }
-
-    private function isExcluded(string $url): bool
-    {
-        if ([] === $this->excludedHosts) {
-            return $this->isOtlpEndpoint($url);
-        }
-
-        $host = strtolower((string) (parse_url($url, \PHP_URL_HOST) ?? ''));
-
-        foreach ($this->excludedHosts as $excluded) {
-            if ($host === $excluded) {
-                return true;
-            }
-        }
-
-        return $this->isOtlpEndpoint($url);
-    }
-
-    private function isOtlpEndpoint(string $url): bool
-    {
-        if (!$this->otlpEndpointResolved) {
-            $endpoint = $_SERVER['OTEL_EXPORTER_OTLP_ENDPOINT']
-                ?? $_ENV['OTEL_EXPORTER_OTLP_ENDPOINT']
-                ?? getenv('OTEL_EXPORTER_OTLP_ENDPOINT');
-
-            $this->otlpEndpoint = (\is_string($endpoint) && '' !== $endpoint) ? $endpoint : null;
-            $this->otlpEndpointResolved = true;
-        }
-
-        return null !== $this->otlpEndpoint && str_starts_with($url, $this->otlpEndpoint);
-    }
-
-    private function getMeter(): MeterInterface
-    {
-        return $this->meter ??= Globals::meterProvider()->getMeter(
-            $this->meterName,
-            OpenTelemetryBundle::version(),
-            OpenTelemetryBundle::SCHEMA_URL,
-        );
     }
 
     private function getDurationHistogram(): HistogramInterface

@@ -4,17 +4,14 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\Mailer;
 
-use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
-use OpenTelemetry\API\Trace\TracerInterface;
 use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\TransportInterface;
-use Symfony\Component\Mime\Message;
 use Symfony\Component\Mime\RawMessage;
 use Symfony\Contracts\Service\ResetInterface;
-use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
+use Traceway\OpenTelemetryBundle\Instrumentation\TracerAwareTrait;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
@@ -33,8 +30,7 @@ use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
  */
 final class TraceableTransports implements TransportInterface, ResetInterface
 {
-    private ?TracerInterface $tracer = null;
-    private ?bool $enabled = null;
+    use TracerAwareTrait;
 
     public function __construct(
         private readonly TransportInterface $decorated,
@@ -48,7 +44,7 @@ final class TraceableTransports implements TransportInterface, ResetInterface
             return $this->decorated->send($message, $envelope);
         }
 
-        $transportName = $this->extractTransportName($message);
+        $transportName = TransportNameResolver::fromMessage($message);
         $spanName = null !== $transportName ? \sprintf('send %s', $transportName) : 'send';
 
         $builder = $this->getTracer()
@@ -91,37 +87,6 @@ final class TraceableTransports implements TransportInterface, ResetInterface
 
     public function reset(): void
     {
-        $this->tracer = null;
-        $this->enabled = null;
-    }
-
-    private function extractTransportName(RawMessage $message): ?string
-    {
-        if (!$message instanceof Message) {
-            return null;
-        }
-
-        $header = $message->getHeaders()->get('X-Transport');
-        if (null === $header) {
-            return null;
-        }
-
-        $value = $header->getBody();
-
-        return \is_string($value) && '' !== $value ? $value : null;
-    }
-
-    private function isEnabled(): bool
-    {
-        return $this->enabled ??= $this->getTracer()->isEnabled();
-    }
-
-    private function getTracer(): TracerInterface
-    {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer(
-            $this->tracerName,
-            OpenTelemetryBundle::version(),
-            OpenTelemetryBundle::SCHEMA_URL,
-        );
+        $this->resetTracer();
     }
 }

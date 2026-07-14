@@ -4,18 +4,17 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\EventSubscriber;
 
-use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
-use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\Context\ScopeInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\Scheduler\Event\FailureEvent;
 use Symfony\Component\Scheduler\Event\PostRunEvent;
 use Symfony\Component\Scheduler\Event\PreRunEvent;
 use Symfony\Contracts\Service\ResetInterface;
-use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
+use Traceway\OpenTelemetryBundle\Instrumentation\TracerAwareTrait;
+use Traceway\OpenTelemetryBundle\Util\ClassName;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
@@ -41,8 +40,7 @@ use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
  */
 final class SchedulerSubscriber implements EventSubscriberInterface, ResetInterface
 {
-    private ?TracerInterface $tracer = null;
-    private ?bool $enabled = null;
+    use TracerAwareTrait;
 
     /** @var \SplObjectStorage<object, array{SpanInterface, ScopeInterface}> */
     private \SplObjectStorage $spans;
@@ -87,7 +85,7 @@ final class SchedulerSubscriber implements EventSubscriberInterface, ResetInterf
         }
 
         $builder = $this->getTracer()
-            ->spanBuilder(\sprintf('process %s', $this->shortName($messageClass)))
+            ->spanBuilder(\sprintf('process %s', ClassName::short($messageClass)))
             ->setSpanKind(SpanKind::KIND_CONSUMER)
             ->setAttribute('messaging.system', 'symfony_scheduler')
             ->setAttribute('messaging.operation.name', 'process')
@@ -96,7 +94,7 @@ final class SchedulerSubscriber implements EventSubscriberInterface, ResetInterf
             ->setAttribute('messaging.message.class', $messageClass)
             ->setAttribute('messaging.destination.name', $context->name)
             ->setAttribute('scheduler.schedule.name', $context->name)
-            ->setAttribute('scheduler.trigger.type', $this->shortName($context->trigger::class))
+            ->setAttribute('scheduler.trigger.type', ClassName::short($context->trigger::class))
             ->setAttribute('scheduler.trigger.expression', (string) $context->trigger)
             ->setAttribute('scheduler.triggered_at', $context->triggeredAt->format(\DateTimeInterface::ATOM));
 
@@ -173,8 +171,7 @@ final class SchedulerSubscriber implements EventSubscriberInterface, ResetInterf
     public function reset(): void
     {
         $this->drainSpans();
-        $this->tracer = null;
-        $this->enabled = null;
+        $this->resetTracer();
     }
 
     private function drainSpans(bool $suppressScopeNotice = false): void
@@ -189,27 +186,5 @@ final class SchedulerSubscriber implements EventSubscriberInterface, ResetInterf
             $span->end();
         }
         $this->spans = new \SplObjectStorage();
-    }
-
-    private function isEnabled(): bool
-    {
-        return $this->enabled ??= $this->getTracer()->isEnabled();
-    }
-
-    private function getTracer(): TracerInterface
-    {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer(
-            $this->tracerName,
-            OpenTelemetryBundle::version(),
-            OpenTelemetryBundle::SCHEMA_URL,
-        );
-    }
-
-    private function shortName(string $fqcn): string
-    {
-        $pos = strrpos($fqcn, '\\');
-        $name = false !== $pos ? substr($fqcn, $pos + 1) : $fqcn;
-
-        return '' !== $name ? $name : $fqcn;
     }
 }

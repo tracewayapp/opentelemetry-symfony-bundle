@@ -32,7 +32,10 @@ final class CheckRunner
         );
 
         $completed = [];
+        $knownNames = [];
         foreach ($this->checks as $check) {
+            $knownNames[] = $check->name();
+
             if ([] !== $only && !\in_array($check->name(), $only, true)) {
                 continue;
             }
@@ -63,6 +66,12 @@ final class CheckRunner
             }
 
             $completed[] = new CompletedCheck($check->name(), $check->label(), $check->group(), $result);
+        }
+
+        // A typoed --only must not produce an empty green report (exit 0 in CI would mean "checked").
+        $unknown = array_values(array_diff($only, $knownNames));
+        if ([] !== $unknown) {
+            throw new \InvalidArgumentException(\sprintf('Unknown check name(s) in --only: "%s". Available checks: %s.', implode('", "', $unknown), implode(', ', $knownNames)));
         }
 
         $groupOrder = [];

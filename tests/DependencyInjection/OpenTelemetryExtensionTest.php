@@ -174,6 +174,20 @@ final class OpenTelemetryExtensionTest extends TestCase
         self::assertSame([], $container->getExtensionConfig('framework'));
     }
 
+    public function testPrependRejectsEnvPlaceholdersWithClearError(): void
+    {
+        $container = new ContainerBuilder();
+        $container->prependExtensionConfig('open_telemetry', [
+            'traces' => ['enabled' => '%env(bool:OTEL_ENABLED)%'],
+        ]);
+
+        $extension = new OpenTelemetryExtension();
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessageMatches('/placeholders are not supported/');
+        $extension->prepend($container);
+    }
+
     public function testDoctrineMiddlewareRegisteredWhenEnabled(): void
     {
         $container = $this->buildContainer(['traces' => ['doctrine' => ['enabled' => true]]]);

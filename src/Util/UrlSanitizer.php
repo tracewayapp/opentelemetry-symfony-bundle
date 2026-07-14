@@ -11,13 +11,14 @@ final class UrlSanitizer
 {
     private const REDACTED = 'REDACTED';
 
-    /** Query parameter names the semconv requires redacted by default. */
-    private const SENSITIVE_QUERY_PARAMS = ['X-Amz-Signature', 'X-Amz-Credential', 'X-Amz-Security-Token', 'sig', 'X-Goog-Signature'];
+    /** Semconv's default redaction list plus SigV2's AWSAccessKeyId/Signature (extra redaction is permitted). */
+    private const SENSITIVE_QUERY_PARAMS = ['X-Amz-Signature', 'X-Amz-Credential', 'X-Amz-Security-Token', 'sig', 'X-Goog-Signature', 'AWSAccessKeyId', 'Signature'];
 
     public static function sanitizeUrl(string $url): string
     {
+        // Greedy up to the last "@" before path/query so userinfo containing "@" is fully redacted.
         $sanitized = preg_replace(
-            '#^([a-z][a-z0-9+.-]*://)[^/?\#@]+@#i',
+            '#^([a-z][a-z0-9+.-]*://|//)[^/?\#]*@#i',
             '$1'.self::REDACTED.':'.self::REDACTED.'@',
             $url,
         ) ?? $url;

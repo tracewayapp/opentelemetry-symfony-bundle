@@ -16,6 +16,7 @@ use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Contracts\Cache\NamespacedPoolInterface;
 use Traceway\OpenTelemetryBundle\Cache\TraceableCachePool;
 use Traceway\OpenTelemetryBundle\Cache\TraceableNamespacedCachePool;
+use Traceway\OpenTelemetryBundle\Cache\TraceableNamespacedTagAwareCachePool;
 use Traceway\OpenTelemetryBundle\Cache\TraceableTagAwareCachePool;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\CacheTracingPass;
 
@@ -71,6 +72,24 @@ final class CacheTracingPassTest extends TestCase
         self::assertSame('cache.app', $decorator->getArgument('$poolName'));
     }
 
+    public function testPoolNamePrefersTagNameAttributeOverServiceId(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.cache_enabled', true);
+        $container->setParameter('open_telemetry.tracer_name', 'test-tracer');
+
+        // In real kernels CachePoolPass strips `name` first; this pins the fallback for custom orderings.
+        $poolDef = new Definition(FilesystemAdapter::class);
+        $poolDef->addTag('cache.pool', ['name' => 'my_pool']);
+        $container->setDefinition('.my_pool.inner', $poolDef);
+
+        $pass = new CacheTracingPass();
+        $pass->process($container);
+
+        $decorator = $container->getDefinition('.my_pool.inner.otel');
+        self::assertSame('my_pool', $decorator->getArgument('$poolName'));
+    }
+
     public function testDecoratesTagAwarePool(): void
     {
         $container = new ContainerBuilder();
@@ -87,7 +106,10 @@ final class CacheTracingPassTest extends TestCase
         self::assertTrue($container->hasDefinition('cache.app.taggable.otel'));
 
         $decorator = $container->getDefinition('cache.app.taggable.otel');
-        self::assertSame(TraceableTagAwareCachePool::class, $decorator->getClass());
+        $expectedClass = interface_exists(NamespacedPoolInterface::class) && is_subclass_of(TagAwareAdapter::class, NamespacedPoolInterface::class)
+            ? TraceableNamespacedTagAwareCachePool::class
+            : TraceableTagAwareCachePool::class;
+        self::assertSame($expectedClass, $decorator->getClass());
     }
 
     public function testSymfonyProfilerKeepsTraceableTagAwarePoolTagAware(): void

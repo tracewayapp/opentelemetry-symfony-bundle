@@ -41,8 +41,17 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     public function prepend(ContainerBuilder $container): void
     {
         $configs = $container->getExtensionConfig($this->getAlias());
-        /** @var array{logs: array{export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}} $config */
-        $config = $this->processConfiguration(new Configuration(), $configs);
+
+        try {
+            /** @var array{logs: array{export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}} $config */
+            $config = $this->processConfiguration(new Configuration(), $configs);
+        } catch (\Symfony\Component\Config\Definition\Exception\InvalidTypeException $e) {
+            if ($this->containsEnvPlaceholder($configs)) {
+                throw new \LogicException('The "open_telemetry" configuration is consumed at compile time to wire services, so "%env()%" placeholders are not supported for its options. Use plain values (per-environment config files) instead.', 0, $e);
+            }
+
+            throw $e;
+        }
 
         if ($config['logs']['export']['enabled']) {
             if (!$container->hasExtension('monolog')) {
@@ -119,7 +128,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->removeDefinition(OpenTelemetrySubscriber::class);
         }
 
-        if ($tracingEnabled && $traces['console']['enabled'] && $this->isConsoleAvailable()) {
+        if ($tracingEnabled && $traces['console']['enabled']) {
             $container->getDefinition(ConsoleSubscriber::class)
                 ->setArgument('$tracerName', $tracerName)
                 ->setArgument('$excludedCommands', $traces['console']['excluded_commands']);
@@ -236,7 +245,8 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         if ($metrics['enabled'] && $metrics['http_server']['enabled']) {
             $container->getDefinition(OpenTelemetryMetricsSubscriber::class)
                 ->setArgument('$meterName', $meterName)
-                ->setArgument('$excludedPaths', $metrics['http_server']['excluded_paths']);
+                ->setArgument('$excludedPaths', $metrics['http_server']['excluded_paths'])
+                ->setArgument('$errorStatusThreshold', $traces['error_status_threshold']);
         } else {
             $container->removeDefinition(OpenTelemetryMetricsSubscriber::class);
         }
@@ -259,9 +269,21 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         }
     }
 
-    private function isConsoleAvailable(): bool
+    private function containsEnvPlaceholder(mixed $value): bool
     {
-        return class_exists(\Symfony\Component\Console\ConsoleEvents::class);
+        if (\is_string($value)) {
+            return 1 === preg_match('/%env\([^)]*\)%/', $value);
+        }
+
+        if (\is_array($value)) {
+            foreach ($value as $item) {
+                if ($this->containsEnvPlaceholder($item)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function isMessengerAvailable(): bool

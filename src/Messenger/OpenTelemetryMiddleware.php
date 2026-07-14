@@ -8,7 +8,6 @@ use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
-use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\Context\Context;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use Symfony\Component\Messenger\Envelope;
@@ -19,7 +18,8 @@ use Symfony\Component\Messenger\Stamp\ReceivedStamp;
 use Symfony\Component\Messenger\Stamp\SentStamp;
 use Symfony\Component\Messenger\Stamp\TransportMessageIdStamp;
 use Symfony\Contracts\Service\ResetInterface;
-use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
+use Traceway\OpenTelemetryBundle\Instrumentation\TracerAwareTrait;
+use Traceway\OpenTelemetryBundle\Util\ClassName;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
 /**
@@ -35,10 +35,8 @@ use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
  */
 final class OpenTelemetryMiddleware implements MiddlewareInterface, ResetInterface
 {
+    use TracerAwareTrait;
     private const SCHEDULED_STAMP_CLASS = 'Symfony\\Component\\Scheduler\\Messenger\\ScheduledStamp';
-
-    private ?TracerInterface $tracer = null;
-    private ?bool $enabled = null;
 
     /**
      * @param string $tracerName               Instrumentation library name
@@ -243,22 +241,7 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface, ResetInterfa
 
     public function reset(): void
     {
-        $this->tracer = null;
-        $this->enabled = null;
-    }
-
-    private function isEnabled(): bool
-    {
-        return $this->enabled ??= $this->getTracer()->isEnabled();
-    }
-
-    private function getTracer(): TracerInterface
-    {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer(
-            $this->tracerName,
-            OpenTelemetryBundle::version(),
-            OpenTelemetryBundle::SCHEMA_URL,
-        );
+        $this->resetTracer();
     }
 
     /**
@@ -270,9 +253,6 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface, ResetInterfa
      */
     private function resolveSpanName(string $messageClass, string $operation): string
     {
-        $pos = strrpos($messageClass, '\\');
-        $shortName = false !== $pos ? substr($messageClass, $pos + 1) : $messageClass;
-
-        return \sprintf('%s %s', $operation, $shortName);
+        return \sprintf('%s %s', $operation, ClassName::short($messageClass));
     }
 }

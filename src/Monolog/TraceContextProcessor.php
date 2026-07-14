@@ -17,16 +17,14 @@ final class TraceContextProcessor implements ProcessorInterface
     public function __invoke(LogRecord $record): LogRecord
     {
         $spanContext = Span::getCurrent()->getContext();
-        $traceId = $spanContext->getTraceId();
-        $spanId = $spanContext->getSpanId();
 
-        if ('00000000000000000000000000000000' === $traceId) {
+        if (!$spanContext->isValid()) {
             return $record;
         }
 
         return $record->with(extra: array_merge($record->extra, [
-            'trace_id' => $traceId,
-            'span_id' => $spanId,
+            'trace_id' => $spanContext->getTraceId(),
+            'span_id' => $spanContext->getSpanId(),
             'trace_flags' => \sprintf('%02x', $spanContext->getTraceFlags()),
         ]));
     }

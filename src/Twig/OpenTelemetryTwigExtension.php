@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\Twig;
 
-use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
-use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\Context\ScopeInterface;
 use Symfony\Contracts\Service\ResetInterface;
-use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
+use Traceway\OpenTelemetryBundle\Instrumentation\TracerAwareTrait;
 use Twig\Extension\AbstractExtension;
 use Twig\Profiler\NodeVisitor\ProfilerNodeVisitor;
 use Twig\Profiler\Profile;
@@ -32,8 +30,7 @@ use Twig\Profiler\Profile;
  */
 final class OpenTelemetryTwigExtension extends AbstractExtension implements ResetInterface
 {
-    private ?TracerInterface $tracer = null;
-    private ?bool $enabled = null;
+    use TracerAwareTrait;
 
     /** @var \SplObjectStorage<Profile, array{SpanInterface, ScopeInterface}> */
     private \SplObjectStorage $spans;
@@ -54,7 +51,7 @@ final class OpenTelemetryTwigExtension extends AbstractExtension implements Rese
 
     public function __destruct()
     {
-        $this->drainOrphans(suppressScopeNotice: false);
+        $this->drainOrphans(suppressScopeNotice: true);
     }
 
     /**
@@ -68,8 +65,7 @@ final class OpenTelemetryTwigExtension extends AbstractExtension implements Rese
     public function reset(): void
     {
         $this->drainOrphans(suppressScopeNotice: true);
-        $this->tracer = null;
-        $this->enabled = null;
+        $this->resetTracer();
     }
 
     public function enter(Profile $profile): void
@@ -161,19 +157,5 @@ final class OpenTelemetryTwigExtension extends AbstractExtension implements Rese
         }
 
         return false;
-    }
-
-    private function isEnabled(): bool
-    {
-        return $this->enabled ??= $this->getTracer()->isEnabled();
-    }
-
-    private function getTracer(): TracerInterface
-    {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer(
-            $this->tracerName,
-            OpenTelemetryBundle::version(),
-            OpenTelemetryBundle::SCHEMA_URL,
-        );
     }
 }

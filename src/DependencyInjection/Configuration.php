@@ -136,7 +136,7 @@ final class Configuration implements ConfigurationInterface
             ->addDefaultsIfNotSet()
             ->children()
                 ->booleanNode('enabled')
-                    ->info('Enable HTTP request tracing via OpenTelemetrySubscriber. Each non-HTTP subsystem (console, http_client, messenger, doctrine, cache, twig, scheduler, mailer) has its own enabled toggle below.')
+                    ->info('Master switch for all trace instrumentation, including HTTP request tracing. When false, no trace subsystem is wired regardless of the per-subsystem toggles (console, http_client, messenger, doctrine, cache, twig, scheduler, mailer) below.')
                     ->defaultTrue()
                 ->end()
                 ->scalarNode('propagator')
@@ -169,7 +169,11 @@ final class Configuration implements ConfigurationInterface
                         ->then(static function (array $paths): array {
                             $normalized = [];
                             foreach ($paths as $p) {
-                                if (!\is_string($p) || '' === trim($p)) {
+                                if (!\is_scalar($p)) {
+                                    continue;
+                                }
+                                $p = (string) $p;
+                                if ('' === trim($p)) {
                                     continue;
                                 }
                                 $normalized[] = str_starts_with($p, '/') ? $p : '/'.$p;
@@ -320,7 +324,11 @@ final class Configuration implements ConfigurationInterface
                                 ->then(static function (array $paths): array {
                                     $normalized = [];
                                     foreach ($paths as $p) {
-                                        if (!\is_string($p) || '' === trim($p)) {
+                                        if (!\is_scalar($p)) {
+                                            continue;
+                                        }
+                                        $p = (string) $p;
+                                        if ('' === trim($p)) {
                                             continue;
                                         }
                                         $normalized[] = str_starts_with($p, '/') ? $p : '/'.$p;

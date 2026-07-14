@@ -47,7 +47,12 @@ final class OpenTelemetryBundle extends Bundle
      */
     public static function version(): string
     {
-        return InstalledVersions::getPrettyVersion(self::PACKAGE_NAME) ?? 'unknown';
+        // getPrettyVersion() throws (not null) when the package isn't Composer-installed.
+        try {
+            return InstalledVersions::getPrettyVersion(self::PACKAGE_NAME) ?? 'unknown';
+        } catch (\OutOfBoundsException) {
+            return 'unknown';
+        }
     }
 
     public function build(ContainerBuilder $container): void
@@ -106,11 +111,12 @@ final class OpenTelemetryBundle extends Bundle
 
         /** @var array<string, string> $existing */
         $existing = Configuration::has($name) ? Configuration::getMap($name) : [];
-        $combined = array_replace($existing, $values);
+        $combined = array_replace(array_map(rawurldecode(...), $existing), $values);
 
         $new = [];
         foreach ($combined as $key => $value) {
-            $new[] = \sprintf('%1$s=%2$s', $key, $value);
+            // Percent-encode so values containing "," or "=" survive the W3C baggage format.
+            $new[] = \sprintf('%1$s=%2$s', $key, rawurlencode($value));
         }
 
         $this->setEnvVariable($name, implode(',', $new), $usePutEnv);

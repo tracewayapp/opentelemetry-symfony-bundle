@@ -63,9 +63,22 @@ final class SqlOperationExtractor
      */
     private static function extractCteBodyOperation(string $sql): ?string
     {
+        return self::scanDepthZeroKeyword($sql, self::CTE_BODY_OPERATIONS, 4)['word'] ?? null;
+    }
+
+    /**
+     * Scans for the first keyword at parenthesis depth zero, skipping string
+     * literals, quoted identifiers, and SQL comments.
+     *
+     * @param list<non-empty-string> $keywords Uppercase keywords to match
+     *
+     * @return array{word: non-empty-string, end: int}|null
+     */
+    private static function scanDepthZeroKeyword(string $sql, array $keywords, int $offset): ?array
+    {
         $depth = 0;
         $length = \strlen($sql);
-        $i = 4;
+        $i = $offset;
 
         while ($i < $length) {
             $char = $sql[$i];
@@ -77,10 +90,24 @@ final class SqlOperationExtractor
             } elseif ("'" === $char || '"' === $char || '`' === $char) {
                 $i = self::skipQuoted($sql, $i, $char);
                 continue;
-            } elseif (0 === $depth && preg_match('/\G[A-Za-z_][A-Za-z0-9_]*/', $sql, $m, 0, $i)) {
+            } elseif ('/' === $char && '*' === ($sql[$i + 1] ?? '')) {
+                $end = strpos($sql, '*/', $i + 2);
+                if (false === $end) {
+                    return null;
+                }
+                $i = $end + 2;
+                continue;
+            } elseif (('-' === $char && '-' === ($sql[$i + 1] ?? '')) || '#' === $char) {
+                $end = strpos($sql, "\n", $i);
+                if (false === $end) {
+                    return null;
+                }
+                $i = $end + 1;
+                continue;
+            } elseif (preg_match('/\G[A-Za-z_][A-Za-z0-9_]*/', $sql, $m, 0, $i)) {
                 $word = strtoupper($m[0]);
-                if (\in_array($word, self::CTE_BODY_OPERATIONS, true)) {
-                    return $word;
+                if (0 === $depth && \in_array($word, $keywords, true)) {
+                    return ['word' => $word, 'end' => $i + \strlen($m[0])];
                 }
                 $i += \strlen($m[0]);
                 continue;
@@ -99,6 +126,12 @@ final class SqlOperationExtractor
 
         while ($i < $length) {
             if ($sql[$i] === $quote) {
+                // Doubled quote is an escaped quote in every SQL dialect.
+                if (($sql[$i + 1] ?? '') === $quote) {
+                    $i += 2;
+                    continue;
+                }
+
                 return $i + 1;
             }
             if ('\\' === $sql[$i]) {
@@ -125,11 +158,14 @@ final class SqlOperationExtractor
             return null;
         }
 
+        if (1 === preg_match('/^SELECT\b/i', $sql)) {
+            return self::extractSelectTarget($sql);
+        }
+
         $patterns = [
             '/^INSERT\s+(?:OR\s+\w+\s+)?INTO\s+('.self::IDENT.')/i',
             '/^UPDATE\s+(?:OR\s+\w+\s+)?('.self::IDENT.')\s+SET\b/i',
             '/^DELETE\s+FROM\s+('.self::IDENT.')/i',
-            '/^SELECT\b.*?\bFROM\s+('.self::IDENT.')/is',
             '/^REPLACE\s+INTO\s+('.self::IDENT.')/i',
         ];
 
@@ -137,6 +173,30 @@ final class SqlOperationExtractor
             if (preg_match($pattern, $sql, $m)) {
                 return self::stripQuotes($m[1]);
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * Finds the SELECT's depth-zero FROM so string literals and scalar
+     * subqueries in the select list can't hijack the collection name.
+     */
+    private static function extractSelectTarget(string $sql): ?string
+    {
+        $found = self::scanDepthZeroKeyword($sql, ['FROM'], 6);
+        if (null === $found) {
+            return null;
+        }
+
+        $rest = substr($sql, $found['end']);
+        if (1 === preg_match('/\A\s*('.self::IDENT.')/', $rest, $m)) {
+            return self::stripQuotes($m[1]);
+        }
+
+        // Derived table "FROM (SELECT ... FROM inner)" — report the inner table.
+        if (1 === preg_match('/\bFROM\s+('.self::IDENT.')/is', $rest, $m)) {
+            return self::stripQuotes($m[1]);
         }
 
         return null;

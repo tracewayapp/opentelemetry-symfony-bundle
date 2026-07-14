@@ -8,7 +8,6 @@ use Doctrine\DBAL\Driver\Exception as DriverException;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Metrics\HistogramInterface;
 use OpenTelemetry\API\Metrics\MeterInterface;
-use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\SqlOperationExtractor;
 use Traceway\OpenTelemetryBundle\Metrics\DurationBoundaries;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
@@ -23,8 +22,11 @@ use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
  * statement counterparts; one recorder instance per connection.
  *
  * Metric: db.client.operation.duration (Histogram, seconds) — semconv Stable.
+ *
+ * Not a container service (constructed per connection by MeteredDriver), so it
+ * deliberately does not implement ResetInterface: services_resetter never sees it.
  */
-final class DbMetricRecorder implements ResetInterface
+final class DbMetricRecorder
 {
     private ?MeterInterface $meter = null;
     private ?HistogramInterface $duration = null;
@@ -68,12 +70,6 @@ final class DbMetricRecorder implements ResetInterface
             $this->getDurationHistogram()->record($durationSeconds, $attributes);
         } catch (\Throwable) {
         }
-    }
-
-    public function reset(): void
-    {
-        $this->meter = null;
-        $this->duration = null;
     }
 
     /**

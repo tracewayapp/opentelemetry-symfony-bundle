@@ -298,7 +298,7 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
         self::assertSame(2, $points[0]->value);
     }
 
-    public function testNamespacedExceptionUsesFqcn(): void
+    public function testHandlerFailedExceptionIsUnwrappedForErrorType(): void
     {
         $middleware = new OpenTelemetryMetricsMiddleware('test');
         $envelope = new Envelope(new \stdClass(), [new ReceivedStamp('async')]);
@@ -319,8 +319,9 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
         $metrics = $this->collectMetrics();
         $points = [...$metrics['messaging.client.consumed.messages']->data->dataPoints];
         self::assertSame(
-            \Symfony\Component\Messenger\Exception\HandlerFailedException::class,
+            \RuntimeException::class,
             $points[0]->attributes->toArray()['error.type'],
+            'error.type must reflect the wrapped handler exception, not the constant wrapper FQCN',
         );
     }
 

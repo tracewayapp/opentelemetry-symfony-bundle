@@ -7,14 +7,10 @@ namespace Traceway\OpenTelemetryBundle\Doctrine\Middleware;
 use Doctrine\DBAL\Driver\Middleware\AbstractStatementMiddleware;
 use Doctrine\DBAL\Driver\Result;
 use Doctrine\DBAL\Driver\Statement;
-use OpenTelemetry\API\Globals;
-use OpenTelemetry\API\Trace\TracerInterface;
-use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
 final class TraceableStatementDbal4 extends AbstractStatementMiddleware
 {
-    private ?TracerInterface $tracer = null;
-    private ?bool $enabled = null;
+    use TraceableDbalTrait;
 
     public function __construct(
         Statement $statement,
@@ -31,39 +27,6 @@ final class TraceableStatementDbal4 extends AbstractStatementMiddleware
 
     public function execute(): Result
     {
-        if (!($this->enabled ??= $this->getTracer()->isEnabled())) {
-            return parent::execute();
-        }
-
-        $span = DbSpanBuilder::startSpan(
-            $this->getTracer(),
-            $this->sql,
-            $this->recordStatements,
-            $this->dbSystem,
-            $this->dbName,
-            $this->serverAddress,
-            $this->serverPort,
-        );
-
-        try {
-            $result = parent::execute();
-        } catch (\Throwable $e) {
-            DbSpanBuilder::recordFailure($span, $e);
-
-            throw $e;
-        } finally {
-            $span->end();
-        }
-
-        return $result;
-    }
-
-    private function getTracer(): TracerInterface
-    {
-        return $this->tracer ??= Globals::tracerProvider()->getTracer(
-            $this->tracerName,
-            OpenTelemetryBundle::version(),
-            OpenTelemetryBundle::SCHEMA_URL,
-        );
+        return $this->traced($this->sql, fn (): Result => parent::execute());
     }
 }

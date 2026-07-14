@@ -49,6 +49,38 @@ final class UrlSanitizerTest extends TestCase
         );
     }
 
+    public function testSigV2ParamsRedacted(): void
+    {
+        self::assertSame(
+            'AWSAccessKeyId=REDACTED&Expires=1141889120&Signature=REDACTED',
+            UrlSanitizer::sanitizeQuery('AWSAccessKeyId=AKIAIOSFODNN7&Expires=1141889120&Signature=vjbyPxybdZaNmGa%2ByT272YEAiv4%3D'),
+        );
+    }
+
+    public function testProtocolRelativeCredentialsRedacted(): void
+    {
+        self::assertSame(
+            '//REDACTED:REDACTED@example.com/path',
+            UrlSanitizer::sanitizeUrl('//user:pass@example.com/path'),
+        );
+    }
+
+    public function testUserinfoContainingAtSignFullyRedacted(): void
+    {
+        self::assertSame(
+            'https://REDACTED:REDACTED@example.com/path',
+            UrlSanitizer::sanitizeUrl('https://user:p@ss@example.com/path'),
+        );
+    }
+
+    public function testIpv6CredentialsRedacted(): void
+    {
+        self::assertSame(
+            'https://REDACTED:REDACTED@[::1]:8080/path',
+            UrlSanitizer::sanitizeUrl('https://user:pass@[::1]:8080/path'),
+        );
+    }
+
     public function testFragmentPreserved(): void
     {
         self::assertSame(

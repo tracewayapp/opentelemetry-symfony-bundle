@@ -54,7 +54,7 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http/json
 
 That's it. Every HTTP request, console command, outgoing call, Messenger job, DB query, cache operation, and Twig render is now traced.
 
-It is also possible to use Symfony's DotEnv component in combination with the `open_telemetry.sdk` bundle configuration section for `OTEL_PHP_AUTOLOAD_ENABLED`,  `OTEL_RESOURCE_ATTRIBUTES` and `OTEL_EXPORTER_OTLP_HEADERS` to set the relevant SDK configuration, see [docs/configuration.md](docs/configuration.md) for more details. Using configuration setting `open_telemetry.sdk.autoload_enabled` registers the OpenTelemetry SDK without needing to set `OTEL_PHP_AUTOLOAD_ENABLED` before Composer's autoload is loaded. Furthermore, using `open_telemetry.sdk.resource_attributes` allows `OTEL_RESOURCE_ATTRIBUTES` to be set more conveniently and also supports the use of Symfony Secrets and the same applies with `open_telemetry.sdk.exporter_otlp_headers` for `OTEL_EXPORTER_OTLP_HEADERS`.
+Prefer configuring the SDK via the bundle instead of raw env vars (works with DotEnv and Symfony Secrets)? See the `open_telemetry.sdk` section in [docs/configuration.md](docs/configuration.md).
 
 Verify the wiring:
 
@@ -64,36 +64,11 @@ bin/console traceway:doctor
 
 ## What Gets Traced
 
-| Component | Span Kind | What's captured |
-|---|---|---|
-| **HTTP requests** | SERVER | Route templates (`GET /api/items/{id}`), status codes, body sizes, client IP, exceptions, sub-requests |
-| **Console commands** | INTERNAL | Command name, argv, pid, exit code, exceptions |
-| **HttpClient** | CLIENT | Outgoing requests with W3C context propagation, OTLP endpoint auto-excluded, re-entrance guard |
-| **Messenger** | PRODUCER/CONSUMER | Message class, transport, W3C context propagation across async boundaries |
-| **Scheduler** | CONSUMER | Schedule name, trigger, next-run, cancellation marker. Requires `symfony/scheduler` |
-| **Mailer** | PRODUCER + CLIENT | `create` span on `MailerInterface::send`, `send` span on the transport. Recipient count, message-id, `X-Transport` routing |
-| **Doctrine DBAL** | CLIENT | Parameterised SQL, transactions, db system/namespace auto-detection. DBAL 3.6+ and 4.x CI-tested |
-| **Cache** | INTERNAL | `get` (hit/miss), `delete`, `invalidateTags` with pool name. Requires `symfony/cache` |
-| **Twig** | INTERNAL | Template name, nested includes. Requires `twig/twig` |
-| **Monolog** | — | Inject `trace_id`, `span_id` + `trace_flags` into every log record. Opt-in OTel Logs API export with per-channel scope |
-
-Also: Server-Timing response headers, full [OTel semantic conventions](https://opentelemetry.io/docs/specs/semconv/http/).
+HTTP requests (with route templates), Console commands, HttpClient, Messenger, Scheduler, Mailer, Doctrine DBAL, Cache, and Twig — plus Monolog `trace_id`/`span_id` correlation and opt-in OTel log export. Each subsystem is individually toggleable. See **[docs/index.md](docs/index.md)** for the per-component span breakdown.
 
 ## Semantic Conventions
 
-This bundle tracks the current [OTel semantic conventions](https://opentelemetry.io/docs/specs/semconv/), including details most instrumentations skip: `_OTHER` method normalization, `url.full` credential/query redaction, default-port inference, `error.type` on every failure path, stable `db.system.name` values, SQLSTATE as `db.response.status_code`, and the per-signal histogram bucket advisories.
-
-Deliberate deviations, chosen so task-oriented backends group telemetry usefully:
-
-| Where | Spec says | We do | Why |
-|---|---|---|---|
-| Messenger span name | `send {transport}` | `send {MessageClass}` | Tasks group per message type, not per queue |
-| Console span name | `{process.executable.name}` | the command name | `app:import` beats `php` (allowed low-cardinality alternative) |
-| Consumer parenting | span links by default | parent-child (links with `root_spans: true`) | end-to-end traces out of the box |
-| `db.system`, `db.statement`, … | deprecated | dual-emitted alongside the stable keys | migration aid for older backends, removal in v3.0 |
-| `db.query.text` | sanitize by default | recorded verbatim (prepared statements are placeholder-safe) | disable with `traces.doctrine.record_statements: false` |
-
-Custom attributes (`console.command`, `cache.*`, `twig.*`, `scheduler.*`, `messaging.message.class`) cover areas with no registered convention yet.
+Audited against the current [OTel semantic conventions](https://opentelemetry.io/docs/specs/semconv/): every stable MUST/Required/Conditionally-Required rule is implemented, Recommended attributes are emitted wherever the data exists, and all deviations are deliberate and spec-permitted. See **[docs/semantic-conventions.md](docs/semantic-conventions.md)** for the conformance statement, deviations, and known limitations.
 
 ## Configuration
 
@@ -142,20 +117,7 @@ Opt-in OpenTelemetry metrics — Messenger, Doctrine DBAL, HTTP server/client, a
 
 ## Doctor
 
-`bin/console traceway:doctor` runs diagnostic checks against the bundle's wiring, SDK environment variables, and OTLP endpoint reachability — text or JSON, scriptable in CI.
-
-```
-Runtime
-  ✓ ext-opentelemetry not loaded (no conflict risk)
-SDK configuration
-  ✓ OTEL_SERVICE_NAME = "my-symfony-app"
-  ✓ OTEL_TRACES_EXPORTER = otlp
-Connectivity
-  ✓ OTLP endpoint reachable (HTTP 404, 7ms)
-Results: 9 ok, 0 warning, 0 error, 3 skipped, 0 info
-```
-
-See **[docs/doctor.md](docs/doctor.md)** for flags, JSON envelope schema, and custom checks.
+`bin/console traceway:doctor` runs diagnostic checks against the bundle's wiring, SDK environment variables, and OTLP endpoint reachability — text or JSON, scriptable in CI. See **[docs/doctor.md](docs/doctor.md)** for flags, JSON envelope schema, and custom checks.
 
 ## Documentation
 

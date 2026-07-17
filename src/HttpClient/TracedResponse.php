@@ -15,6 +15,7 @@ use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
 use Symfony\Component\HttpClient\Response\StreamableInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
+use Traceway\OpenTelemetryBundle\Util\ProtocolVersion;
 use Traceway\OpenTelemetryBundle\Util\UrlParts;
 use Traceway\OpenTelemetryBundle\Util\UrlSanitizer;
 
@@ -107,6 +108,12 @@ final class TracedResponse implements ResponseInterface, StreamableInterface
     public function cancel(): void
     {
         if (!$this->spanEnded) {
+            // If headers already arrived, a status was received and semconv requires it.
+            $received = $this->receivedStatusCode();
+            if (null !== $received) {
+                $this->span->setAttribute(HttpAttributes::HTTP_RESPONSE_STATUS_CODE, $received);
+            }
+
             $this->span->setAttribute(ErrorAttributes::ERROR_TYPE, 'cancelled');
             $this->endSpan();
         }
@@ -233,10 +240,28 @@ final class TracedResponse implements ResponseInterface, StreamableInterface
         }
 
         $this->enrichFromTransportInfo();
+
+        // A status may have been received even though the accessor threw (e.g. getContent(true) on a 5xx).
+        $received = $this->receivedStatusCode();
+        if (null !== $received) {
+            $this->span->setAttribute(HttpAttributes::HTTP_RESPONSE_STATUS_CODE, $received);
+        }
+
         $this->span->recordException($e);
         $this->span->setAttribute(ErrorAttributes::ERROR_TYPE, ErrorTypeResolver::resolve($e));
         $this->span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
         $this->endSpan();
+    }
+
+    private function receivedStatusCode(): ?int
+    {
+        try {
+            $code = $this->response->getInfo('http_code');
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return \is_int($code) && $code > 0 ? $code : null;
     }
 
     private function endSpan(): void
@@ -276,7 +301,7 @@ final class TracedResponse implements ResponseInterface, StreamableInterface
             }
         }
 
-        $version = self::normalizeProtocolVersion($info['http_version'] ?? null);
+        $version = ProtocolVersion::fromTransportInfo($info['http_version'] ?? null);
         if (null !== $version) {
             $this->span->setAttribute(NetworkAttributes::NETWORK_PROTOCOL_VERSION, $version);
         }
@@ -293,32 +318,5 @@ final class TracedResponse implements ResponseInterface, StreamableInterface
                 }
             }
         }
-    }
-
-    /**
-     * Curl reports http_version as a CURL_HTTP_VERSION_* int; strings pass through.
-     */
-    private static function normalizeProtocolVersion(mixed $raw): ?string
-    {
-        if (\is_int($raw)) {
-            // CURL_HTTP_VERSION_* values, as literals so ext-curl is not required.
-            return match ($raw) {
-                1 => '1.0',
-                2 => '1.1',
-                3 => '2',
-                30 => '3',
-                default => null,
-            };
-        }
-
-        if (\is_string($raw) && '' !== $raw) {
-            return match ($raw) {
-                '2.0' => '2',
-                '3.0' => '3',
-                default => $raw,
-            };
-        }
-
-        return null;
     }
 }

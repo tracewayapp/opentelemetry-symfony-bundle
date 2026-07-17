@@ -83,7 +83,11 @@ final class SqlOperationExtractorTest extends TestCase
         // SELECT
         yield 'select star' => ['SELECT * FROM items', 'items'];
         yield 'select with where' => ['SELECT id FROM items WHERE name = ?', 'items'];
-        yield 'select with join' => ['SELECT * FROM items JOIN orders ON items.id = orders.item_id', 'items'];
+        // Multi-collection operations must not claim a single collection, per semconv.
+        yield 'select with join yields no collection' => ['SELECT * FROM items JOIN orders ON items.id = orders.item_id', null];
+        yield 'select with left join yields no collection' => ['SELECT * FROM items LEFT JOIN orders ON items.id = orders.item_id', null];
+        yield 'join inside subquery keeps outer table' => ['SELECT * FROM items WHERE id IN (SELECT item_id FROM orders JOIN refs ON refs.id = orders.ref_id)', 'items'];
+        yield 'derived table with join yields no collection' => ['SELECT * FROM (SELECT * FROM b JOIN c ON b.id = c.id) t', null];
         yield 'select with alias' => ['SELECT u.name FROM users u WHERE u.id = ?', 'users'];
         yield 'select count' => ['SELECT COUNT(*) FROM items', 'items'];
         yield 'select multiline' => ["SELECT *\n  FROM items\n  WHERE id = ?", 'items'];

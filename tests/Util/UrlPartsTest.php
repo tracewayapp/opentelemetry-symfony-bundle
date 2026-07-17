@@ -48,6 +48,16 @@ final class UrlPartsTest extends TestCase
         self::assertNull(UrlParts::port($other));
     }
 
+    public function testJoinResolvesReferenceForms(): void
+    {
+        self::assertSame('https://h/v1/users', UrlParts::join('https://h/v1/', '/v1/users'));
+        self::assertSame('https://h:8443/v1/users', UrlParts::join('https://h:8443/v1/', 'users'));
+        self::assertSame('https://h/v1/x?page=2', UrlParts::join('https://h/v1/x', '?page=2'));
+        self::assertSame('https://other/z', UrlParts::join('https://h/v1/', 'https://other/z'));
+        self::assertSame('https://other/z', UrlParts::join('https://h/v1/', '//other/z'));
+        self::assertSame('https://h/v1/x', UrlParts::join('https://h/v1/x', ''));
+    }
+
     public function testExplicitPortWins(): void
     {
         $parsed = parse_url('https://example.com:8443/');

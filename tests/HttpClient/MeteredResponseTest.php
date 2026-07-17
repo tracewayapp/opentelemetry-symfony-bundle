@@ -146,6 +146,31 @@ final class MeteredResponseTest extends TestCase
         self::assertArrayHasKey('error.type', $attr, 'a failure surfacing via getStatusCode() must still record a failure metric');
     }
 
+    public function testProtocolVersionRecordedWhenTransportReportsIt(): void
+    {
+        $response = $this->wrap(new MockResponse('ok', ['http_code' => 200, 'http_version' => 2]));
+
+        $response->getStatusCode();
+
+        $attr = [...$this->collectMetrics()['http.client.request.duration']->data->dataPoints][0]->attributes->toArray();
+        self::assertSame('1.1', $attr['network.protocol.version'], 'CURL_HTTP_VERSION_1_1 (int 2) normalizes to "1.1"');
+    }
+
+    public function testThrowingAccessorKeepsReceivedStatusCode(): void
+    {
+        $response = $this->wrap(new MockResponse('err', ['http_code' => 500]));
+
+        try {
+            $response->getContent(true);
+            self::fail('Expected exception');
+        } catch (\Throwable) {
+        }
+
+        $attr = [...$this->collectMetrics()['http.client.request.duration']->data->dataPoints][0]->attributes->toArray();
+        self::assertSame(500, $attr['http.response.status_code'], 'a status was received, so semconv requires it even on the throwing path');
+        self::assertArrayHasKey('error.type', $attr);
+    }
+
     public function testCancelRecordsDurationWithCancelledErrorType(): void
     {
         $response = $this->wrap(new MockResponse('ok', ['http_code' => 200]));

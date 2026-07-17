@@ -218,6 +218,7 @@ final class TracedResponseTest extends TestCase
         self::assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
         self::assertNotEmpty($spans[0]->getEvents());
         self::assertSame('exception', $spans[0]->getEvents()[0]->getName());
+        self::assertSame(500, $spans[0]->getAttributes()->get('http.response.status_code'), 'a status was received, so semconv requires it even on the throwing path');
     }
 
     public function testToStreamThrowsOnErrorAndRecordsException(): void

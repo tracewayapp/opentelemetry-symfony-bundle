@@ -109,7 +109,7 @@ final class OpenTelemetryMetricsSubscriberTest extends TestCase
         self::assertSame('RuntimeException', $points[0]->attributes->toArray()['error.type']);
     }
 
-    public function testNamespacedExceptionUsesFqcn(): void
+    public function testHandledClientErrorExceptionEmitsNoErrorType(): void
     {
         $request = Request::create('/api/error', 'GET');
         $kernel = $this->createStub(HttpKernelInterface::class);
@@ -121,9 +121,61 @@ final class OpenTelemetryMetricsSubscriberTest extends TestCase
         $this->subscriber->onFinishRequest(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
 
         $metrics = $this->collectMetrics();
+        $attr = [...$metrics['http.server.request.duration']->data->dataPoints][0]->attributes->toArray();
+        self::assertArrayNotHasKey('error.type', $attr, 'a framework-handled 4xx is not an error per semconv');
+        self::assertSame(400, $attr['http.response.status_code']);
+    }
+
+    public function testDurationCarriesProtocolVersionButActiveRequestsDoesNot(): void
+    {
+        $request = Request::create('/api/items', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onResponse(new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new Response('ok')));
+        $this->subscriber->onFinishRequest(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+
+        $metrics = $this->collectMetrics();
+        $duration = [...$metrics['http.server.request.duration']->data->dataPoints][0]->attributes->toArray();
+        self::assertSame('1.1', $duration['network.protocol.version']);
+
+        $active = [...$metrics['http.server.active_requests']->data->dataPoints][0]->attributes->toArray();
+        self::assertArrayNotHasKey('network.protocol.version', $active, 'not part of the active_requests spec table');
+    }
+
+    public function testUnhandledExceptionStillRecordsDuration(): void
+    {
+        $request = Request::create('/api/error', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onException(new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new \RuntimeException('boom')));
+        // No response event: exception propagates; FINISH_REQUEST still fires.
+        $this->subscriber->onFinishRequest(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+
+        $metrics = $this->collectMetrics();
+        $points = [...$metrics['http.server.request.duration']->data->dataPoints];
+        self::assertCount(1, $points, 'failed requests must still be measured');
+        $attr = $points[0]->attributes->toArray();
+        self::assertSame('RuntimeException', $attr['error.type']);
+        self::assertArrayNotHasKey('http.response.status_code', $attr, 'no status was sent');
+    }
+
+    public function testExceptionWithErrorResponseUsesFqcnErrorType(): void
+    {
+        $request = Request::create('/api/error', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+        $exception = new \Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException(null, 'down');
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onException(new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $exception));
+        $this->subscriber->onResponse(new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new Response('', 503)));
+        $this->subscriber->onFinishRequest(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+
+        $metrics = $this->collectMetrics();
         $points = [...$metrics['http.server.request.duration']->data->dataPoints];
         self::assertSame(
-            \Symfony\Component\HttpKernel\Exception\BadRequestHttpException::class,
+            \Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException::class,
             $points[0]->attributes->toArray()['error.type'],
         );
     }

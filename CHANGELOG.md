@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Recommended-tier semconv attributes** — `network.peer.address`/`network.peer.port` on HTTP SERVER spans (the immediate TCP peer, distinct from the proxy-resolved `client.address`), and `network.protocol.version` on HTTP server and client duration/body-size metrics (deliberately not on `http.server.active_requests`, which the spec's attribute table excludes).
+- **End-to-end test harness (`e2e/`)** — boots a real kernel, exports over a real OTLP `http/json` pipeline to a real collector, and asserts on the spans the collector received; runs in CI (`.github/workflows/e2e.yml`). Catches the silent-export failure class that mocked tests cannot.
+- **`docs/semantic-conventions.md`** — the conformance statement, deliberate deviations, and known limitations; the README was slimmed to standard bundle shape with details moved into `docs/`.
 
 ### Fixed
 

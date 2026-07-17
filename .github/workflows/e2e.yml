@@ -1,0 +1,21 @@
+name: E2E
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  e2e:
+    name: Real OTLP export to collector
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Run E2E scenario
+        run: bash e2e/run.sh

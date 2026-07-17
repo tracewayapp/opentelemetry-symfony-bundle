@@ -54,6 +54,9 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
     /** Prevents recursive instrumentation when the exporter uses this client. */
     private bool $inFlight = false;
 
+    /** Captured from withOptions() so relative URLs keep Required attributes on sync failures. */
+    private ?string $baseUri = null;
+
     /**
      * @param string[] $excludedHosts Hostnames to skip metrics for (e.g. OTLP collector)
      */
@@ -74,7 +77,14 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
             return $this->client->request($method, $url, $options);
         }
 
-        $attributes = $this->requestAttributes($method, $url);
+        $attributeUrl = $url;
+        $baseUri = isset($options['base_uri']) && \is_string($options['base_uri']) ? $options['base_uri'] : $this->baseUri;
+        $parsed = parse_url($url);
+        if (null !== $baseUri && (!\is_array($parsed) || !isset($parsed['host'], $parsed['scheme']))) {
+            $attributeUrl = UrlParts::join($baseUri, $url);
+        }
+
+        $attributes = $this->requestAttributes($method, $attributeUrl);
         $bodySize = $this->extractRequestBodySize($options);
 
         $start = hrtime(true);
@@ -137,6 +147,10 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
     {
         $clone = clone $this;
         $clone->client = $this->client->withOptions($options);
+
+        if (\array_key_exists('base_uri', $options)) {
+            $clone->baseUri = \is_string($options['base_uri']) ? $options['base_uri'] : null;
+        }
 
         return $clone;
     }

@@ -31,6 +31,7 @@ use Traceway\OpenTelemetryBundle\Instrumentation\TracerAwareTrait;
 use Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 use Traceway\OpenTelemetryBundle\Util\HttpMethodResolver;
+use Traceway\OpenTelemetryBundle\Util\ProtocolVersion;
 use Traceway\OpenTelemetryBundle\Util\UrlSanitizer;
 
 /**
@@ -164,12 +165,13 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
             return;
         }
 
-        $span->recordException($event->getThrowable());
-        $span->setAttribute(ErrorAttributes::ERROR_TYPE, ErrorTypeResolver::resolve($event->getThrowable()));
-        $span->setStatus(StatusCode::STATUS_ERROR, $event->getThrowable()->getMessage());
+        $throwable = $event->getThrowable();
+        $span->recordException($throwable);
 
+        // Error status is irreversible, so defer the decision until the final status is known:
+        // semconv says 4xx on SERVER spans MUST stay unset, and listeners may map any exception to 4xx.
         $data = $this->requestData[$event->getRequest()] ?? [];
-        $data['exception'] = $event->getThrowable();
+        $data['exception'] = $throwable;
         $this->requestData[$event->getRequest()] = $data;
     }
 
@@ -181,7 +183,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
         }
 
         $data = $this->requestData[$event->getRequest()] ?? [];
-        $hadException = isset($data['exception']);
+        $exception = $data['exception'] ?? null;
         unset($data['exception']);
         $this->requestData[$event->getRequest()] = $data;
 
@@ -199,9 +201,14 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
             $span->setAttribute(HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE, (int) $responseBodySize);
         }
 
-        if ($statusCode >= $this->errorStatusThreshold && !$hadException) {
-            $span->setAttribute(ErrorAttributes::ERROR_TYPE, (string) $statusCode);
-            $span->setStatus(StatusCode::STATUS_ERROR);
+        if ($statusCode >= $this->errorStatusThreshold) {
+            if ($exception instanceof \Throwable) {
+                $span->setAttribute(ErrorAttributes::ERROR_TYPE, ErrorTypeResolver::resolve($exception));
+                $span->setStatus(StatusCode::STATUS_ERROR, $exception->getMessage());
+            } else {
+                $span->setAttribute(ErrorAttributes::ERROR_TYPE, (string) $statusCode);
+                $span->setStatus(StatusCode::STATUS_ERROR);
+            }
         }
 
         if ($event->isMainRequest()) {
@@ -233,6 +240,8 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
         $data = $this->requestData[$request] ?? [];
         $exception = $data['exception'] ?? null;
         if ($exception instanceof \Throwable) {
+            // No response was produced, so the request genuinely ended with this error.
+            $span->setAttribute(ErrorAttributes::ERROR_TYPE, ErrorTypeResolver::resolve($exception));
             $span->setStatus(StatusCode::STATUS_ERROR, $exception->getMessage());
         } elseif ($event->isMainRequest()) {
             return;
@@ -299,16 +308,6 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
      */
     private function requestAttributes(Request $request): array
     {
-        $protocolVersion = $request->getProtocolVersion();
-        if (null !== $protocolVersion) {
-            $protocolVersion = str_replace('HTTP/', '', $protocolVersion);
-            $protocolVersion = match ($protocolVersion) {
-                '2.0' => '2',
-                '3.0' => '3',
-                default => $protocolVersion,
-            };
-        }
-
         $method = $request->getMethod();
         $normalizedMethod = HttpMethodResolver::normalize($method);
 
@@ -319,11 +318,22 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
             ServerAttributes::SERVER_ADDRESS => $request->getHost(),
             ServerAttributes::SERVER_PORT => $request->getPort(),
             UserAgentAttributes::USER_AGENT_ORIGINAL => $request->headers->get('User-Agent'),
-            NetworkAttributes::NETWORK_PROTOCOL_VERSION => $protocolVersion,
+            NetworkAttributes::NETWORK_PROTOCOL_VERSION => ProtocolVersion::fromServerProtocol($request->getProtocolVersion()),
         ];
 
         if ($normalizedMethod !== $method) {
             $attributes[HttpAttributes::HTTP_REQUEST_METHOD_ORIGINAL] = $method;
+        }
+
+        // The direct TCP peer, distinct from the proxy-resolved client.address.
+        $peerAddress = $request->server->get('REMOTE_ADDR');
+        if (\is_string($peerAddress) && '' !== $peerAddress) {
+            $attributes[NetworkAttributes::NETWORK_PEER_ADDRESS] = $peerAddress;
+
+            $peerPort = $request->server->get('REMOTE_PORT');
+            if (is_numeric($peerPort)) {
+                $attributes[NetworkAttributes::NETWORK_PEER_PORT] = (int) $peerPort;
+            }
         }
 
         $queryString = $request->getQueryString();

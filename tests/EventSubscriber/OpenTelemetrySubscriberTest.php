@@ -385,6 +385,94 @@ final class OpenTelemetrySubscriberTest extends TestCase
         self::assertSame('Oops', $spans[0]->getStatus()->getDescription());
     }
 
+    public function testHandledClientErrorExceptionLeavesStatusUnset(): void
+    {
+        $subscriber = new OpenTelemetrySubscriber(errorStatusThreshold: 500);
+        $request = Request::create('/missing', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+        $exception = new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException('nope');
+
+        $subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $subscriber->onException(new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $exception));
+        $subscriber->onResponse(new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new Response('', 404)));
+        $subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $spans = $this->exporter->getSpans();
+        self::assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode(), 'semconv: 4xx MUST leave SERVER span status unset');
+        self::assertFalse($spans[0]->getAttributes()->has('error.type'));
+        self::assertNotEmpty($spans[0]->getEvents(), 'the exception event itself is still recorded');
+    }
+
+    public function testServerErrorHttpExceptionStillMarksError(): void
+    {
+        $subscriber = new OpenTelemetrySubscriber(errorStatusThreshold: 500);
+        $request = Request::create('/api/items', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+        $exception = new \Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException(null, 'down');
+
+        $subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $subscriber->onException(new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $exception));
+        $subscriber->onResponse(new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new Response('', 503)));
+        $subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $spans = $this->exporter->getSpans();
+        self::assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
+        self::assertSame(
+            \Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException::class,
+            $spans[0]->getAttributes()->get('error.type'),
+        );
+    }
+
+    public function testNetworkPeerAddressRecorded(): void
+    {
+        $request = Request::create('/api/items', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $attributes = $this->exporter->getSpans()[0]->getAttributes()->toArray();
+        self::assertSame('127.0.0.1', $attributes['network.peer.address']);
+    }
+
+    public function testListenerConvertedExceptionTo4xxLeavesStatusUnset(): void
+    {
+        $subscriber = new OpenTelemetrySubscriber(errorStatusThreshold: 500);
+        $request = Request::create('/missing', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        // A plain exception that a listener (e.g. #[WithHttpStatus(404)]) later maps to a 404 response.
+        $subscriber->onException(new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new \DomainException('not found')));
+        $subscriber->onResponse(new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new Response('', 404)));
+        $subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $spans = $this->exporter->getSpans();
+        self::assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
+        self::assertFalse($spans[0]->getAttributes()->has('error.type'));
+    }
+
+    public function testUnhandledExceptionMarksErrorWithErrorType(): void
+    {
+        $subscriber = new OpenTelemetrySubscriber(errorStatusThreshold: 500);
+        $request = Request::create('/api/items', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $subscriber->onException(new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new \RuntimeException('boom')));
+        // No response event: kernel is rethrowing ($catch = false); FINISH_REQUEST still fires.
+        $subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $subscriber->onFinishRequestEndSpan(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+
+        $spans = $this->exporter->getSpans();
+        self::assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
+        self::assertSame('RuntimeException', $spans[0]->getAttributes()->get('error.type'));
+    }
+
     public function testOnRouteWithNonArrayRouteParams(): void
     {
         $request = Request::create('/api/items', 'GET');
@@ -507,8 +595,9 @@ final class OpenTelemetrySubscriberTest extends TestCase
 
         $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
         $this->subscriber->onException(new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new \RuntimeException('boom')));
+        // Unhandled: HttpKernel fires FINISH_REQUEST before rethrowing; no response/terminate happens.
         $this->subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
-        $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+        $this->subscriber->onFinishRequestEndSpan(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
 
         $spans = $this->exporter->getSpans();
         self::assertSame(\RuntimeException::class, $spans[0]->getAttributes()->toArray()['error.type']);

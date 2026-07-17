@@ -509,4 +509,23 @@ final class TraceableHttpClientTest extends TestCase
         self::assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
         self::assertArrayHasKey('error.type', $span->getAttributes()->toArray());
     }
+
+    public function testSyncFailureWithBaseUriKeepsServerAttributes(): void
+    {
+        $inner = new MockHttpClient(static function (): never {
+            throw new \Symfony\Component\HttpClient\Exception\TransportException('DNS failure');
+        });
+        $client = (new TraceableHttpClient($inner, 'test'))->withOptions(['base_uri' => 'https://api.example.com/v2/']);
+
+        try {
+            $client->request('GET', '/users');
+            self::fail('Expected exception');
+        } catch (\Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface) {
+        }
+
+        $attr = $this->exporter->getSpans()[0]->getAttributes()->toArray();
+        self::assertSame('api.example.com', $attr['server.address'], 'Required attribute must survive a pre-transport failure on relative URLs');
+        self::assertSame(443, $attr['server.port']);
+        self::assertSame('https://api.example.com/users', $attr['url.full']);
+    }
 }

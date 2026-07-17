@@ -189,9 +189,19 @@ final class SqlOperationExtractor
             return null;
         }
 
+        // Semconv: db.collection.name only when the operation targets a single collection.
+        if (null !== self::scanDepthZeroKeyword($sql, ['JOIN'], $found['end'])) {
+            return null;
+        }
+
         $rest = substr($sql, $found['end']);
         if (1 === preg_match('/\A\s*('.self::IDENT.')/', $rest, $m)) {
             return self::stripQuotes($m[1]);
+        }
+
+        // A JOIN anywhere in the derived table means multiple collections; err on omission.
+        if (1 === preg_match('/\bJOIN\b/i', $rest)) {
+            return null;
         }
 
         // Derived table "FROM (SELECT ... FROM inner)" — report the inner table.

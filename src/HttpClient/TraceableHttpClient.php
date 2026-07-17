@@ -40,6 +40,9 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
     /** Prevents recursive instrumentation when the exporter uses this client. */
     private bool $inFlight = false;
 
+    /** Captured from withOptions() so relative URLs keep Required attributes on sync failures. */
+    private ?string $baseUri = null;
+
     /**
      * @param string[] $excludedHosts Hostnames to skip tracing for (e.g. OTLP collector)
      */
@@ -61,13 +64,24 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
         }
 
         $parsedUrl = parse_url($url);
+        // Scheme-relative URLs also need enrichment: url.full must end up absolute.
+        $hadHost = \is_array($parsedUrl) && isset($parsedUrl['host'], $parsedUrl['scheme']);
+
+        $attributeUrl = $url;
+        $baseUri = isset($options['base_uri']) && \is_string($options['base_uri']) ? $options['base_uri'] : $this->baseUri;
+        if (!$hadHost && null !== $baseUri) {
+            $attributeUrl = UrlParts::join($baseUri, $url);
+            $joined = parse_url($attributeUrl);
+            $parsedUrl = \is_array($joined) ? $joined : $parsedUrl;
+        }
+
         $normalizedMethod = HttpMethodResolver::normalize($method);
 
         $spanBuilder = $this->getTracer()
             ->spanBuilder(HttpMethodResolver::spanNameMethod($method))
             ->setSpanKind(SpanKind::KIND_CLIENT)
             ->setAttribute(HttpAttributes::HTTP_REQUEST_METHOD, $normalizedMethod)
-            ->setAttribute(UrlAttributes::URL_FULL, UrlSanitizer::sanitizeUrl($url));
+            ->setAttribute(UrlAttributes::URL_FULL, UrlSanitizer::sanitizeUrl($attributeUrl));
 
         if ($normalizedMethod !== $method) {
             $spanBuilder->setAttribute(HttpAttributes::HTTP_REQUEST_METHOD_ORIGINAL, $method);
@@ -118,7 +132,8 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
             $this->inFlight = false;
         }
 
-        return new TracedResponse($response, $span, \is_array($parsedUrl) && isset($parsedUrl['host']));
+        // Base-derived attributes are a fallback; the effective URL still refines them at finalize.
+        return new TracedResponse($response, $span, $hadHost);
     }
 
     public function stream(ResponseInterface|iterable $responses, ?float $timeout = null): ResponseStreamInterface
@@ -165,6 +180,10 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
     {
         $clone = clone $this;
         $clone->client = $this->client->withOptions($options);
+
+        if (\array_key_exists('base_uri', $options)) {
+            $clone->baseUri = \is_string($options['base_uri']) ? $options['base_uri'] : null;
+        }
 
         return $clone;
     }

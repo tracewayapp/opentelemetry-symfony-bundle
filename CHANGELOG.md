@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Recommended-tier semconv attributes** — `network.peer.address`/`network.peer.port` on HTTP SERVER spans (the immediate TCP peer, distinct from the proxy-resolved `client.address`), and `network.protocol.version` on HTTP server and client duration/body-size metrics (deliberately not on `http.server.active_requests`, which the spec's attribute table excludes).
+
+### Fixed
+
+- **Handled 4xx responses no longer mark SERVER spans as errors** — semconv: "For HTTP status codes in the 4xx range span status MUST be left unset in case of SpanKind.SERVER". The error decision is now deferred from the exception event to response/finish time, so this also holds when a plain exception is mapped to 4xx via `#[WithHttpStatus]` or a custom exception listener (span Error status is irreversible in the SDK, so deciding early was unfixable after the fact). The exception event is always recorded; responses >= `error_status_threshold` keep the exception FQCN as `error.type`; unhandled exceptions (no response produced) mark the span Error with `error.type` at FINISH_REQUEST and now also record an `http.server.request.duration` sample with `error.type` (failed requests were previously invisible in the duration metric). **Dashboards note**: HTTP error-span counts will drop — those were false positives.
+- **`http.response.status_code` is kept whenever one was received** — throwing accessors (`getContent(true)`/`getHeaders(true)`/`toArray(true)` on 4xx/5xx) and cancellations after headers arrived now record the received status on the client span and metrics (semconv: required "if and only if one was received").
+- **Relative-URL requests keep Required client attributes on pre-transport failures** — the trace/metrics HTTP client decorators capture `base_uri` (from `withOptions()` or per-request options) and backfill `server.address`/`server.port` and an absolute, sanitized `url.full` when `request()` throws before an effective URL exists; query-only references resolve per RFC 3986 and scheme-relative (`//host`) URLs now get effective-URL enrichment so `url.full` ends up absolute. Known limit: `framework.http_client.scoped_clients` keep `base_uri` inside `ScopingHttpClient`, invisible to the decorators — those still rely on effective-URL enrichment.
+- **`db.collection.name` omitted for multi-table SELECTs** — semconv conditions the attribute on the operation applying to a single collection; JOINs after the top-level FROM and inside derived tables no longer claim a single table (span names fall back to `{operation} {db.namespace}`).
+
 ## [3.1.0] - 2026-07-14
 
 ### Fixed

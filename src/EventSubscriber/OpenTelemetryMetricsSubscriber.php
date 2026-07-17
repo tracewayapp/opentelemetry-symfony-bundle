@@ -9,6 +9,7 @@ use OpenTelemetry\API\Metrics\MeterInterface;
 use OpenTelemetry\API\Metrics\UpDownCounterInterface;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\HttpAttributes;
+use OpenTelemetry\SemConv\Attributes\NetworkAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -23,6 +24,7 @@ use Traceway\OpenTelemetryBundle\Metrics\DurationBoundaries;
 use Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 use Traceway\OpenTelemetryBundle\Util\HttpMethodResolver;
+use Traceway\OpenTelemetryBundle\Util\ProtocolVersion;
 
 /**
  * Emits OpenTelemetry metrics for Symfony HTTP server requests.
@@ -60,7 +62,7 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
     private ?HistogramInterface $requestBodySize = null;
     private ?HistogramInterface $responseBodySize = null;
 
-    /** @var \WeakMap<Request, array{start: int|float, active_counted: bool, route?: string, exception?: \Throwable}> */
+    /** @var \WeakMap<Request, array{start: int|float, active_counted: bool, recorded?: bool, route?: string, exception?: \Throwable}> */
     private \WeakMap $requestData;
 
     private readonly RouteTemplateResolver $routeTemplateResolver;
@@ -174,23 +176,23 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
         }
 
         try {
-            $attributes = $this->baseAttributes($request);
-            if (isset($data['route'])) {
-                $attributes[HttpAttributes::HTTP_ROUTE] = $data['route'];
-            }
+            $attributes = $this->requestMetricAttributes($request, $data);
 
             $response = $event->getResponse();
             $statusCode = $response->getStatusCode();
             $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE] = $statusCode;
 
-            if (isset($data['exception'])) {
-                $attributes[ErrorAttributes::ERROR_TYPE] = ErrorTypeResolver::resolve($data['exception']);
-            } elseif ($statusCode >= $this->errorStatusThreshold) {
-                $attributes[ErrorAttributes::ERROR_TYPE] = (string) $statusCode;
+            // Semconv: error.type only when the request actually ended with an error (handled 4xx doesn't).
+            if ($statusCode >= $this->errorStatusThreshold) {
+                $attributes[ErrorAttributes::ERROR_TYPE] = isset($data['exception'])
+                    ? ErrorTypeResolver::resolve($data['exception'])
+                    : (string) $statusCode;
             }
 
             $durationSeconds = (hrtime(true) - $data['start']) / 1_000_000_000;
             $this->getDurationHistogram()->record($durationSeconds, $attributes);
+            $data['recorded'] = true;
+            $this->requestData[$request] = $data;
 
             $requestBodySize = $request->headers->get('Content-Length');
             if (null !== $requestBodySize && ctype_digit($requestBodySize)) {
@@ -224,6 +226,18 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
             }
         }
 
+        // Unhandled exceptions never reach onResponse; the failed request must still be measured.
+        if (!($data['recorded'] ?? false) && isset($data['exception'])) {
+            try {
+                $attributes = $this->requestMetricAttributes($request, $data);
+                $attributes[ErrorAttributes::ERROR_TYPE] = ErrorTypeResolver::resolve($data['exception']);
+
+                $durationSeconds = (hrtime(true) - $data['start']) / 1_000_000_000;
+                $this->getDurationHistogram()->record($durationSeconds, $attributes);
+            } catch (\Throwable) {
+            }
+        }
+
         unset($this->requestData[$request]);
     }
 
@@ -246,6 +260,29 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
             HttpAttributes::HTTP_REQUEST_METHOD => HttpMethodResolver::normalize($request->getMethod()),
             UrlAttributes::URL_SCHEME => $request->getScheme(),
         ];
+    }
+
+    /**
+     * Duration/body-size attribute set; active_requests deliberately stays on baseAttributes() per spec.
+     *
+     * @param array{route?: string} $data
+     *
+     * @return array<non-empty-string, string|int>
+     */
+    private function requestMetricAttributes(Request $request, array $data): array
+    {
+        $attributes = $this->baseAttributes($request);
+
+        if (isset($data['route'])) {
+            $attributes[HttpAttributes::HTTP_ROUTE] = $data['route'];
+        }
+
+        $version = ProtocolVersion::fromServerProtocol($request->getProtocolVersion());
+        if (null !== $version) {
+            $attributes[NetworkAttributes::NETWORK_PROTOCOL_VERSION] = $version;
+        }
+
+        return $attributes;
     }
 
     private function isExcluded(Request $request): bool

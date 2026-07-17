@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\HttpClient;
 
+use OpenTelemetry\SemConv\Attributes\HttpAttributes;
 use Symfony\Component\HttpClient\Response\StreamableInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
+use Traceway\OpenTelemetryBundle\Util\ProtocolVersion;
 use Traceway\OpenTelemetryBundle\Util\UrlParts;
 
 /**
@@ -145,6 +147,16 @@ final class MeteredResponse implements ResponseInterface, StreamableInterface
         if (!$this->finalized) {
             $this->finalized = true;
             $this->backfillServerAttributes();
+
+            // If headers already arrived, a status was received and semconv requires it.
+            try {
+                $code = $this->response->getInfo('http_code');
+                if (\is_int($code) && $code > 0) {
+                    $this->attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE] = $code;
+                }
+            } catch (\Throwable) {
+            }
+
             $this->recorder->recordCancellation($this->start, $this->attributes, $this->requestBodySize);
         }
 
@@ -231,7 +243,21 @@ final class MeteredResponse implements ResponseInterface, StreamableInterface
 
         $this->finalized = true;
         $this->backfillServerAttributes();
+        $this->enrichProtocolVersion();
         $this->recorder->recordResponse($this->start, $this->attributes, $statusCode, $bodySize, $this->requestBodySize);
+    }
+
+    private function enrichProtocolVersion(): void
+    {
+        try {
+            $version = ProtocolVersion::fromTransportInfo($this->response->getInfo('http_version'));
+        } catch (\Throwable) {
+            return;
+        }
+
+        if (null !== $version) {
+            $this->attributes['network.protocol.version'] = $version;
+        }
     }
 
     private function finalizeWithError(\Throwable $e): void
@@ -242,6 +268,17 @@ final class MeteredResponse implements ResponseInterface, StreamableInterface
 
         $this->finalized = true;
         $this->backfillServerAttributes();
+        $this->enrichProtocolVersion();
+
+        // A status may have been received even though the accessor threw (e.g. getContent(true) on a 5xx).
+        try {
+            $code = $this->response->getInfo('http_code');
+            if (\is_int($code) && $code > 0) {
+                $this->attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE] = $code;
+            }
+        } catch (\Throwable) {
+        }
+
         $this->recorder->recordFailure($this->start, $this->attributes, $e, $this->requestBodySize);
     }
 }

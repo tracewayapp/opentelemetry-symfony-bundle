@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Traceway\OpenTelemetryBundle\Metrics;
 
 use OpenTelemetry\API\Metrics\CounterInterface;
+use OpenTelemetry\API\Metrics\GaugeInterface;
 use OpenTelemetry\API\Metrics\HistogramInterface;
 use OpenTelemetry\API\Metrics\UpDownCounterInterface;
 
@@ -21,4 +22,6 @@ interface MeterRegistryInterface
     public function histogram(string $name, ?string $unit = null, ?string $description = null): HistogramInterface;
 
     public function upDownCounter(string $name, ?string $unit = null, ?string $description = null): UpDownCounterInterface;
+
+    public function gauge(string $name, ?string $unit = null, ?string $description = null): GaugeInterface;
 }

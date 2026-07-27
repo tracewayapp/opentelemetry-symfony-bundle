@@ -44,6 +44,13 @@ final class MeterRegistryTest extends TestCase
         self::assertSame($registry->upDownCounter('foo'), $registry->upDownCounter('foo'));
     }
 
+    public function testGaugeReturnsSameInstanceForSameName(): void
+    {
+        $registry = new MeterRegistry('test');
+
+        self::assertSame($registry->gauge('foo'), $registry->gauge('foo'));
+    }
+
     public function testCounterEmitsValuesAndAttributes(): void
     {
         $registry = new MeterRegistry('test');

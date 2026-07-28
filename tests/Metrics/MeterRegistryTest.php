@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\Tests\Metrics;
 
+use OpenTelemetry\SDK\Metrics\Data\Gauge;
 use OpenTelemetry\SDK\Metrics\Data\Sum;
 use PHPUnit\Framework\TestCase;
 use Traceway\OpenTelemetryBundle\Metrics\MeterRegistry;
@@ -63,6 +64,27 @@ final class MeterRegistryTest extends TestCase
         $metric = $metrics['my.counter'];
         self::assertSame('desc', $metric->description);
         self::assertInstanceOf(Sum::class, $metric->data);
+
+        $byTag = [];
+        foreach ($metric->data->dataPoints as $dp) {
+            $byTag[(string) $dp->attributes->toArray()['tag']] = $dp->value;
+        }
+        self::assertSame(3, $byTag['a']);
+        self::assertSame(1, $byTag['b']);
+    }
+
+    public function testGaugeEmitsValuesAndAttributes(): void
+    {
+        $registry = new MeterRegistry('test');
+        $registry->gauge('my.gauge', description: 'a gauge')->record(3, ['tag' => 'a']);
+        $registry->gauge('my.gauge')->record(1, ['tag' => 'b']);
+
+        $metrics = $this->collectMetrics();
+
+        self::assertArrayHasKey('my.gauge', $metrics);
+        $metric = $metrics['my.gauge'];
+        self::assertSame('a gauge', $metric->description);
+        self::assertInstanceOf(Gauge::class, $metric->data);
 
         $byTag = [];
         foreach ($metric->data->dataPoints as $dp) {

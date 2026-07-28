@@ -6,6 +6,7 @@ namespace Traceway\OpenTelemetryBundle\Metrics;
 
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Metrics\CounterInterface;
+use OpenTelemetry\API\Metrics\GaugeInterface;
 use OpenTelemetry\API\Metrics\HistogramInterface;
 use OpenTelemetry\API\Metrics\UpDownCounterInterface;
 use Symfony\Contracts\Service\ResetInterface;
@@ -36,6 +37,9 @@ final class MeterRegistry implements MeterRegistryInterface, ResetInterface
     /** @var array<string, UpDownCounterInterface> */
     private array $upDownCounters = [];
 
+    /** @var array<string, GaugeInterface> */
+    private array $gauges = [];
+
     public function __construct(
         private readonly string $meterName = 'opentelemetry-symfony',
     ) {
@@ -57,11 +61,17 @@ final class MeterRegistry implements MeterRegistryInterface, ResetInterface
         return $this->upDownCounters[$name."\0".$unit] ??= $this->getMeter()->createUpDownCounter($name, $unit, $description);
     }
 
+    public function gauge(string $name, ?string $unit = null, ?string $description = null): GaugeInterface
+    {
+        return $this->gauges[$name."\0".$unit] ??= $this->getMeter()->createGauge($name, $unit, $description);
+    }
+
     public function reset(): void
     {
         $this->resetMeter();
         $this->counters = [];
         $this->histograms = [];
         $this->upDownCounters = [];
+        $this->gauges = [];
     }
 }

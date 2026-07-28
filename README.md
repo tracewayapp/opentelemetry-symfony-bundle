@@ -113,7 +113,7 @@ Mock in tests with `$this->createStub(TracingInterface::class)` and have `trace(
 
 ## Metrics
 
-Opt-in OpenTelemetry metrics — Messenger, Doctrine DBAL, HTTP server/client, and Mailer — alongside a `MeterRegistryInterface` for custom counters/histograms. See **[docs/metrics.md](docs/metrics.md)**.
+Opt-in OpenTelemetry metrics — Messenger, Doctrine DBAL, HTTP server/client, and Mailer — alongside a `MeterRegistryInterface` for custom counters/histograms/gauges. See **[docs/metrics.md](docs/metrics.md)**.
 
 ## Doctor
 

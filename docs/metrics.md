@@ -55,7 +55,7 @@ Decoration sits inside `TraceableTransports` so metric points record while the t
 
 ## Manual Metrics
 
-Inject `MeterRegistryInterface` to record your own counters, histograms, and up/down counters without touching the `MeterProvider` directly:
+Inject `MeterRegistryInterface` to record your own counters, histograms, up/down counters, and gauges without touching the `MeterProvider` directly:
 
 ```php
 use OpenTelemetry\API\Metrics\CounterInterface;

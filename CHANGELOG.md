@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-08-05
+
 ### Added
 
 - **Recommended-tier semconv attributes** — `network.peer.address`/`network.peer.port` on HTTP SERVER spans (the immediate TCP peer, distinct from the proxy-resolved `client.address`), and `network.protocol.version` on HTTP server and client duration/body-size metrics (deliberately not on `http.server.active_requests`, which the spec's attribute table excludes).

@@ -86,8 +86,8 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "3.1.x-dev",
-            "dev-master": "3.1.x-dev"
+            "dev-main": "3.2.x-dev",
+            "dev-master": "3.2.x-dev"
         }
     },
     "scripts": {

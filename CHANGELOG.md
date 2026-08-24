@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-08-24
+
+### Added
+
+- **`traces.doctrine.only_with_parent`** — when `true`, DB spans are only created while an active parent span exists, suppressing orphan root spans from untraced contexts. The main offender is the doctrine Messenger transport poll loop: with `messenger:consume` excluded from console tracing (the default), every idle poll emits a `BEGIN`/`SELECT messenger_messages`/`COMMIT` root-span triple plus periodic redelivery `UPDATE`s — hundreds of thousands of spans per worker per week. Mirrors `requireParentSpan` from the OTel JS instrumentations; DB spans inside traced HTTP requests, console commands, and message handling are unaffected (their spans are active in context), and Doctrine *metrics* keep recording regardless. Default `false` preserves existing behavior.
+
 ## [3.3.0] - 2026-08-24
 
 ### Added

@@ -7,6 +7,7 @@ namespace Traceway\OpenTelemetryBundle\Tests\Doctrine\Middleware;
 use Doctrine\DBAL\Driver\Connection;
 use Doctrine\DBAL\Driver\Result;
 use Doctrine\DBAL\Driver\Statement;
+use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\Attributes\Group;
@@ -381,6 +382,77 @@ final class TraceableConnectionTest extends TestCase
         self::assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
         self::assertSame('Syntax error', $spans[0]->getStatus()->getDescription());
         self::assertSame('exception', $spans[0]->getEvents()[0]->getName());
+    }
+
+    public function testOnlyWithParentSuppressesRootSpan(): void
+    {
+        $connection = $this->connectionWithParentGate();
+        $this->inner->method('exec')->willReturn(1);
+
+        $result = $connection->exec('SELECT id FROM messenger_messages');
+
+        self::assertSame(1, $result);
+        self::assertCount(0, $this->exporter->getSpans());
+    }
+
+    public function testOnlyWithParentSuppressesTransactionSpans(): void
+    {
+        $connection = $this->connectionWithParentGate();
+
+        $connection->beginTransaction();
+        $connection->commit();
+        $connection->rollBack();
+
+        self::assertCount(0, $this->exporter->getSpans());
+    }
+
+    public function testOnlyWithParentCreatesChildSpanUnderActiveParent(): void
+    {
+        $connection = $this->connectionWithParentGate();
+        $this->inner->method('exec')->willReturn(1);
+
+        $parent = Globals::tracerProvider()->getTracer('test')->spanBuilder('parent')->startSpan();
+        $scope = $parent->activate();
+
+        try {
+            $connection->exec('DELETE FROM messenger_messages WHERE id = 1');
+        } finally {
+            $scope->detach();
+            $parent->end();
+        }
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(2, $spans);
+        self::assertSame('DELETE messenger_messages', $spans[0]->getName());
+        self::assertSame($parent->getContext()->getSpanId(), $spans[0]->getParentSpanId());
+    }
+
+    public function testOnlyWithParentPropagatesToPreparedStatement(): void
+    {
+        $innerResult = $this->createStub(Result::class);
+        $innerStatement = $this->createStub(Statement::class);
+        $innerStatement->method('execute')->willReturn($innerResult);
+        $this->inner->method('prepare')->willReturn($innerStatement);
+
+        $statement = $this->connectionWithParentGate()->prepare('SELECT * FROM messenger_messages');
+        $result = $statement->execute();
+
+        self::assertSame($innerResult, $result);
+        self::assertCount(0, $this->exporter->getSpans());
+    }
+
+    private function connectionWithParentGate(): \Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableConnectionDbal4
+    {
+        return new \Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableConnectionDbal4(
+            $this->inner,
+            'test-tracer',
+            false,
+            'mysql',
+            'app_db',
+            'localhost',
+            3306,
+            true,
+        );
     }
 
     private function connectionWithStatements(bool $recordStatements): \Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableConnectionDbal4

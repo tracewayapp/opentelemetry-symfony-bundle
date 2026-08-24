@@ -21,6 +21,7 @@ final class TraceableConnectionDbal3 extends AbstractConnectionMiddleware
         private readonly ?string $dbName,
         private readonly ?string $serverAddress,
         private readonly ?int $serverPort,
+        private readonly bool $onlyWithParent = false,
     ) {
         parent::__construct($connection);
     }
@@ -36,6 +37,7 @@ final class TraceableConnectionDbal3 extends AbstractConnectionMiddleware
             $this->serverAddress,
             $this->serverPort,
             $sql,
+            $this->onlyWithParent,
         );
     }
 

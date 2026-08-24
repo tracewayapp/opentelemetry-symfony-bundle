@@ -21,6 +21,7 @@ final class TraceableStatementDbal3 extends AbstractStatementMiddleware
         private readonly ?string $serverAddress,
         private readonly ?int $serverPort,
         private readonly string $sql,
+        private readonly bool $onlyWithParent = false,
     ) {
         parent::__construct($statement);
     }

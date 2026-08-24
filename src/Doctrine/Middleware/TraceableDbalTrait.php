@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Traceway\OpenTelemetryBundle\Doctrine\Middleware;
 
 use OpenTelemetry\API\Globals;
+use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\TracerInterface;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
@@ -41,6 +42,11 @@ trait TraceableDbalTrait
     private function traced(string $sql, \Closure $op): mixed
     {
         if (!$this->isEnabled()) {
+            return $op();
+        }
+
+        // only_with_parent: skip orphan root spans (e.g. messenger transport polling)
+        if ($this->onlyWithParent && !Span::getCurrent()->getContext()->isValid()) {
             return $op();
         }
 

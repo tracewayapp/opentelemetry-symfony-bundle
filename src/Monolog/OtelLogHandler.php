@@ -11,6 +11,7 @@ use Monolog\LogRecord;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Logs\LoggerInterface;
 use OpenTelemetry\API\Logs\Severity;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
@@ -41,11 +42,15 @@ final class OtelLogHandler extends AbstractProcessingHandler implements ResetInt
      */
     private bool $emitting = false;
 
+    /**
+     * @param list<int> $excludedHttpCodes
+     */
     public function __construct(
         int|string|Level $level = Level::Debug,
         bool $bubble = true,
         private readonly bool $captureCodeAttributes = false,
         private readonly bool $unprefixedAttributes = false,
+        private readonly array $excludedHttpCodes = [],
     ) {
         parent::__construct($level, $bubble);
         $this->normalizer = new NormalizerFormatter();
@@ -53,7 +58,7 @@ final class OtelLogHandler extends AbstractProcessingHandler implements ResetInt
 
     protected function write(LogRecord $record): void
     {
-        if ($this->emitting) {
+        if ($this->emitting || $this->isExcludedHttpException($record)) {
             return;
         }
 
@@ -114,6 +119,19 @@ final class OtelLogHandler extends AbstractProcessingHandler implements ResetInt
         parent::reset();
         $this->loggers = [];
         $this->emitting = false;
+    }
+
+    // Mirrors monolog-bundle's fingers_crossed excluded_http_codes, but drops instead of buffering.
+    private function isExcludedHttpException(LogRecord $record): bool
+    {
+        if ([] === $this->excludedHttpCodes) {
+            return false;
+        }
+
+        $exception = $record->context['exception'] ?? null;
+
+        return $exception instanceof HttpExceptionInterface
+            && \in_array($exception->getStatusCode(), $this->excludedHttpCodes, true);
     }
 
     private function getLogger(string $channel): LoggerInterface

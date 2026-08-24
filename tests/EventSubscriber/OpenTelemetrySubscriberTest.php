@@ -425,6 +425,77 @@ final class OpenTelemetrySubscriberTest extends TestCase
         );
     }
 
+    public function testRecordExceptionMinStatusSkipsClientErrorExceptionEvent(): void
+    {
+        $subscriber = new OpenTelemetrySubscriber(recordExceptionMinStatus: 500);
+        $request = Request::create('/.env', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+        $exception = new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException('nope');
+
+        $subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $subscriber->onException(new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $exception));
+        $subscriber->onResponse(new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new Response('', 404)));
+        $subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $spans = $this->exporter->getSpans();
+        self::assertSame([], $spans[0]->getEvents(), 'exception event below the threshold is not recorded');
+        self::assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
+        self::assertSame(404, $spans[0]->getAttributes()->get('http.response.status_code'));
+    }
+
+    public function testRecordExceptionMinStatusStillRecordsServerErrorHttpException(): void
+    {
+        $subscriber = new OpenTelemetrySubscriber(recordExceptionMinStatus: 500);
+        $request = Request::create('/api/items', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+        $exception = new \Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException(null, 'down');
+
+        $subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $subscriber->onException(new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $exception));
+        $subscriber->onResponse(new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new Response('', 503)));
+        $subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $spans = $this->exporter->getSpans();
+        self::assertNotEmpty($spans[0]->getEvents());
+        self::assertSame('exception', $spans[0]->getEvents()[0]->getName());
+        self::assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
+    }
+
+    public function testRecordExceptionMinStatusStillRecordsNonHttpException(): void
+    {
+        $subscriber = new OpenTelemetrySubscriber(recordExceptionMinStatus: 500);
+        $request = Request::create('/api/items', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $subscriber->onException(new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new \RuntimeException('boom')));
+        $subscriber->onResponse(new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new Response('', 500)));
+        $subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $spans = $this->exporter->getSpans();
+        self::assertNotEmpty($spans[0]->getEvents());
+        self::assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
+    }
+
+    public function testDefaultRecordsClientErrorExceptionEvent(): void
+    {
+        $request = Request::create('/missing', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+        $exception = new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException('nope');
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onException(new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $exception));
+        $this->subscriber->onResponse(new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new Response('', 404)));
+        $this->subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+        $spans = $this->exporter->getSpans();
+        self::assertNotEmpty($spans[0]->getEvents(), 'default keeps recording every exception');
+    }
+
     public function testNetworkPeerAddressRecorded(): void
     {
         $request = Request::create('/api/items', 'GET');

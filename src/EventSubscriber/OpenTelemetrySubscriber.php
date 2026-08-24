@@ -25,6 +25,7 @@ use Symfony\Component\HttpKernel\Event\FinishRequestEvent;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\Event\TerminateEvent;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\Instrumentation\TracerAwareTrait;
@@ -53,10 +54,11 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
     private \WeakMap $requestData;
 
     /**
-     * @param string   $tracerName           Instrumentation library name
-     * @param string[] $excludedPaths        URL path prefixes to skip (must start with /)
-     * @param bool     $recordClientIp       Whether to record client.address
-     * @param int      $errorStatusThreshold HTTP status codes >= this are marked as errors
+     * @param string   $tracerName               Instrumentation library name
+     * @param string[] $excludedPaths            URL path prefixes to skip (must start with /)
+     * @param bool     $recordClientIp           Whether to record client.address
+     * @param int      $errorStatusThreshold     HTTP status codes >= this are marked as errors
+     * @param int      $recordExceptionMinStatus Skip recordException() for HTTP exceptions below this status (0 = record all)
      */
     public function __construct(
         private readonly string $tracerName = 'opentelemetry-symfony',
@@ -64,6 +66,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
         private readonly bool $recordClientIp = true,
         private readonly int $errorStatusThreshold = 500,
         ?RouteTemplateResolver $routeTemplateResolver = null,
+        private readonly int $recordExceptionMinStatus = 0,
     ) {
         $this->excludedPaths = array_values($excludedPaths);
         $this->requestData = new \WeakMap();
@@ -166,7 +169,9 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
         }
 
         $throwable = $event->getThrowable();
-        $span->recordException($throwable);
+        if ($this->shouldRecordException($throwable)) {
+            $span->recordException($throwable);
+        }
 
         // Error status is irreversible, so defer the decision until the final status is known:
         // semconv says 4xx on SERVER spans MUST stay unset, and listeners may map any exception to 4xx.
@@ -278,6 +283,14 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
             }
         }
         $this->requestData = new \WeakMap();
+    }
+
+    // Only filters the exception event; span status and error.type are decided later from the response.
+    private function shouldRecordException(\Throwable $throwable): bool
+    {
+        return 0 === $this->recordExceptionMinStatus
+            || !$throwable instanceof HttpExceptionInterface
+            || $throwable->getStatusCode() >= $this->recordExceptionMinStatus;
     }
 
     private function isExcluded(Request $request): bool

@@ -790,6 +790,66 @@ final class OtelLogHandlerTest extends TestCase
         $handler->handle($record);
     }
 
+    public function testExcludedHttpCodeDropsRecord(): void
+    {
+        $handler = new OtelLogHandler(excludedHttpCodes: [404, 405]);
+
+        $handler->handle(new LogRecord(
+            datetime: new \DateTimeImmutable(),
+            channel: 'request',
+            level: Level::Error,
+            message: 'Uncaught PHP Exception NotFoundHttpException',
+            context: ['exception' => new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException('No route found for "GET /.env"')],
+        ));
+
+        self::assertCount(0, $this->logExporter->getStorage());
+    }
+
+    public function testNonExcludedHttpCodeIsStillExported(): void
+    {
+        $handler = new OtelLogHandler(excludedHttpCodes: [404]);
+
+        $handler->handle(new LogRecord(
+            datetime: new \DateTimeImmutable(),
+            channel: 'request',
+            level: Level::Error,
+            message: 'Access denied',
+            context: ['exception' => new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException('nope')],
+        ));
+
+        $logs = $this->logExporter->getStorage();
+        self::assertCount(1, $logs);
+    }
+
+    public function testNonHttpExceptionIsExportedDespiteExcludedCodes(): void
+    {
+        $handler = new OtelLogHandler(excludedHttpCodes: [404, 405]);
+
+        $handler->handle(new LogRecord(
+            datetime: new \DateTimeImmutable(),
+            channel: 'app',
+            level: Level::Error,
+            message: 'real error',
+            context: ['exception' => new \RuntimeException('boom')],
+        ));
+
+        self::assertCount(1, $this->logExporter->getStorage());
+    }
+
+    public function testRecordWithoutExceptionIsExportedDespiteExcludedCodes(): void
+    {
+        $handler = new OtelLogHandler(excludedHttpCodes: [404]);
+
+        $handler->handle(new LogRecord(
+            datetime: new \DateTimeImmutable(),
+            channel: 'app',
+            level: Level::Info,
+            message: 'plain record',
+        ));
+
+        self::assertCount(1, $this->logExporter->getStorage());
+    }
+
     public function testResetClearsCachedLogger(): void
     {
         $handler = new OtelLogHandler();

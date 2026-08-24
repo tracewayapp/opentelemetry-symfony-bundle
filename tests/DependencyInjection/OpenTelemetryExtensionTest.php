@@ -347,6 +347,31 @@ final class OpenTelemetryExtensionTest extends TestCase
         self::assertTrue($container->hasDefinition(OtelLoggerFlushSubscriber::class));
     }
 
+    public function testLogExportExcludedHttpCodesWiredToHandler(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension(new \Symfony\Bundle\MonologBundle\DependencyInjection\MonologExtension());
+
+        $extension = new OpenTelemetryExtension();
+        $container->registerExtension($extension);
+        $container->loadFromExtension('open_telemetry', [
+            'logs' => ['export' => ['enabled' => true, 'excluded_http_codes' => [404, 405]]],
+        ]);
+
+        $extension->prepend($container);
+
+        $handlerDef = $container->getDefinition(OtelLogHandler::class);
+        self::assertSame([404, 405], $handlerDef->getArgument('$excludedHttpCodes'));
+    }
+
+    public function testRecordExceptionMinStatusWiredToSubscriber(): void
+    {
+        $container = $this->buildContainer(['traces' => ['record_exception_min_status' => 500]]);
+
+        $def = $container->getDefinition(OpenTelemetrySubscriber::class);
+        self::assertSame(500, $def->getArgument('$recordExceptionMinStatus'));
+    }
+
     public function testLogExportEnabledThrowsWhenMonologBundleMissing(): void
     {
         $container = new ContainerBuilder();

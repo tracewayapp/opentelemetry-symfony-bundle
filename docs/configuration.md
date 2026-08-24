@@ -35,7 +35,7 @@ open_telemetry:
         doctrine:
             enabled: true
             record_statements: true           # false = hide SQL from spans
-            only_with_parent: true            # false = emit DB spans even without an active parent span (pre-3.4 behavior, incl. messenger transport poll noise)
+            only_with_parent: true            # false = emit DB spans even without an active parent span (pre-3.4.1 behavior, incl. messenger transport poll noise)
 
         cache:
             enabled: true

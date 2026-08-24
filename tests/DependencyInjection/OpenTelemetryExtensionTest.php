@@ -197,7 +197,7 @@ final class OpenTelemetryExtensionTest extends TestCase
         $def = $container->getDefinition(DoctrineTraceableMiddleware::class);
         self::assertTrue($def->hasTag('doctrine.middleware'));
         self::assertFalse($def->getArgument('$recordStatements'));
-        self::assertFalse($def->getArgument('$onlyWithParent'));
+        self::assertTrue($def->getArgument('$onlyWithParent'));
     }
 
     public function testDoctrineMiddlewareNotRegisteredWhenDisabled(): void
@@ -217,14 +217,14 @@ final class OpenTelemetryExtensionTest extends TestCase
         self::assertTrue($def->getArgument('$recordStatements'));
     }
 
-    public function testDoctrineOnlyWithParentConfigured(): void
+    public function testDoctrineOnlyWithParentCanBeDisabled(): void
     {
         $container = $this->buildContainer([
-            'traces' => ['doctrine' => ['enabled' => true, 'only_with_parent' => true]],
+            'traces' => ['doctrine' => ['enabled' => true, 'only_with_parent' => false]],
         ]);
 
         $def = $container->getDefinition(DoctrineTraceableMiddleware::class);
-        self::assertTrue($def->getArgument('$onlyWithParent'));
+        self::assertFalse($def->getArgument('$onlyWithParent'));
     }
 
     public function testDoctrineTracerNameWired(): void

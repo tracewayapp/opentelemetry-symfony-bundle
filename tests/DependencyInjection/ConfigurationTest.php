@@ -33,6 +33,7 @@ final class ConfigurationTest extends TestCase
         self::assertSame([], $config['traces']['excluded_paths']);
         self::assertTrue($config['traces']['record_client_ip']);
         self::assertSame(500, $config['traces']['error_status_threshold']);
+        self::assertSame(0, $config['traces']['record_exception_min_status']);
         self::assertTrue($config['traces']['console']['enabled']);
         self::assertSame(['messenger:consume', 'messenger:consume-messages'], $config['traces']['console']['excluded_commands']);
         self::assertTrue($config['traces']['http_client']['enabled']);
@@ -56,6 +57,7 @@ final class ConfigurationTest extends TestCase
         self::assertFalse($config['logs']['export']['capture_code_attributes']);
         // Flipped from false in v2.0 — cross-ecosystem norm.
         self::assertTrue($config['logs']['export']['unprefixed_attributes']);
+        self::assertSame([], $config['logs']['export']['excluded_http_codes']);
 
         // sdk
         self::assertFalse($config['sdk']['enabled']);
@@ -75,6 +77,7 @@ final class ConfigurationTest extends TestCase
                     'excluded_paths' => ['/health', '/_profiler'],
                     'record_client_ip' => false,
                     'error_status_threshold' => 503,
+                    'record_exception_min_status' => 500,
                     'console' => [
                         'enabled' => false,
                         'excluded_commands' => ['cache:clear', 'assets:install'],
@@ -112,6 +115,7 @@ final class ConfigurationTest extends TestCase
                         'level' => 'warning',
                         'capture_code_attributes' => true,
                         'unprefixed_attributes' => false,
+                        'excluded_http_codes' => [404, 405],
                     ],
                 ],
             ],
@@ -122,6 +126,7 @@ final class ConfigurationTest extends TestCase
         self::assertSame(['/health', '/_profiler'], $config['traces']['excluded_paths']);
         self::assertFalse($config['traces']['record_client_ip']);
         self::assertSame(503, $config['traces']['error_status_threshold']);
+        self::assertSame(500, $config['traces']['record_exception_min_status']);
         self::assertFalse($config['traces']['console']['enabled']);
         self::assertSame(['cache:clear', 'assets:install'], $config['traces']['console']['excluded_commands']);
         self::assertFalse($config['traces']['http_client']['enabled']);
@@ -143,6 +148,7 @@ final class ConfigurationTest extends TestCase
         self::assertSame('warning', $config['logs']['export']['level']);
         self::assertTrue($config['logs']['export']['capture_code_attributes']);
         self::assertFalse($config['logs']['export']['unprefixed_attributes']);
+        self::assertSame([404, 405], $config['logs']['export']['excluded_http_codes']);
     }
 
     public function testExcludedPathsNormalization(): void
@@ -220,6 +226,41 @@ final class ConfigurationTest extends TestCase
         $this->expectException(InvalidConfigurationException::class);
 
         $this->process([['traces' => ['error_status_threshold' => 600]]]);
+    }
+
+    public function testRecordExceptionMinStatusZeroDisablesFiltering(): void
+    {
+        $config = $this->process([['traces' => ['record_exception_min_status' => 0]]]);
+
+        self::assertSame(0, $config['traces']['record_exception_min_status']);
+    }
+
+    public function testRecordExceptionMinStatusBelowHttpRangeThrows(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+
+        $this->process([['traces' => ['record_exception_min_status' => 50]]]);
+    }
+
+    public function testRecordExceptionMinStatusAboveHttpRangeThrows(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+
+        $this->process([['traces' => ['record_exception_min_status' => 600]]]);
+    }
+
+    public function testLogExportExcludedHttpCodesBelowRangeThrows(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+
+        $this->process([['logs' => ['export' => ['excluded_http_codes' => [42]]]]]);
+    }
+
+    public function testLogExportExcludedHttpCodesAboveRangeThrows(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+
+        $this->process([['logs' => ['export' => ['excluded_http_codes' => [600]]]]]);
     }
 
     public function testLogExportLevelEnumValidated(): void

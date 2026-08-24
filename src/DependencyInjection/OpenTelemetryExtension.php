@@ -43,7 +43,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         $configs = $container->getExtensionConfig($this->getAlias());
 
         try {
-            /** @var array{logs: array{export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}} $config */
+            /** @var array{logs: array{export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool, excluded_http_codes: list<int>}}} $config */
             $config = $this->processConfiguration(new Configuration(), $configs);
         } catch (\Symfony\Component\Config\Definition\Exception\InvalidTypeException $e) {
             if ($this->containsEnvPlaceholder($configs)) {
@@ -71,6 +71,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $handlerDef->setArgument('$level', $config['logs']['export']['level']);
             $handlerDef->setArgument('$captureCodeAttributes', $config['logs']['export']['capture_code_attributes']);
             $handlerDef->setArgument('$unprefixedAttributes', $config['logs']['export']['unprefixed_attributes']);
+            $handlerDef->setArgument('$excludedHttpCodes', $config['logs']['export']['excluded_http_codes']);
             $handlerDef->setAutoconfigured(true);
             $container->setDefinition(OtelLogHandler::class, $handlerDef);
 
@@ -83,7 +84,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     public function load(array $configs, ContainerBuilder $container): void
     {
         $configuration = new Configuration();
-        /** @var array{traces: array{enabled: bool, propagator: string, id_generator: string, tracer_name: string, excluded_paths: list<string>, record_client_ip: bool, error_status_threshold: int, console: array{enabled: bool, excluded_commands: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, messenger: array{enabled: bool, root_spans: bool}, doctrine: array{enabled: bool, record_statements: bool}, cache: array{enabled: bool, excluded_pools: list<string>}, twig: array{enabled: bool, excluded_templates: list<string>}, scheduler: array{enabled: bool}, mailer: array{enabled: bool, record_subject: bool}}, metrics: array{enabled: bool, meter_name: string, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}}, logs: array{correlation: array{enabled: bool}, export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool}}, sdk: array{enabled: bool, autoload_enabled: bool, use_putenv: bool, resource_attributes: array<string, string>, exporter_otlp_headers: array<string, string>}} $config */
+        /** @var array{traces: array{enabled: bool, propagator: string, id_generator: string, tracer_name: string, excluded_paths: list<string>, record_client_ip: bool, error_status_threshold: int, record_exception_min_status: int, console: array{enabled: bool, excluded_commands: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, messenger: array{enabled: bool, root_spans: bool}, doctrine: array{enabled: bool, record_statements: bool}, cache: array{enabled: bool, excluded_pools: list<string>}, twig: array{enabled: bool, excluded_templates: list<string>}, scheduler: array{enabled: bool}, mailer: array{enabled: bool, record_subject: bool}}, metrics: array{enabled: bool, meter_name: string, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}}, logs: array{correlation: array{enabled: bool}, export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool, excluded_http_codes: list<int>}}, sdk: array{enabled: bool, autoload_enabled: bool, use_putenv: bool, resource_attributes: array<string, string>, exporter_otlp_headers: array<string, string>}} $config */
         $config = $this->processConfiguration($configuration, $configs);
 
         $loader = new YamlFileLoader($container, new FileLocator(\dirname(__DIR__, 2).'/config'));
@@ -123,7 +124,8 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
                 ->setArgument('$tracerName', $tracerName)
                 ->setArgument('$excludedPaths', $traces['excluded_paths'])
                 ->setArgument('$recordClientIp', $traces['record_client_ip'])
-                ->setArgument('$errorStatusThreshold', $traces['error_status_threshold']);
+                ->setArgument('$errorStatusThreshold', $traces['error_status_threshold'])
+                ->setArgument('$recordExceptionMinStatus', $traces['record_exception_min_status']);
         } else {
             $container->removeDefinition(OpenTelemetrySubscriber::class);
         }

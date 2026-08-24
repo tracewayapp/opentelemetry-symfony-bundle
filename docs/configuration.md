@@ -11,6 +11,7 @@ open_telemetry:
         excluded_paths: [/health, /_profiler, /_wdt]
         record_client_ip: true                # disable for GDPR
         error_status_threshold: 500           # 400-599
+        record_exception_min_status: 0        # e.g. 500 = skip recordException() for HTTP exceptions below 500 (404 bot probes); 0 = record all
 
         console:
             enabled: true
@@ -77,6 +78,7 @@ open_telemetry:
             level: debug
             capture_code_attributes: false    # fallback debug_backtrace when IntrospectionProcessor is absent
             unprefixed_attributes: true       # flat context/extra attributes (matches Java/Python/.NET/JS)
+            excluded_http_codes: []           # e.g. [404, 405] drops records whose exception is an HttpExceptionInterface with that code (bot-probe noise)
     sdk:
         enabled: false                        # Implicitly true when any other sdk.* key is set.
         autoload_enabled: false               # Toggle OTEL_PHP_AUTOLOAD_ENABLED from bundle config (Dotenv/Secrets run too late).

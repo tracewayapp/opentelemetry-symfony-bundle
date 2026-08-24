@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-08-24
+
+### Added
+
+- **`logs.export.excluded_http_codes`** — log records whose context exception is an `HttpExceptionInterface` with a listed status code (e.g. `[404, 405]`) are dropped instead of exported, silencing bot-probe noise (`/.env`, `/wp-login.php`, …) without the buffering semantics of the `fingers_crossed` workaround: continuous export at `logs.export.level` is kept for everything else. Mirrors monolog-bundle's `excluded_http_codes` naming and behavior. Default `[]` exports everything. ([#68](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/68))
+- **`traces.record_exception_min_status`** — skip the span `recordException()` event for `HttpExceptionInterface` exceptions whose status code is below the threshold (e.g. `500` drops the exception event for handled 404s, which never escape the SERVER span per the exception semconv). Non-HTTP exceptions are always recorded, and span status / `error.type` decisions are unchanged. Default `0` records every exception. ([#68](https://github.com/tracewayapp/opentelemetry-symfony-bundle/pull/68))
+
 ## [3.2.0] - 2026-08-05
 
 ### Added

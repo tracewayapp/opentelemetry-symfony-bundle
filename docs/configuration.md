@@ -15,7 +15,8 @@ open_telemetry:
 
         console:
             enabled: true
-            excluded_commands: [cache:clear, assets:install]
+            excluded_commands: [cache:clear, assets:install]   # always merged with the long-running defaults below
+            trace_long_running_commands: false                 # true = also trace messenger:consume(-messages)
 
         http_client:
             enabled: true
@@ -36,6 +37,7 @@ open_telemetry:
             enabled: true
             record_statements: true           # false = hide SQL from spans
             only_with_parent: true            # false = emit DB spans even without an active parent span (pre-3.4.1 behavior, incl. messenger transport poll noise)
+                                              # a long-running command's own span does not count as a parent, so worker poll queries stay suppressed
 
         cache:
             enabled: true
@@ -61,11 +63,11 @@ open_telemetry:
 
         http_server:
             enabled: false
-            excluded_paths: []                # same prefix-match rules as tracing excluded_paths
+            excluded_paths: []                # same prefix-match rules as tracing excluded_paths; set separately from traces
 
         http_client:
             enabled: false
-            excluded_hosts: []                # OTLP endpoint is auto-excluded
+            excluded_hosts: []                # OTLP endpoint is auto-excluded; set separately from traces
 
         mailer:
             enabled: false
@@ -80,6 +82,7 @@ open_telemetry:
             capture_code_attributes: false    # fallback debug_backtrace when IntrospectionProcessor is absent
             unprefixed_attributes: true       # flat context/extra attributes (matches Java/Python/.NET/JS)
             excluded_http_codes: []           # e.g. [404, 405] drops records whose exception is an HttpExceptionInterface with that code (bot-probe noise)
+            excluded_channels: []             # e.g. [deprecation, php] drops whole Monolog channels before export
     sdk:
         enabled: false                        # Implicitly true when any other sdk.* key is set.
         autoload_enabled: false               # Toggle OTEL_PHP_AUTOLOAD_ENABLED from bundle config (Dotenv/Secrets run too late).
@@ -102,6 +105,7 @@ Upgrading from v1.x? See [UPGRADE-2.0.md](../UPGRADE-2.0.md) for the flat→nest
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` | Collector/backend endpoint |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/json` | Protocol (`http/json`, `http/protobuf`, `grpc`). `grpc` is **not** included out of the box — see [gRPC transport](#grpc-transport) below. |
 | `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | `http://localhost:4318/v1/metrics` | Override the generic endpoint for metrics |
+| `OTEL_PHP_DEBUG_SCOPES_DISABLED` | `1` | Skip OTel's `DebugScope` (a `debug_backtrace()` per span activation) when `zend.assertions=1`. The bundle sets it automatically when `kernel.debug` is false. |
 
 See the [OpenTelemetry SDK docs](https://opentelemetry.io/docs/languages/php/exporters/) for all available options.
 
@@ -119,3 +123,17 @@ composer require open-telemetry/transport-grpc
 ```
 
 Run `bin/console traceway:doctor` after installing — it will warn if `grpc` is selected without the required pieces.
+
+## Keeping telemetry volume down
+
+A few defaults exist because they are the difference between a few MB and a few GB per day. `bin/console traceway:doctor` flags the runtime ones.
+
+**Worker commands.** `messenger:consume` and `messenger:consume-messages` are excluded from console tracing: their span would stay open for the life of the process, and every idle transport poll (`BEGIN` / `SELECT messenger_messages` / `COMMIT`) would be recorded under it. Per-message tracing comes from the Messenger middleware instead. Anything you put in `traces.console.excluded_commands` is *added* to that list, so you cannot lose it by accident; `trace_long_running_commands: true` opts back in deliberately.
+
+`traces.doctrine.only_with_parent` (on by default) is the second line of defence: DB queries with no active parent span are dropped, and a long-running command's own span does not count as a parent — so poll queries stay out even when you trace the worker.
+
+**Assertions.** With `zend.assertions=1`, OpenTelemetry's `Context::activate()` wraps every scope in a `DebugScope`, which captures a `debug_backtrace()`. `php.ini-production` ships `zend.assertions=0`; staging boxes copied from a dev config often do not. The bundle sets `OTEL_PHP_DEBUG_SCOPES_DISABLED` at boot when `kernel.debug` is false, and the doctor warns when assertions are on.
+
+**Log channels.** `logs.export.excluded_channels` drops whole Monolog channels before export — `deprecation` and `php` are the usual candidates, since framework diagnostics otherwise land in your log storage. monolog-bundle's own `channels` key on the `opentelemetry` handler covers inclusive/exclusive rules if you need them.
+
+**Metrics exclusions.** `metrics.http_server.excluded_paths` and `metrics.http_client.excluded_hosts` are independent of their tracing counterparts, so excluding `/health` from traces still measures it — usually what you want for an uptime signal. Repeat the list under `metrics` when you want a path or host dropped from both signals.

@@ -43,7 +43,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         $configs = $container->getExtensionConfig($this->getAlias());
 
         try {
-            /** @var array{logs: array{export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool, excluded_http_codes: list<int>}}} $config */
+            /** @var array{logs: array{export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool, excluded_http_codes: list<int>, excluded_channels: list<string>}}} $config */
             $config = $this->processConfiguration(new Configuration(), $configs);
         } catch (\Symfony\Component\Config\Definition\Exception\InvalidTypeException $e) {
             if ($this->containsEnvPlaceholder($configs)) {
@@ -72,6 +72,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $handlerDef->setArgument('$captureCodeAttributes', $config['logs']['export']['capture_code_attributes']);
             $handlerDef->setArgument('$unprefixedAttributes', $config['logs']['export']['unprefixed_attributes']);
             $handlerDef->setArgument('$excludedHttpCodes', $config['logs']['export']['excluded_http_codes']);
+            $handlerDef->setArgument('$excludedChannels', $config['logs']['export']['excluded_channels']);
             $handlerDef->setAutoconfigured(true);
             $container->setDefinition(OtelLogHandler::class, $handlerDef);
 
@@ -84,7 +85,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     public function load(array $configs, ContainerBuilder $container): void
     {
         $configuration = new Configuration();
-        /** @var array{traces: array{enabled: bool, propagator: string, id_generator: string, tracer_name: string, excluded_paths: list<string>, record_client_ip: bool, error_status_threshold: int, record_exception_min_status: int, console: array{enabled: bool, excluded_commands: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, messenger: array{enabled: bool, root_spans: bool}, doctrine: array{enabled: bool, record_statements: bool, only_with_parent: bool}, cache: array{enabled: bool, excluded_pools: list<string>}, twig: array{enabled: bool, excluded_templates: list<string>}, scheduler: array{enabled: bool}, mailer: array{enabled: bool, record_subject: bool}}, metrics: array{enabled: bool, meter_name: string, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}}, logs: array{correlation: array{enabled: bool}, export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool, excluded_http_codes: list<int>}}, sdk: array{enabled: bool, autoload_enabled: bool, use_putenv: bool, resource_attributes: array<string, string>, exporter_otlp_headers: array<string, string>}} $config */
+        /** @var array{traces: array{enabled: bool, propagator: string, id_generator: string, tracer_name: string, excluded_paths: list<string>, record_client_ip: bool, error_status_threshold: int, record_exception_min_status: int, console: array{enabled: bool, excluded_commands: list<string>, trace_long_running_commands: bool}, http_client: array{enabled: bool, excluded_hosts: list<string>}, messenger: array{enabled: bool, root_spans: bool}, doctrine: array{enabled: bool, record_statements: bool, only_with_parent: bool}, cache: array{enabled: bool, excluded_pools: list<string>}, twig: array{enabled: bool, excluded_templates: list<string>}, scheduler: array{enabled: bool}, mailer: array{enabled: bool, record_subject: bool}}, metrics: array{enabled: bool, meter_name: string, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}}, logs: array{correlation: array{enabled: bool}, export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool, excluded_http_codes: list<int>, excluded_channels: list<string>}}, sdk: array{enabled: bool, autoload_enabled: bool, use_putenv: bool, resource_attributes: array<string, string>, exporter_otlp_headers: array<string, string>}} $config */
         $config = $this->processConfiguration($configuration, $configs);
 
         $loader = new YamlFileLoader($container, new FileLocator(\dirname(__DIR__, 2).'/config'));
@@ -133,7 +134,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         if ($tracingEnabled && $traces['console']['enabled']) {
             $container->getDefinition(ConsoleSubscriber::class)
                 ->setArgument('$tracerName', $tracerName)
-                ->setArgument('$excludedCommands', $traces['console']['excluded_commands']);
+                ->setArgument('$excludedCommands', $this->resolveExcludedCommands($traces['console']));
         } else {
             $container->removeDefinition(ConsoleSubscriber::class);
         }
@@ -270,6 +271,22 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $meteredTransportsDef->addTag('kernel.reset', ['method' => 'reset']);
             $container->setDefinition(MeteredTransports::class, $meteredTransportsDef);
         }
+    }
+
+    /**
+     * The built-in long-running commands are always unioned in, so setting excluded_commands extends the defaults.
+     *
+     * @param array{enabled: bool, excluded_commands: list<string>, trace_long_running_commands: bool} $console
+     *
+     * @return list<string>
+     */
+    private function resolveExcludedCommands(array $console): array
+    {
+        if ($console['trace_long_running_commands']) {
+            return array_values(array_unique($console['excluded_commands']));
+        }
+
+        return array_values(array_unique([...$console['excluded_commands'], ...ConsoleSubscriber::LONG_RUNNING_COMMANDS]));
     }
 
     private function containsEnvPlaceholder(mixed $value): bool

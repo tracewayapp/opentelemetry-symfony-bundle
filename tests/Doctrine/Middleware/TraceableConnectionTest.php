@@ -10,8 +10,10 @@ use Doctrine\DBAL\Driver\Statement;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
+use OpenTelemetry\Context\Context;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
+use Traceway\OpenTelemetryBundle\Instrumentation\LongRunningCommandSpan;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
 /**
@@ -439,6 +441,52 @@ final class TraceableConnectionTest extends TestCase
 
         self::assertSame($innerResult, $result);
         self::assertCount(0, $this->exporter->getSpans());
+    }
+
+    public function testOnlyWithParentIgnoresLongRunningCommandSpan(): void
+    {
+        $connection = $this->connectionWithParentGate();
+        $this->inner->method('exec')->willReturn(1);
+
+        $worker = Globals::tracerProvider()->getTracer('test')->spanBuilder('messenger:consume')->startSpan();
+        $scope = LongRunningCommandSpan::storeIn(Context::getCurrent()->withContextValue($worker), $worker)->activate();
+
+        try {
+            $connection->exec('SELECT id FROM messenger_messages');
+        } finally {
+            $scope->detach();
+            $worker->end();
+        }
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans, 'the poll query must not be recorded just because a worker span is active');
+        self::assertSame('messenger:consume', $spans[0]->getName());
+    }
+
+    public function testOnlyWithParentRecordsQueriesNestedInsideALongRunningCommand(): void
+    {
+        $connection = $this->connectionWithParentGate();
+        $this->inner->method('exec')->willReturn(1);
+
+        $tracer = Globals::tracerProvider()->getTracer('test');
+        $worker = $tracer->spanBuilder('messenger:consume')->startSpan();
+        $workerScope = LongRunningCommandSpan::storeIn(Context::getCurrent()->withContextValue($worker), $worker)->activate();
+
+        $message = $tracer->spanBuilder('consume StoreActionLog')->startSpan();
+        $messageScope = $message->activate();
+
+        try {
+            $connection->exec('INSERT INTO action_log (id) VALUES (1)');
+        } finally {
+            $messageScope->detach();
+            $message->end();
+            $workerScope->detach();
+            $worker->end();
+        }
+
+        $spans = $this->exporter->getSpans();
+        self::assertSame('INSERT action_log', $spans[0]->getName());
+        self::assertSame($message->getContext()->getSpanId(), $spans[0]->getParentSpanId());
     }
 
     private function connectionWithParentGate(): \Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableConnectionDbal4

@@ -180,6 +180,83 @@ final class OpenTelemetryBundleTest extends TestCase
         self::assertSame([], $reflection->getStaticPropertyValue('initializers'));
     }
 
+    public function testDebugScopesDisabledWhenAssertionsAreOnOutsideDebug(): void
+    {
+        if ('1' !== \ini_get('zend.assertions')) {
+            self::markTestSkipped('zend.assertions is not enabled in this runtime.');
+        }
+
+        unset($_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'], $_ENV['OTEL_PHP_DEBUG_SCOPES_DISABLED']);
+
+        $this->bootWithDebug(false);
+
+        self::assertSame('true', $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED']);
+    }
+
+    public function testDebugScopesLeftAloneInDebugMode(): void
+    {
+        if ('1' !== \ini_get('zend.assertions')) {
+            self::markTestSkipped('zend.assertions is not enabled in this runtime.');
+        }
+
+        unset($_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'], $_ENV['OTEL_PHP_DEBUG_SCOPES_DISABLED']);
+
+        $this->bootWithDebug(true);
+
+        self::assertArrayNotHasKey('OTEL_PHP_DEBUG_SCOPES_DISABLED', $_SERVER);
+    }
+
+    public function testExplicitDebugScopesValueIsNotOverwritten(): void
+    {
+        $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] = 'false';
+        unset($_ENV['OTEL_PHP_DEBUG_SCOPES_DISABLED']);
+
+        $this->bootWithDebug(false);
+
+        self::assertSame('false', $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED']);
+
+        unset($_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED']);
+    }
+
+    public function testDebugScopesDisabledWithoutSdkConfig(): void
+    {
+        if ('1' !== \ini_get('zend.assertions')) {
+            self::markTestSkipped('zend.assertions is not enabled in this runtime.');
+        }
+
+        unset($_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'], $_ENV['OTEL_PHP_DEBUG_SCOPES_DISABLED']);
+
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.debug', false);
+
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
+
+        self::assertSame(
+            'true',
+            $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'],
+            'sdk.enabled defaults to false, so this must not depend on the sdk config parameter',
+        );
+    }
+
+    private function bootWithDebug(bool $debug): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.debug', $debug);
+        $container->setParameter('open_telemetry.sdk.config', [
+            'enabled' => true,
+            'autoload_enabled' => false,
+            'use_putenv' => false,
+            'resource_attributes' => [],
+            'exporter_otlp_headers' => [],
+        ]);
+
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
+    }
+
     public function testOpenTelemetryConfigurationWasUsedWithPutEnv(): void
     {
         $container = new ContainerBuilder();

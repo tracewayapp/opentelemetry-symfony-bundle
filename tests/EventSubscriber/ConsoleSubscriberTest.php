@@ -7,6 +7,7 @@ namespace Traceway\OpenTelemetryBundle\Tests\EventSubscriber;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
+use OpenTelemetry\Context\Context;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\ConsoleEvents;
@@ -16,6 +17,7 @@ use Symfony\Component\Console\Event\ConsoleTerminateEvent;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
+use Traceway\OpenTelemetryBundle\Instrumentation\LongRunningCommandSpan;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
 final class ConsoleSubscriberTest extends TestCase
@@ -33,6 +35,37 @@ final class ConsoleSubscriberTest extends TestCase
     protected function tearDown(): void
     {
         $this->tearDownOTel();
+    }
+
+    public function testLongRunningCommandSpanIsMarkedWhileActiveAndClearedOnTerminate(): void
+    {
+        $command = new Command('messenger:consume');
+        $input = new ArrayInput([]);
+        $output = new NullOutput();
+
+        $this->subscriber->onCommand(new ConsoleCommandEvent($command, $input, $output));
+
+        self::assertTrue(LongRunningCommandSpan::isCurrent(Context::getCurrent()));
+
+        $this->subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, Command::SUCCESS));
+
+        self::assertFalse(
+            LongRunningCommandSpan::isCurrent(Context::getCurrent()),
+            'the marker unwinds with the console scope',
+        );
+    }
+
+    public function testOrdinaryCommandSpanIsNotMarkedAsLongRunning(): void
+    {
+        $command = new Command('app:import');
+        $input = new ArrayInput([]);
+        $output = new NullOutput();
+
+        $this->subscriber->onCommand(new ConsoleCommandEvent($command, $input, $output));
+
+        self::assertFalse(LongRunningCommandSpan::isCurrent(Context::getCurrent()));
+
+        $this->subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, Command::SUCCESS));
     }
 
     public function testSubscribedEvents(): void

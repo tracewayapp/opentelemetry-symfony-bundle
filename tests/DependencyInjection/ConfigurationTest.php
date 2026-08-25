@@ -35,7 +35,8 @@ final class ConfigurationTest extends TestCase
         self::assertSame(500, $config['traces']['error_status_threshold']);
         self::assertSame(0, $config['traces']['record_exception_min_status']);
         self::assertTrue($config['traces']['console']['enabled']);
-        self::assertSame(['messenger:consume', 'messenger:consume-messages'], $config['traces']['console']['excluded_commands']);
+        self::assertSame([], $config['traces']['console']['excluded_commands']);
+        self::assertFalse($config['traces']['console']['trace_long_running_commands']);
         self::assertTrue($config['traces']['http_client']['enabled']);
         self::assertSame([], $config['traces']['http_client']['excluded_hosts']);
         self::assertTrue($config['traces']['messenger']['enabled']);
@@ -287,7 +288,7 @@ final class ConfigurationTest extends TestCase
         self::assertFalse($config['traces']['doctrine']['enabled']);
         self::assertTrue($config['traces']['cache']['enabled'], 'untouched subsystem keeps default');
         // Subsystem defaults still fill in even when shorthand is used
-        self::assertSame(['messenger:consume', 'messenger:consume-messages'], $config['traces']['console']['excluded_commands']);
+        self::assertFalse($config['traces']['console']['trace_long_running_commands']);
     }
 
     /**

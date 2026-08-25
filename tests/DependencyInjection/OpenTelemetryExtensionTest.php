@@ -9,6 +9,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Traceway\OpenTelemetryBundle\DependencyInjection\OpenTelemetryExtension;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableMiddleware as DoctrineTraceableMiddleware;
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
+use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetryMetricsSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OtelLoggerFlushSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\SchedulerSubscriber;
@@ -121,7 +122,37 @@ final class OpenTelemetryExtensionTest extends TestCase
         ]);
 
         $def = $container->getDefinition(ConsoleSubscriber::class);
-        self::assertSame(['cache:clear', 'assets:install'], $def->getArgument('$excludedCommands'));
+        self::assertSame(
+            ['cache:clear', 'assets:install', 'messenger:consume', 'messenger:consume-messages'],
+            $def->getArgument('$excludedCommands'),
+            'user list extends the built-in long-running defaults instead of replacing them',
+        );
+    }
+
+    public function testExcludedCommandsAreNotDuplicatedWhenUserRepeatsDefaults(): void
+    {
+        $container = $this->buildContainer([
+            'traces' => ['console' => ['excluded_commands' => ['messenger:consume', 'cache:clear']]],
+        ]);
+
+        $def = $container->getDefinition(ConsoleSubscriber::class);
+        self::assertSame(
+            ['messenger:consume', 'cache:clear', 'messenger:consume-messages'],
+            $def->getArgument('$excludedCommands'),
+        );
+    }
+
+    public function testTraceLongRunningCommandsDropsTheBuiltInExclusions(): void
+    {
+        $container = $this->buildContainer([
+            'traces' => ['console' => [
+                'excluded_commands' => ['cache:clear'],
+                'trace_long_running_commands' => true,
+            ]],
+        ]);
+
+        $def = $container->getDefinition(ConsoleSubscriber::class);
+        self::assertSame(['cache:clear'], $def->getArgument('$excludedCommands'));
     }
 
     public function testMiddlewareRemovedWhenMessengerDisabled(): void
@@ -373,6 +404,46 @@ final class OpenTelemetryExtensionTest extends TestCase
 
         $handlerDef = $container->getDefinition(OtelLogHandler::class);
         self::assertSame([404, 405], $handlerDef->getArgument('$excludedHttpCodes'));
+    }
+
+    public function testLogExportExcludedChannelsWiredToHandler(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension(new \Symfony\Bundle\MonologBundle\DependencyInjection\MonologExtension());
+
+        $extension = new OpenTelemetryExtension();
+        $container->registerExtension($extension);
+        $container->loadFromExtension('open_telemetry', [
+            'logs' => ['export' => ['enabled' => true, 'excluded_channels' => ['deprecation', 'php']]],
+        ]);
+
+        $extension->prepend($container);
+
+        $handlerDef = $container->getDefinition(OtelLogHandler::class);
+        self::assertSame(['deprecation', 'php'], $handlerDef->getArgument('$excludedChannels'));
+    }
+
+    public function testMetricsExclusionsAreIndependentOfTraceExclusions(): void
+    {
+        $container = $this->buildContainer([
+            'traces' => ['excluded_paths' => ['/health'], 'http_client' => ['excluded_hosts' => ['collector.internal']]],
+            'metrics' => ['enabled' => true, 'http_server' => ['enabled' => true], 'http_client' => ['enabled' => true]],
+        ]);
+
+        $def = $container->getDefinition(OpenTelemetryMetricsSubscriber::class);
+        self::assertSame([], $def->getArgument('$excludedPaths'), '/health stays measured unless metrics exclude it too');
+        self::assertSame([], $container->getParameter('open_telemetry.http_client_metrics_excluded_hosts'));
+    }
+
+    public function testMetricsExcludedPathsWiredWhenSetExplicitly(): void
+    {
+        $container = $this->buildContainer([
+            'traces' => ['excluded_paths' => ['/health']],
+            'metrics' => ['enabled' => true, 'http_server' => ['enabled' => true, 'excluded_paths' => ['/metrics']]],
+        ]);
+
+        $def = $container->getDefinition(OpenTelemetryMetricsSubscriber::class);
+        self::assertSame(['/metrics'], $def->getArgument('$excludedPaths'));
     }
 
     public function testRecordExceptionMinStatusWiredToSubscriber(): void

@@ -7,6 +7,7 @@ namespace Traceway\OpenTelemetryBundle\EventSubscriber;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
+use OpenTelemetry\Context\Context;
 use OpenTelemetry\Context\ScopeInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\ConsoleEvents;
@@ -15,6 +16,7 @@ use Symfony\Component\Console\Event\ConsoleErrorEvent;
 use Symfony\Component\Console\Event\ConsoleTerminateEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\Instrumentation\LongRunningCommandSpan;
 use Traceway\OpenTelemetryBundle\Instrumentation\TracerAwareTrait;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 
@@ -28,6 +30,9 @@ use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterface
 {
     use TracerAwareTrait;
+
+    /** Worker commands whose span lasts as long as the process; excluded from tracing unless traces.console.trace_long_running_commands is true. */
+    public const LONG_RUNNING_COMMANDS = ['messenger:consume', 'messenger:consume-messages'];
 
     /** @var \SplObjectStorage<Command, array{SpanInterface, ScopeInterface, bool}> */
     private \SplObjectStorage $commandSpans;
@@ -119,7 +124,13 @@ final class ConsoleSubscriber implements EventSubscriberInterface, ResetInterfac
         }
 
         $span = $builder->startSpan();
-        $scope = $span->activate();
+
+        // Mirrors SpanInterface::activate(), plus the worker marker only_with_parent reads back off the context.
+        $context = Context::getCurrent()->withContextValue($span);
+        if (\in_array($commandName, self::LONG_RUNNING_COMMANDS, true)) {
+            $context = LongRunningCommandSpan::storeIn($context, $span);
+        }
+        $scope = $context->activate();
 
         $entry = [$span, $scope, false];
 

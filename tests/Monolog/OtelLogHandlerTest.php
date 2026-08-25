@@ -790,6 +790,51 @@ final class OtelLogHandlerTest extends TestCase
         $handler->handle($record);
     }
 
+    public function testExcludedChannelDropsRecord(): void
+    {
+        $handler = new OtelLogHandler(excludedChannels: ['deprecation']);
+
+        $record = new LogRecord(
+            datetime: new \DateTimeImmutable(),
+            channel: 'deprecation',
+            level: Level::Warning,
+            message: 'User Deprecated: something is deprecated',
+        );
+
+        self::assertFalse($handler->isHandling($record));
+        $handler->handle($record);
+
+        self::assertCount(0, $this->logExporter->getStorage());
+    }
+
+    public function testNonExcludedChannelIsStillExported(): void
+    {
+        $handler = new OtelLogHandler(excludedChannels: ['deprecation']);
+
+        $handler->handle(new LogRecord(
+            datetime: new \DateTimeImmutable(),
+            channel: 'app',
+            level: Level::Warning,
+            message: 'real warning',
+        ));
+
+        self::assertCount(1, $this->logExporter->getStorage());
+    }
+
+    public function testChannelExclusionIsOffByDefault(): void
+    {
+        $handler = new OtelLogHandler();
+
+        $handler->handle(new LogRecord(
+            datetime: new \DateTimeImmutable(),
+            channel: 'deprecation',
+            level: Level::Warning,
+            message: 'User Deprecated: something is deprecated',
+        ));
+
+        self::assertCount(1, $this->logExporter->getStorage());
+    }
+
     public function testExcludedHttpCodeDropsRecord(): void
     {
         $handler = new OtelLogHandler(excludedHttpCodes: [404, 405]);

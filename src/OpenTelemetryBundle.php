@@ -33,6 +33,9 @@ final class OpenTelemetryBundle extends Bundle
      */
     public const SCHEMA_URL = TraceAttributes::SCHEMA_URL;
 
+    /** Not exposed by the SDK's Variables class; read by OpenTelemetry\Context\Context to skip DebugScope. */
+    private const OTEL_PHP_DEBUG_SCOPES_DISABLED = 'OTEL_PHP_DEBUG_SCOPES_DISABLED';
+
     public function getPath(): string
     {
         return \dirname(__DIR__);
@@ -69,6 +72,8 @@ final class OpenTelemetryBundle extends Bundle
     {
         parent::boot();
 
+        // Independent of sdk.enabled: the DebugScope cost applies to any app whose spans get activated.
+        $this->disableDebugScopes($this->usePutEnv());
         $this->bootSdkConfig();
     }
 
@@ -98,6 +103,36 @@ final class OpenTelemetryBundle extends Bundle
 
         $this->mergeEnvVariable(Variables::OTEL_RESOURCE_ATTRIBUTES, $sdkConfig['resource_attributes'], $usePutEnv);
         $this->mergeEnvVariable(Variables::OTEL_EXPORTER_OTLP_HEADERS, $sdkConfig['exporter_otlp_headers'], $usePutEnv);
+    }
+
+    private function usePutEnv(): bool
+    {
+        if (null === $this->container || !$this->container->hasParameter('open_telemetry.sdk.config')) {
+            return false;
+        }
+
+        /** @var array{use_putenv: bool} $sdkConfig */
+        $sdkConfig = $this->container->getParameter('open_telemetry.sdk.config');
+
+        return $sdkConfig['use_putenv'];
+    }
+
+    // With zend.assertions=1, every Context::activate() builds a DebugScope, which captures a debug_backtrace().
+    private function disableDebugScopes(bool $usePutEnv): void
+    {
+        if ('1' !== \ini_get('zend.assertions')) {
+            return;
+        }
+
+        if (null !== $this->container && $this->container->hasParameter('kernel.debug') && true === $this->container->getParameter('kernel.debug')) {
+            return;
+        }
+
+        if (isset($_SERVER[self::OTEL_PHP_DEBUG_SCOPES_DISABLED]) || false !== getenv(self::OTEL_PHP_DEBUG_SCOPES_DISABLED)) {
+            return;
+        }
+
+        $this->setEnvVariable(self::OTEL_PHP_DEBUG_SCOPES_DISABLED, 'true', $usePutEnv);
     }
 
     /**

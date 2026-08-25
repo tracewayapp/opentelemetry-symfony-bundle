@@ -7,6 +7,8 @@ namespace Traceway\OpenTelemetryBundle\Doctrine\Middleware;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\TracerInterface;
+use OpenTelemetry\Context\Context;
+use Traceway\OpenTelemetryBundle\Instrumentation\LongRunningCommandSpan;
 use Traceway\OpenTelemetryBundle\OpenTelemetryBundle;
 
 /**
@@ -46,7 +48,7 @@ trait TraceableDbalTrait
         }
 
         // only_with_parent: skip orphan root spans (e.g. messenger transport polling)
-        if ($this->onlyWithParent && !Span::getCurrent()->getContext()->isValid()) {
+        if ($this->onlyWithParent && !$this->hasMeaningfulParent()) {
             return $op();
         }
 
@@ -69,5 +71,14 @@ trait TraceableDbalTrait
         } finally {
             $span->end();
         }
+    }
+
+    /** A worker command's process-lifetime span is active but is not a unit of work: queries directly under it are the poll loop. */
+    private function hasMeaningfulParent(): bool
+    {
+        $context = Context::getCurrent();
+
+        return Span::fromContext($context)->getContext()->isValid()
+            && !LongRunningCommandSpan::isCurrent($context);
     }
 }

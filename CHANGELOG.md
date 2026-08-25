@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-08-25
+
+### Added
+
+- **`traces.console.trace_long_running_commands`** — opt in to tracing `messenger:consume` / `messenger:consume-messages`, which are excluded by default. Default `false`.
+- **`logs.export.excluded_channels`** — Monolog channels dropped before export (e.g. `[deprecation, php]`), so framework diagnostics don't consume log storage. The handler declines them in `isHandling()`, so nothing is formatted or emitted. Default `[]` exports every channel, preserving existing behavior.
+- **`traceway:doctor` checks `zend.assertions`** — with assertions enabled, OTel's `Context::activate()` wraps every scope in a `DebugScope` that captures a `debug_backtrace()` per span activation. The new `debug_scopes` check warns when assertions are on outside debug mode and `OTEL_PHP_DEBUG_SCOPES_DISABLED` is unset; in debug it passes, since `DebugScope` is doing useful work there.
+
+### Changed
+
+- **`traces.console.excluded_commands` now extends the built-in defaults instead of replacing them.** **Behavior change**: Symfony array config replaces defaults, so `excluded_commands: [cache:clear]` silently dropped `messenger:consume` and `messenger:consume-messages` and gave the worker a console root span open for the life of the process — every idle transport poll (`BEGIN`/`SELECT messenger_messages`/`COMMIT`) recorded under it. The user list is now unioned with the long-running defaults; set `trace_long_running_commands: true` to trace those commands deliberately.
+- **`traces.doctrine.only_with_parent` no longer treats a long-running command's own span as a parent** — the guard checked only "is a span active", so a traced `messenger:consume` re-enabled exactly the poll-loop spans the option exists to suppress. Queries nested inside a message handler (or any child span) are unaffected.
+- **The bundle sets `OTEL_PHP_DEBUG_SCOPES_DISABLED` at boot** when `zend.assertions=1` and `kernel.debug` is false, unless the variable is already set. Applies regardless of `sdk.enabled`, since the cost is incurred by any app whose spans get activated.
+
 ## [3.4.1] - 2026-08-24
 
 ### Changed

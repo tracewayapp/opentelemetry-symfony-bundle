@@ -43,7 +43,8 @@ final class OtelLogHandler extends AbstractProcessingHandler implements ResetInt
     private bool $emitting = false;
 
     /**
-     * @param list<int> $excludedHttpCodes
+     * @param list<int>    $excludedHttpCodes
+     * @param list<string> $excludedChannels
      */
     public function __construct(
         int|string|Level $level = Level::Debug,
@@ -51,9 +52,16 @@ final class OtelLogHandler extends AbstractProcessingHandler implements ResetInt
         private readonly bool $captureCodeAttributes = false,
         private readonly bool $unprefixedAttributes = false,
         private readonly array $excludedHttpCodes = [],
+        private readonly array $excludedChannels = [],
     ) {
         parent::__construct($level, $bubble);
         $this->normalizer = new NormalizerFormatter();
+    }
+
+    // Drops excluded channels before Monolog formats the record, and keeps them out of $bubble decisions upstream.
+    public function isHandling(LogRecord $record): bool
+    {
+        return parent::isHandling($record) && !\in_array($record->channel, $this->excludedChannels, true);
     }
 
     protected function write(LogRecord $record): void

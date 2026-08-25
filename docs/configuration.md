@@ -105,6 +105,7 @@ Upgrading from v1.x? See [UPGRADE-2.0.md](../UPGRADE-2.0.md) for the flat→nest
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` | Collector/backend endpoint |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/json` | Protocol (`http/json`, `http/protobuf`, `grpc`). `grpc` is **not** included out of the box — see [gRPC transport](#grpc-transport) below. |
 | `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | `http://localhost:4318/v1/metrics` | Override the generic endpoint for metrics |
+| `OTEL_LOGRECORD_ATTRIBUTE_VALUE_LENGTH_LIMIT` | `2048` | Truncate long log attribute values (stack traces, dumped context). Records in the field average ~4 KB; most of it is context. |
 | `OTEL_PHP_DEBUG_SCOPES_DISABLED` | `1` | Skip OTel's `DebugScope` (a `debug_backtrace()` per span activation) when `zend.assertions=1`. The bundle sets it automatically when `kernel.debug` is false. |
 
 See the [OpenTelemetry SDK docs](https://opentelemetry.io/docs/languages/php/exporters/) for all available options.
@@ -133,6 +134,8 @@ A few defaults exist because they are the difference between a few MB and a few 
 `traces.doctrine.only_with_parent` (on by default) is the second line of defence: DB queries with no active parent span are dropped, and a long-running command's own span does not count as a parent — so poll queries stay out even when you trace the worker.
 
 **Assertions.** With `zend.assertions=1`, OpenTelemetry's `Context::activate()` wraps every scope in a `DebugScope`, which captures a `debug_backtrace()`. `php.ini-production` ships `zend.assertions=0`; staging boxes copied from a dev config often do not. The bundle sets `OTEL_PHP_DEBUG_SCOPES_DISABLED` at boot when `kernel.debug` is false, and the doctor warns when assertions are on.
+
+**Log volume.** The bundle filters log records by level (`logs.export.level`), by channel (`excluded_channels`), and by HTTP status of a context exception (`excluded_http_codes`). All three are static predicates — none of them can cap *repetition*, so one record logged in a loop still exports once per iteration. If that becomes a problem, the levers are `level`, `OTEL_LOGRECORD_ATTRIBUTE_VALUE_LENGTH_LIMIT` to cut the bytes per record, and a Collector in front of your backend (`filterprocessor`, or a log-dedup processor) for anything policy-shaped. OpenTelemetry defines no dedup or sampling for logs at the SDK level — sampling is a trace concept.
 
 **Log channels.** `logs.export.excluded_channels` drops whole Monolog channels before export — `deprecation` and `php` are the usual candidates, since framework diagnostics otherwise land in your log storage. monolog-bundle's own `channels` key on the `opentelemetry` handler covers inclusive/exclusive rules if you need them.
 

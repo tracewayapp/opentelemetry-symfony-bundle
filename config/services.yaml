@@ -15,11 +15,13 @@ services:
             $router: '@?router'
             $cacheDir: '%kernel.cache_dir%'
             $buildDir: '%kernel.build_dir%'
+            $debug: '%kernel.debug%'
 
     Traceway\OpenTelemetryBundle\Routing\RouteTemplateCacheWarmer:
         autoconfigure: true
         arguments:
             $router: '@?router'
+            $debug: '%kernel.debug%'
 
     Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber:
         autoconfigure: true

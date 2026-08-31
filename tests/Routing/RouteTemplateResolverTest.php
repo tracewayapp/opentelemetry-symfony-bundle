@@ -9,6 +9,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\Routing\RouteCollection;
 use Symfony\Component\Routing\RouterInterface;
+use Traceway\OpenTelemetryBundle\Routing\RouteTemplateCacheFile;
+use Traceway\OpenTelemetryBundle\Routing\RouteTemplateCacheWarmer;
 use Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver;
 
 final class RouteTemplateResolverTest extends TestCase
@@ -121,7 +123,7 @@ final class RouteTemplateResolverTest extends TestCase
             $router = $this->createMock(RouterInterface::class);
             $router->method('getRouteCollection')->willReturn($collection);
 
-            $warmer = new \Traceway\OpenTelemetryBundle\Routing\RouteTemplateCacheWarmer($router);
+            $warmer = new RouteTemplateCacheWarmer($router);
             $warmer->warmUp($cacheDir);
 
             // A different router that must never be consulted at runtime.
@@ -134,7 +136,7 @@ final class RouteTemplateResolverTest extends TestCase
 
             self::assertSame('/api/items/{id}', $resolver->resolve($request));
         } finally {
-            @unlink($cacheDir.'/'.\Traceway\OpenTelemetryBundle\Routing\RouteTemplateCacheWarmer::CACHE_FILE);
+            @unlink(RouteTemplateCacheFile::pathIn($cacheDir));
             @rmdir($cacheDir);
         }
     }

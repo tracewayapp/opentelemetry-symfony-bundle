@@ -11,27 +11,23 @@ use Symfony\Contracts\Service\ResetInterface;
 /**
  * Resolves the matched route's path template for http.route (e.g. /api/items/{id}).
  *
- * Primary source is the map dumped by {@see RouteTemplateCacheWarmer} (opcache-shared,
- * free at runtime). Without a warmed cache it falls back to the router's route
- * collection (rebuilds the collection — acceptable in dev / long-running workers
- * where it is memoized, avoided in prod by the warmer), then to whole-segment
- * substitution of resolved route params, which cannot corrupt static segments
- * the way substring replacement could. Returns null for unrouted requests:
- * per semconv, http.route is only set when a route actually matched.
+ * Sources, in order: the map dumped by {@see RouteTemplateCacheWarmer}, the router's
+ * route collection, whole-segment substitution of the resolved route params. Returns
+ * null for unrouted requests — per semconv http.route is only set on a match.
  */
 final class RouteTemplateResolver implements ResetInterface
 {
-    /** @var array<string, string|null> */
-    private array $templateCache = [];
+    /** @var array<string, string|null> route name => template, null when the router has no such route */
+    private array $routerTemplates = [];
 
-    /** @var array<string, string>|null */
-    private ?array $warmedMap = null;
-    private bool $warmedMapLoaded = false;
+    /** @var array<string, string>|null the dumped map, null until first read */
+    private ?array $warmedTemplates = null;
 
     public function __construct(
         private readonly ?RouterInterface $router = null,
         private readonly ?string $cacheDir = null,
         private readonly ?string $buildDir = null,
+        private readonly bool $debug = false,
     ) {
     }
 
@@ -42,58 +38,56 @@ final class RouteTemplateResolver implements ResetInterface
             return null;
         }
 
-        return $this->fromWarmedMap($routeName) ?? $this->fromRouter($routeName) ?? $this->synthesize($request);
-    }
-
-    public function reset(): void
-    {
-        $this->templateCache = [];
-    }
-
-    private function fromWarmedMap(string $routeName): ?string
-    {
-        if (!$this->warmedMapLoaded) {
-            $this->warmedMapLoaded = true;
-            $this->warmedMap = $this->loadWarmedMap();
-        }
-
-        return $this->warmedMap[$routeName] ?? null;
+        return $this->getWarmedTemplates()[$routeName] ?? $this->fromRouter($routeName) ?? $this->synthesize($request);
     }
 
     /**
-     * @return array<string, string>|null
+     * The dump is kept outside debug: it only changes on a deploy, which restarts
+     * the workers anyway. In debug it is dropped so a rewritten dump is picked up.
      */
-    private function loadWarmedMap(): ?array
+    public function reset(): void
     {
+        $this->routerTemplates = [];
+
+        if ($this->debug) {
+            $this->warmedTemplates = null;
+        }
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function getWarmedTemplates(): array
+    {
+        if (null !== $this->warmedTemplates) {
+            return $this->warmedTemplates;
+        }
+
         // The warmer writes to the build dir when the kernel separates them.
         foreach ([$this->buildDir, $this->cacheDir] as $dir) {
             if (null === $dir) {
                 continue;
             }
 
-            $file = rtrim($dir, '/').'/'.RouteTemplateCacheWarmer::CACHE_FILE;
-            if (!is_file($file)) {
+            // A route edit does not necessarily rebuild the container, so in debug
+            // the dump can outlive its routes; the router rebuilds itself, we don't.
+            if ($this->debug && !RouteTemplateCacheFile::isFreshIn($dir)) {
                 continue;
             }
 
-            try {
-                $map = require $file;
-            } catch (\Throwable) {
-                continue;
-            }
+            $warmedTemplates = RouteTemplateCacheFile::load($dir);
 
-            if (\is_array($map)) {
-                /** @var array<string, string> $map */
-                return $map;
+            if (null !== $warmedTemplates) {
+                return $this->warmedTemplates = $warmedTemplates;
             }
         }
 
-        return null;
+        return $this->warmedTemplates = [];
     }
 
     /**
-     * Last-resort lookup: rebuilds the route collection when no warmed map
-     * exists, so it must never run per-request in prod (the warmer prevents it).
+     * Rebuilds the route collection, so it must not run per request in prod —
+     * that is what the warmer is for.
      */
     private function fromRouter(string $routeName): ?string
     {
@@ -101,8 +95,8 @@ final class RouteTemplateResolver implements ResetInterface
             return null;
         }
 
-        if (\array_key_exists($routeName, $this->templateCache)) {
-            return $this->templateCache[$routeName];
+        if (\array_key_exists($routeName, $this->routerTemplates)) {
+            return $this->routerTemplates[$routeName];
         }
 
         try {
@@ -115,7 +109,7 @@ final class RouteTemplateResolver implements ResetInterface
             $path = null;
         }
 
-        return $this->templateCache[$routeName] = $path;
+        return $this->routerTemplates[$routeName] = $path;
     }
 
     private function synthesize(Request $request): ?string
@@ -144,7 +138,7 @@ final class RouteTemplateResolver implements ResetInterface
             }
         }
 
-        // A raw concrete path is not a template; per semconv, emit no http.route instead.
+        // A raw concrete path is not a template: emit no http.route instead.
         if (!$replaced) {
             return null;
         }

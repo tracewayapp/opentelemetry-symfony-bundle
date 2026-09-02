@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The route-template dump is written through `ConfigCache`** instead of `file_put_contents()`, mirroring `FrameworkBundle\Routing\Router::warmUp()`: the write is atomic (temp file + rename), so no request can `require` a half-written dump mid-deploy, and a `.meta` file next to it records the routing resources. The write is deliberately unconditional rather than gated on `ConfigCacheFactory`'s freshness check — outside debug `ConfigCache::isFresh()` treats any existing file as fresh, which would leave the previous deploy's map in place when `cache:warmup` runs over an already warm cache dir. Entries are `ksort()`ed, making the dump reproducible across builds.
+- **In debug the dump is validated before it is trusted** — `RouteTemplateResolver` checks it against the routing resources recorded in the `.meta` file and falls back to the router (which rebuilds itself) when a route was edited without the container being rebuilt, so a stale `http.route` no longer reaches telemetry in dev. Outside debug nothing is checked: the deploy re-runs the warmer. The check is memoized per process by Symfony's `SelfCheckingResourceChecker`, so a long-running dev worker keeps its verdict until it restarts — the same limitation the framework's own config caches have.
+- **The dump's location and format moved to `Routing\RouteTemplateCacheFile`**, shared by the warmer that writes it and the resolver that reads it; a corrupted or non-`array` dump now loads as `null` instead of reaching the resolver. `RouteTemplateCacheWarmer::CACHE_FILE` still resolves to the same file name and is deprecated in favor of `RouteTemplateCacheFile::FILE_NAME`.
+
 ## [3.5.0] - 2026-08-25
 
 ### Added

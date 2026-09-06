@@ -40,6 +40,17 @@ services:
     Traceway\OpenTelemetryBundle\Metrics\MeterRegistryInterface:
         alias: Traceway\OpenTelemetryBundle\Metrics\MeterRegistry
 
+    Traceway\OpenTelemetryBundle\Metrics\MetricFlusher:
+        autoconfigure: true
+
+    Traceway\OpenTelemetryBundle\Metrics\MetricFlusherInterface:
+        alias: Traceway\OpenTelemetryBundle\Metrics\MetricFlusher
+
+    Traceway\OpenTelemetryBundle\EventSubscriber\OtelMetricsFlushSubscriber:
+        autoconfigure: true
+        arguments:
+            $flusher: '@Traceway\OpenTelemetryBundle\Metrics\MetricFlusherInterface'
+
     Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMetricsMiddleware:
         autoconfigure: true
 
@@ -91,6 +102,8 @@ services:
     Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracesSamplerCheck:
         autoconfigure: true
     Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracerProviderCheck:
+        autoconfigure: true
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\MetricsTemporalityCheck:
         autoconfigure: true
 
     # Bundle configuration checks

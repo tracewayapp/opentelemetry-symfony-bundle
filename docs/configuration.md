@@ -54,6 +54,10 @@ open_telemetry:
         enabled: false
         meter_name: 'opentelemetry-symfony'
 
+        flush:
+            enabled: true                     # required in worker runtimes; see docs/metrics.md
+            interval: ~                       # unset follows OTEL_METRIC_EXPORT_INTERVAL (SDK default: 60 s)
+
         messenger:
             enabled: false
             excluded_queues: []

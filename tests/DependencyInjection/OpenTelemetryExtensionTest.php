@@ -12,10 +12,13 @@ use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetryMetricsSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OtelLoggerFlushSubscriber;
+use Traceway\OpenTelemetryBundle\EventSubscriber\OtelMetricsFlushSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\SchedulerSubscriber;
 use Traceway\OpenTelemetryBundle\Mailer\TraceableMailer;
 use Traceway\OpenTelemetryBundle\Mailer\TraceableTransports;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
+use Traceway\OpenTelemetryBundle\Metrics\MetricFlusher;
+use Traceway\OpenTelemetryBundle\Metrics\MetricFlusherInterface;
 use Traceway\OpenTelemetryBundle\Monolog\OtelLogHandler;
 use Traceway\OpenTelemetryBundle\Monolog\TraceContextProcessor;
 use Traceway\OpenTelemetryBundle\Tracing;
@@ -33,6 +36,57 @@ final class OpenTelemetryExtensionTest extends TestCase
         self::assertTrue($container->hasDefinition(ConsoleSubscriber::class));
         self::assertTrue($container->hasDefinition(OpenTelemetryMiddleware::class));
         self::assertTrue($container->hasAlias(TracingInterface::class));
+    }
+
+    public function testMetricFlushIsRegisteredWithMetrics(): void
+    {
+        $container = $this->buildContainer([
+            'metrics' => ['enabled' => true],
+        ]);
+
+        self::assertTrue($container->hasDefinition(MetricFlusher::class));
+        self::assertTrue($container->hasAlias(MetricFlusherInterface::class));
+        self::assertTrue($container->hasDefinition(OtelMetricsFlushSubscriber::class));
+    }
+
+    public function testUnsetIntervalDefersToTheSdkCadence(): void
+    {
+        // The bundle does not invent a number: null lets MetricFlusher read
+        // OTEL_METRIC_EXPORT_INTERVAL, or the SDK's default for it.
+        $container = $this->buildContainer([
+            'metrics' => ['enabled' => true],
+        ]);
+
+        self::assertNull($container->getDefinition(MetricFlusher::class)->getArgument('$intervalSeconds'));
+    }
+
+    public function testMetricFlushIntervalIsConfigurable(): void
+    {
+        $container = $this->buildContainer([
+            'metrics' => ['enabled' => true, 'flush' => ['interval' => 15.0]],
+        ]);
+
+        self::assertSame(15.0, $container->getDefinition(MetricFlusher::class)->getArgument('$intervalSeconds'));
+    }
+
+    public function testMetricFlushCanBeDisabledOnItsOwn(): void
+    {
+        $container = $this->buildContainer([
+            'metrics' => ['enabled' => true, 'flush' => ['enabled' => false]],
+        ]);
+
+        self::assertFalse($container->hasDefinition(MetricFlusher::class));
+        self::assertFalse($container->hasAlias(MetricFlusherInterface::class));
+        self::assertFalse($container->hasDefinition(OtelMetricsFlushSubscriber::class));
+    }
+
+    public function testMetricFlushIsRemovedWhenMetricsAreOff(): void
+    {
+        // Nothing records, so there is nothing to export.
+        $container = $this->buildContainer([]);
+
+        self::assertFalse($container->hasDefinition(MetricFlusher::class));
+        self::assertFalse($container->hasDefinition(OtelMetricsFlushSubscriber::class));
     }
 
     public function testHttpClientParametersSet(): void

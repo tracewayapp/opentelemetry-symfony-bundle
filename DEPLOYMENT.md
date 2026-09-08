@@ -124,6 +124,20 @@ echo 'Done' . PHP_EOL;
 curl -sk https://your-domain.com/ -o /dev/null -w "%{http_code}\n"
 ```
 
+## Worker Runtimes (FrankenPHP, RoadRunner, Swoole)
+
+Everything above assumes a process per request. A worker runtime keeps the same PHP process alive across thousands of requests, which changes two things about metrics — traces and logs are unaffected.
+
+**Metrics need a flush.** The SDK exports them only when the `MeterProvider` is shut down, and that no longer happens per request. `metrics.flush` is enabled by default and exports from `kernel.terminate`, `console.terminate` and the Messenger worker loop, at most once per `metrics.flush.interval` (60 s by default). It skips the first flush in a process, so a request-per-process runtime keeps exporting exactly once per request through the shutdown hook, as before. Leave it on; see [docs/metrics.md](docs/metrics.md#when-measurements-are-exported) for why the interval should not be lowered casually.
+
+**Each worker needs its own instance identity.** Workers hold independent cumulative counters, so without a unique `service.instance.id` they all write to the same time series. Opt the detector in:
+
+```dotenv
+OTEL_PHP_DETECTORS=host,process,service_instance
+```
+
+`OTEL_PHP_AUTOLOAD_ENABLED` still has to reach the process before Symfony's `.env` loader runs — for FrankenPHP that means the environment of the server process, not the FPM pool config shown in step 3.
+
 ## Troubleshooting
 
 ### Traces not appearing

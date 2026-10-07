@@ -125,7 +125,7 @@ final class OtlpEndpointReachabilityCheck implements NetworkCheckInterface
         $parsed = parse_url(str_contains($endpoint, '://') ? $endpoint : 'tcp://'.$endpoint);
         $host = \is_array($parsed) ? ($parsed['host'] ?? null) : null;
 
-        if (null === $host) {
+        if (!\is_array($parsed) || null === $host) {
             return CheckResult::error(
                 $this->name(),
                 \sprintf('Cannot parse gRPC endpoint "%s" for a TCP probe.', $endpoint),
@@ -134,7 +134,7 @@ final class OtlpEndpointReachabilityCheck implements NetworkCheckInterface
             );
         }
 
-        $port = \is_array($parsed) && isset($parsed['port']) ? (int) $parsed['port'] : 4317;
+        $port = isset($parsed['port']) ? (int) $parsed['port'] : 4317;
 
         $started = microtime(true);
         $errno = 0;

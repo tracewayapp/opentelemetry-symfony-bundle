@@ -19,6 +19,7 @@ final class OpenTelemetryBundleTest extends TestCase
     public function testInstrumentationScopeSchemaUrlIsThePinnedSemconvRelease(): void
     {
         self::assertSame('https://opentelemetry.io/schemas/1.38.0', OpenTelemetryBundle::SCHEMA_URL);
+        self::assertSame(\OpenTelemetry\SemConv\Version::VERSION_1_38_0->url(), OpenTelemetryBundle::SCHEMA_URL);
     }
 
     public function testGetPathReturnsPackageRoot(): void

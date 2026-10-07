@@ -128,6 +128,8 @@ Opt-in OpenTelemetry metrics — Messenger, Doctrine DBAL, HTTP server/client, a
 | [AWS X-Ray](docs/aws-xray.md) | Native `propagator` / `id_generator` keys |
 | [Doctor](docs/doctor.md) | `traceway:doctor` flags, JSON output, custom checks |
 | [Performance](docs/performance.md) | Overhead, sampling, exporter choice |
+| [Upgrade to v4.0](UPGRADE-4.0.md) | Stable-only database attribute names |
+| [Upgrade to v3.0](UPGRADE-3.0.md) | Semantic-conventions conformance changes |
 | [Upgrade from v1.x](UPGRADE-2.0.md) | Flat → nested config migration |
 | [Changelog](CHANGELOG.md) | Release history |
 

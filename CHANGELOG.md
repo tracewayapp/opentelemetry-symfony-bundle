@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-This is the **4.0** release line. The one breaking change is the removal of the deprecated database attribute names; see [UPGRADE-4.0.md](UPGRADE-4.0.md).
+## [4.0.0] - 2026-10-07
+
+The one breaking change is the removal of the deprecated database attribute names; see [UPGRADE-4.0.md](UPGRADE-4.0.md). Flat v1 config keys stay accepted.
 
 ### Added
 

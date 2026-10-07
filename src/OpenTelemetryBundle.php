@@ -7,7 +7,7 @@ namespace Traceway\OpenTelemetryBundle;
 use Composer\InstalledVersions;
 use OpenTelemetry\SDK\Common\Configuration\Configuration;
 use OpenTelemetry\SDK\Common\Configuration\Variables;
-use OpenTelemetry\SemConv\TraceAttributes;
+use OpenTelemetry\SemConv\Version as SemConvVersion;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\CacheTracingPass;
@@ -31,7 +31,7 @@ final class OpenTelemetryBundle extends Bundle
      *
      * @see https://opentelemetry.io/docs/specs/otel/common/instrumentation-scope/
      */
-    public const SCHEMA_URL = TraceAttributes::SCHEMA_URL;
+    public const SCHEMA_URL = 'https://opentelemetry.io/schemas/'.SemConvVersion::VERSION_1_38_0->value;
 
     /** Not exposed by the SDK's Variables class; read by OpenTelemetry\Context\Context to skip DebugScope. */
     private const OTEL_PHP_DEBUG_SCOPES_DISABLED = 'OTEL_PHP_DEBUG_SCOPES_DISABLED';

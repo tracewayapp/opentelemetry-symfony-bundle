@@ -52,6 +52,10 @@ trait TraceableDbalTrait
             return $op();
         }
 
+        if (null !== $this->spanBudget && !$this->spanBudget->tryAcquire()) {
+            return $op();
+        }
+
         $span = DbSpanBuilder::startSpan(
             $this->getTracer(),
             $sql,

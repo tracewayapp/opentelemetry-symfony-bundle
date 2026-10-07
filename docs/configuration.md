@@ -25,6 +25,7 @@ open_telemetry:
         messenger:
             enabled: true
             root_spans: false                 # true = standalone traces per consumed message
+            excluded_messages: []             # message classes (FQCN) skipped on dispatch and consume; with doctrine.only_with_parent their handler's queries stay untraced too
 
         scheduler:
             enabled: true                     # suppresses parallel Messenger spans for scheduled tasks
@@ -38,6 +39,7 @@ open_telemetry:
             record_statements: true           # false = hide SQL from spans
             only_with_parent: true            # false = emit DB spans even without an active parent span (pre-3.4.1 behavior, incl. messenger transport poll noise)
                                               # a long-running command's own span does not count as a parent, so worker poll queries stay suppressed
+            max_spans_per_trace: 0            # e.g. 200 = after 200 DB spans in one trace further statements run untraced and the parent span gets traceway.db.spans_dropped
 
         cache:
             enabled: true

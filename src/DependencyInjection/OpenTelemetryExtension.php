@@ -88,7 +88,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
     public function load(array $configs, ContainerBuilder $container): void
     {
         $configuration = new Configuration();
-        /** @var array{traces: array{enabled: bool, propagator: string, id_generator: string, tracer_name: string, excluded_paths: list<string>, record_client_ip: bool, error_status_threshold: int, record_exception_min_status: int, console: array{enabled: bool, excluded_commands: list<string>, trace_long_running_commands: bool}, http_client: array{enabled: bool, excluded_hosts: list<string>}, messenger: array{enabled: bool, root_spans: bool}, doctrine: array{enabled: bool, record_statements: bool, only_with_parent: bool}, cache: array{enabled: bool, excluded_pools: list<string>}, twig: array{enabled: bool, excluded_templates: list<string>}, scheduler: array{enabled: bool}, mailer: array{enabled: bool, record_subject: bool}}, metrics: array{enabled: bool, meter_name: string, flush: array{enabled: bool, interval: int|float|null}, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}}, logs: array{correlation: array{enabled: bool}, export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool, excluded_http_codes: list<int>, excluded_channels: list<string>}}, sdk: array{enabled: bool, autoload_enabled: bool, use_putenv: bool, resource_attributes: array<string, string>, exporter_otlp_headers: array<string, string>}} $config */
+        /** @var array{traces: array{enabled: bool, propagator: string, id_generator: string, tracer_name: string, excluded_paths: list<string>, record_client_ip: bool, error_status_threshold: int, record_exception_min_status: int, console: array{enabled: bool, excluded_commands: list<string>, trace_long_running_commands: bool}, http_client: array{enabled: bool, excluded_hosts: list<string>}, messenger: array{enabled: bool, root_spans: bool, excluded_messages: list<string>}, doctrine: array{enabled: bool, record_statements: bool, only_with_parent: bool, max_spans_per_trace: int}, cache: array{enabled: bool, excluded_pools: list<string>}, twig: array{enabled: bool, excluded_templates: list<string>}, scheduler: array{enabled: bool}, mailer: array{enabled: bool, record_subject: bool}}, metrics: array{enabled: bool, meter_name: string, flush: array{enabled: bool, interval: int|float|null}, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}}, logs: array{correlation: array{enabled: bool}, export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool, excluded_http_codes: list<int>, excluded_channels: list<string>}}, sdk: array{enabled: bool, autoload_enabled: bool, use_putenv: bool, resource_attributes: array<string, string>, exporter_otlp_headers: array<string, string>}} $config */
         $config = $this->processConfiguration($configuration, $configs);
 
         $loader = new YamlFileLoader($container, new FileLocator(\dirname(__DIR__, 2).'/config'));
@@ -148,7 +148,8 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->getDefinition(OpenTelemetryMiddleware::class)
                 ->setArgument('$tracerName', $tracerName)
                 ->setArgument('$rootSpans', $traces['messenger']['root_spans'])
-                ->setArgument('$excludeScheduledMessages', $schedulerEnabled);
+                ->setArgument('$excludeScheduledMessages', $schedulerEnabled)
+                ->setArgument('$excludedMessages', array_values(array_unique($traces['messenger']['excluded_messages'])));
         } else {
             $container->removeDefinition(OpenTelemetryMiddleware::class);
         }
@@ -165,6 +166,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $definition->setArgument('$tracerName', $tracerName);
             $definition->setArgument('$recordStatements', $traces['doctrine']['record_statements']);
             $definition->setArgument('$onlyWithParent', $traces['doctrine']['only_with_parent']);
+            $definition->setArgument('$maxSpansPerTrace', $traces['doctrine']['max_spans_per_trace']);
             $definition->addTag('doctrine.middleware');
             $container->setDefinition(DoctrineTraceableMiddleware::class, $definition);
         }

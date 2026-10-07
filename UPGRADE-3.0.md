@@ -6,7 +6,7 @@ v3.0 is a **conformance major**. It aligns every instrumentation with the curren
 
 - **One action may be required**: if `error_status_threshold` is set to a value in `400`–`499`, the config now fails validation at boot. Raise it to `500`+ (see below).
 - **Everything else is observability-side**: rename a few attribute keys, update a few attribute values, and re-pin span-name groupings in your backend.
-- **Your config still works**: the legacy flat config keys (deprecated in v2.0) are **still accepted in v3.0**. Their removal moved to v4.0.
+- **Your config still works**: the legacy flat config keys (deprecated in v2.0) are **still accepted in v3.0** and v4.0. Their removal moved to v5.0.
 - Recommended: skim the tables below, grep your dashboards/alerts for the old keys/values, update them, then upgrade.
 
 ## The one hard breaking change — `error_status_threshold`
@@ -95,7 +95,7 @@ Note that with it enabled, `query()`/`exec()` records raw SQL (possibly with lit
 
 ## Config: legacy flat keys still work
 
-The flat config keys deprecated in v2.0 (e.g. `traces_enabled` → `traces.enabled`) are **still accepted in v3.0** and still emit a deprecation. The v2.0 deprecation window was too short to remove them safely, so **removal moved to v4.0**. See [UPGRADE-2.0.md](UPGRADE-2.0.md#flat--nested-mapping) for the mapping if you haven't migrated yet — doing so now silences the deprecations and prepares you for v4.0.
+The flat config keys deprecated in v2.0 (e.g. `traces_enabled` → `traces.enabled`) are **still accepted in v3.0** and still emit a deprecation. The v2.0 deprecation window was too short to remove them safely, so **removal moved to v5.0** (v4.0 still accepts them). See [UPGRADE-2.0.md](UPGRADE-2.0.md#flat--nested-mapping) for the mapping if you haven't migrated yet — doing so now silences the deprecations and prepares you for v5.0.
 
 ## Migration recipe
 

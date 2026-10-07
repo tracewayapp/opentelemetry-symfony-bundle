@@ -37,12 +37,10 @@ final class DbSpanBuilder
         $builder = $tracer->spanBuilder($spanName)
             ->setSpanKind(SpanKind::KIND_CLIENT)
             ->setAttribute(DbAttributes::DB_SYSTEM_NAME, $dbSystem)
-            ->setAttribute('db.system', DbSystemResolver::legacyValue($dbSystem))
             ->setAttribute(DbAttributes::DB_QUERY_SUMMARY, $spanName);
 
         if ('UNKNOWN' !== $operation) {
             $builder->setAttribute(DbAttributes::DB_OPERATION_NAME, $operation);
-            $builder->setAttribute('db.operation', $operation);
         }
 
         if (null !== $target) {
@@ -51,12 +49,10 @@ final class DbSpanBuilder
 
         if (null !== $dbName) {
             $builder->setAttribute(DbAttributes::DB_NAMESPACE, $dbName);
-            $builder->setAttribute('db.name', $dbName);
         }
 
         if ($recordStatements) {
             $builder->setAttribute(DbAttributes::DB_QUERY_TEXT, $sql);
-            $builder->setAttribute('db.statement', $sql);
         }
 
         if (null !== $serverAddress) {

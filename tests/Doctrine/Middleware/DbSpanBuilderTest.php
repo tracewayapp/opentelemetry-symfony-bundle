@@ -48,17 +48,18 @@ final class DbSpanBuilderTest extends TestCase
 
         $attrs = $spans[0]->getAttributes()->toArray();
         self::assertSame('postgresql', $attrs['db.system.name']);
-        self::assertSame('postgresql', $attrs['db.system']);
         self::assertSame('SELECT', $attrs['db.operation.name']);
-        self::assertSame('SELECT', $attrs['db.operation']);
         self::assertSame('SELECT users', $attrs['db.query.summary']);
         self::assertSame('users', $attrs['db.collection.name']);
         self::assertSame('my_db', $attrs['db.namespace']);
-        self::assertSame('my_db', $attrs['db.name']);
         self::assertSame('SELECT * FROM users WHERE id = ?', $attrs['db.query.text']);
-        self::assertSame('SELECT * FROM users WHERE id = ?', $attrs['db.statement']);
         self::assertSame('db.example.com', $attrs['server.address']);
         self::assertSame(5432, $attrs['server.port']);
+
+        self::assertArrayNotHasKey('db.system', $attrs);
+        self::assertArrayNotHasKey('db.operation', $attrs);
+        self::assertArrayNotHasKey('db.name', $attrs);
+        self::assertArrayNotHasKey('db.statement', $attrs);
     }
 
     public function testCreateWithoutRecordStatements(): void
@@ -121,7 +122,6 @@ final class DbSpanBuilderTest extends TestCase
         self::assertSame('sqlite', $attrs['db.system.name']);
         self::assertArrayNotHasKey('db.collection.name', $attrs);
         self::assertArrayNotHasKey('db.namespace', $attrs);
-        self::assertArrayNotHasKey('db.name', $attrs);
         self::assertArrayNotHasKey('server.address', $attrs);
         self::assertArrayNotHasKey('server.port', $attrs);
     }

@@ -27,17 +27,4 @@ final class DbSystemResolver
             default => 'other_sql',
         };
     }
-
-    /**
-     * Value for the deprecated db.system attribute (dual-emitted for migration).
-     */
-    public static function legacyValue(string $dbSystem): string
-    {
-        return match ($dbSystem) {
-            'microsoft.sql_server' => 'mssql',
-            'oracle.db' => 'oracle',
-            'ibm.db2' => 'db2',
-            default => $dbSystem,
-        };
-    }
 }

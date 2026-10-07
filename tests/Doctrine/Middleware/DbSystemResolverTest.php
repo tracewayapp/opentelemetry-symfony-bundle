@@ -38,23 +38,4 @@ final class DbSystemResolverTest extends TestCase
     {
         self::assertSame($expected, DbSystemResolver::resolve($params));
     }
-
-    /**
-     * @return iterable<string, array{string, string}>
-     */
-    public static function legacyProvider(): iterable
-    {
-        yield 'mssql' => ['microsoft.sql_server', 'mssql'];
-        yield 'oracle' => ['oracle.db', 'oracle'];
-        yield 'db2' => ['ibm.db2', 'db2'];
-        yield 'mysql unchanged' => ['mysql', 'mysql'];
-        yield 'postgresql unchanged' => ['postgresql', 'postgresql'];
-        yield 'mariadb unchanged' => ['mariadb', 'mariadb'];
-    }
-
-    #[DataProvider('legacyProvider')]
-    public function testLegacyValue(string $stable, string $expectedLegacy): void
-    {
-        self::assertSame($expectedLegacy, DbSystemResolver::legacyValue($stable));
-    }
 }

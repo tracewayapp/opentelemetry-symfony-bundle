@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+This is the **4.0** release line. The one breaking change is the removal of the deprecated database attribute names; see [UPGRADE-4.0.md](UPGRADE-4.0.md).
+
+### Added
+
+- **`traces.doctrine.max_spans_per_trace`** (default `0`, unlimited) — a cap on the DB spans one trace may carry. A handler that runs thousands of single-row statements in a loop emitted one CLIENT span per statement, which dominated ingest volume while saying nothing a count would not; past the cap the statements still run, untraced, and the active parent span gets `traceway.db.spans_dropped` with the number skipped. The budget is shared by every connection and prepared statement of a DBAL driver, tracks only the active trace, and resets when a new trace starts, so a long-running worker holds constant state.
+- **`traces.messenger.excluded_messages`** — message classes (parent classes and interfaces match too) skipped on both the dispatch and the consume path, mirroring `console.excluded_commands` and `metrics.messenger.excluded_queues`. With `doctrine.only_with_parent` the handler's queries have no parent and stay untraced as well, so one noisy batch job can be removed from tracing without touching the rest.
+
+### Removed
+
+- **The deprecated database attribute names.** `db.system`, `db.operation`, `db.name` and `db.statement` were dual-emitted next to their stable replacements (`db.system.name`, `db.operation.name`, `db.namespace`, `db.query.text`) as a migration aid since 3.0. Each repeats a value already on the span, and `db.statement` repeats the whole SQL text, so with `record_statements: true` every DB span was twice its necessary size on the wire and in storage. The database conventions are stable, and the [semconv migration guide](https://opentelemetry.io/docs/specs/semconv/non-normative/db-migration/) names a major release as the point to drop the old names, so 4.0 emits the stable names only. Dashboards and alerts that still query the old keys need the four renames in [UPGRADE-4.0.md](UPGRADE-4.0.md). `DbSystemResolver::legacyValue()` is removed with them.
+
+### Changed
+
+- **HTTP client spans no longer carry `url.path`.** The attribute belongs to the HTTP server span conventions; on a CLIENT span it repeated part of `url.full`, which is Required and already present. Dashboards that filtered client spans on `url.path` should filter on `url.full` instead.
+- **HTTP client instrumentation audited against the current HTTP span and metric conventions.** Required (`http.request.method`, `server.address`, `server.port`, `url.full`), Conditionally Required (`http.response.status_code` on every path that received one, `error.type`, `http.request.method_original`) and Recommended (`network.peer.address`/`port`, `network.protocol.version`) attributes, the CLIENT status rule for 4xx and 5xx, `url.full` credential and query redaction, default-port inference and the Stable duration bucket advisory all check out; `url.path` above was the one deviation found. `http.request.resend_count` remains the documented gap.
+- **The instrumentation-scope schema URL now says 1.38.0**, the release whose attribute names the bundle emits. It was taken from `TraceAttributes::SCHEMA_URL`, a constant on the deprecated root-level class of `open-telemetry/sem-conv` that is frozen at `1.32.0` while the stable `Attributes\*` classes the bundle uses follow 1.38. A span carrying `db.system.name` or `db.query.summary` under a 1.32 schema URL told a schema-aware backend the wrong thing. The URL is now built from `SemConv\Version::VERSION_1_38_0`, `docs/semantic-conventions.md` names the release, and a test holds the value so a future bump is a deliberate step that re-runs the conformance audit.
+- **`docs/performance.md`** gained a section on keeping span and metric volume in check, including why DB metrics under PHP-FPM produce one series per worker and how to avoid it.
+
 ## [3.6.0] - 2026-09-09
 
 ### Added

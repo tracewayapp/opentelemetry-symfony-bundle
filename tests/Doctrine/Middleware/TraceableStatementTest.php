@@ -66,14 +66,10 @@ final class TraceableStatementTest extends TestCase
 
         $attributes = $spans[0]->getAttributes()->toArray();
         self::assertSame('postgresql', $attributes['db.system.name']);
-        self::assertSame('postgresql', $attributes['db.system']);
         self::assertSame('SELECT', $attributes['db.operation.name']);
-        self::assertSame('SELECT', $attributes['db.operation']);
         self::assertSame('orders', $attributes['db.collection.name']);
         self::assertSame('my_db', $attributes['db.namespace']);
-        self::assertSame('my_db', $attributes['db.name']);
         self::assertSame('SELECT * FROM orders WHERE user_id = ?', $attributes['db.query.text']);
-        self::assertSame('SELECT * FROM orders WHERE user_id = ?', $attributes['db.statement']);
         self::assertSame('db.example.com', $attributes['server.address']);
         self::assertSame(5432, $attributes['server.port']);
     }
@@ -127,7 +123,6 @@ final class TraceableStatementTest extends TestCase
         self::assertSame('UPDATE accounts', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('UPDATE accounts SET balance = ? WHERE id = ?', $attr['db.query.text']);
-        self::assertSame('UPDATE accounts SET balance = ? WHERE id = ?', $attr['db.statement']);
     }
 
     public function testSpanNameIsOperationWhenRecordStatementsDisabled(): void

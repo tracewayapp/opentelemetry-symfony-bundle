@@ -173,6 +173,35 @@ final class OpenTelemetryMiddlewareTest extends TestCase
         self::assertSame('handler failed', $spans[0]->getStatus()->getDescription());
     }
 
+    public function testExcludedMessageSkipsDispatchSpan(): void
+    {
+        $middleware = new OpenTelemetryMiddleware('test', excludedMessages: [\stdClass::class]);
+
+        $middleware->handle(new Envelope(new \stdClass()), new StackMiddleware());
+
+        self::assertCount(0, $this->exporter->getSpans());
+    }
+
+    public function testExcludedMessageSkipsConsumeSpan(): void
+    {
+        $middleware = new OpenTelemetryMiddleware('test', rootSpans: true, excludedMessages: [\stdClass::class]);
+
+        $middleware->handle(new Envelope(new \stdClass(), [new ReceivedStamp('async')]), new StackMiddleware());
+
+        self::assertCount(0, $this->exporter->getSpans());
+    }
+
+    public function testExcludedMessageMatchesParentClassesAndInterfaces(): void
+    {
+        $middleware = new OpenTelemetryMiddleware('test', excludedMessages: [\Countable::class]);
+
+        $middleware->handle(new Envelope(new \ArrayObject()), new StackMiddleware());
+        self::assertCount(0, $this->exporter->getSpans());
+
+        $middleware->handle(new Envelope(new \stdClass()), new StackMiddleware());
+        self::assertCount(1, $this->exporter->getSpans());
+    }
+
     public function testScheduledStampSkipsConsumeSpan(): void
     {
         $middleware = new OpenTelemetryMiddleware(

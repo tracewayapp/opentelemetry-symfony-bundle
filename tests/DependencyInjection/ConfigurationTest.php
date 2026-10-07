@@ -41,9 +41,11 @@ final class ConfigurationTest extends TestCase
         self::assertSame([], $config['traces']['http_client']['excluded_hosts']);
         self::assertTrue($config['traces']['messenger']['enabled']);
         self::assertFalse($config['traces']['messenger']['root_spans']);
+        self::assertSame([], $config['traces']['messenger']['excluded_messages']);
         self::assertTrue($config['traces']['doctrine']['enabled']);
         self::assertFalse($config['traces']['doctrine']['record_statements']);
         self::assertTrue($config['traces']['doctrine']['only_with_parent']);
+        self::assertSame(0, $config['traces']['doctrine']['max_spans_per_trace']);
         self::assertTrue($config['traces']['cache']['enabled']);
         self::assertSame([], $config['traces']['cache']['excluded_pools']);
         self::assertTrue($config['traces']['twig']['enabled']);
@@ -91,11 +93,13 @@ final class ConfigurationTest extends TestCase
                     'messenger' => [
                         'enabled' => false,
                         'root_spans' => true,
+                        'excluded_messages' => ['App\\Message\\MlFlats'],
                     ],
                     'doctrine' => [
                         'enabled' => false,
                         'record_statements' => true,
                         'only_with_parent' => false,
+                        'max_spans_per_trace' => 500,
                     ],
                     'cache' => [
                         'enabled' => false,
@@ -136,9 +140,11 @@ final class ConfigurationTest extends TestCase
         self::assertSame(['collector.local'], $config['traces']['http_client']['excluded_hosts']);
         self::assertFalse($config['traces']['messenger']['enabled']);
         self::assertTrue($config['traces']['messenger']['root_spans']);
+        self::assertSame(['App\\Message\\MlFlats'], $config['traces']['messenger']['excluded_messages']);
         self::assertFalse($config['traces']['doctrine']['enabled']);
         self::assertTrue($config['traces']['doctrine']['record_statements']);
         self::assertFalse($config['traces']['doctrine']['only_with_parent']);
+        self::assertSame(500, $config['traces']['doctrine']['max_spans_per_trace']);
         self::assertFalse($config['traces']['cache']['enabled']);
         self::assertSame(['cache.system', 'cache.validator'], $config['traces']['cache']['excluded_pools']);
         self::assertFalse($config['traces']['twig']['enabled']);

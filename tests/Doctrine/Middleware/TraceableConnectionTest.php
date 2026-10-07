@@ -72,12 +72,9 @@ final class TraceableConnectionTest extends TestCase
 
         $attributes = $spans[0]->getAttributes()->toArray();
         self::assertSame('mysql', $attributes['db.system.name']);
-        self::assertSame('mysql', $attributes['db.system']);
         self::assertSame('INSERT', $attributes['db.operation.name']);
-        self::assertSame('INSERT', $attributes['db.operation']);
         self::assertSame('users', $attributes['db.collection.name']);
         self::assertSame('app_db', $attributes['db.namespace']);
-        self::assertSame('app_db', $attributes['db.name']);
         self::assertSame('localhost', $attributes['server.address']);
         self::assertSame(3306, $attributes['server.port']);
         self::assertArrayNotHasKey('db.query.text', $attributes);
@@ -95,7 +92,6 @@ final class TraceableConnectionTest extends TestCase
         self::assertSame('INSERT users', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('INSERT INTO users (name) VALUES ("test")', $attr['db.query.text']);
-        self::assertSame('INSERT INTO users (name) VALUES ("test")', $attr['db.statement']);
     }
 
     public function testQueryCreatesClientSpan(): void
@@ -127,7 +123,6 @@ final class TraceableConnectionTest extends TestCase
         self::assertSame('SELECT users', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('SELECT * FROM users WHERE id = 1', $attr['db.query.text']);
-        self::assertSame('SELECT * FROM users WHERE id = 1', $attr['db.statement']);
     }
 
     public function testPrepareReturnsTraceableStatement(): void
@@ -192,7 +187,6 @@ final class TraceableConnectionTest extends TestCase
         self::assertSame('SELECT slow_table', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('SELECT * FROM slow_table', $attr['db.query.text']);
-        self::assertSame('SELECT * FROM slow_table', $attr['db.statement']);
     }
 
     public function testBeginTransactionWithRecordStatementsDisabled(): void
@@ -214,7 +208,6 @@ final class TraceableConnectionTest extends TestCase
         self::assertSame('BEGIN app_db', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('BEGIN', $attr['db.query.text']);
-        self::assertSame('BEGIN', $attr['db.statement']);
     }
 
     public function testCommitWithRecordStatementsDisabled(): void
@@ -236,7 +229,6 @@ final class TraceableConnectionTest extends TestCase
         self::assertSame('COMMIT app_db', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('COMMIT', $attr['db.query.text']);
-        self::assertSame('COMMIT', $attr['db.statement']);
     }
 
     public function testRollBackWithRecordStatementsDisabled(): void
@@ -258,7 +250,6 @@ final class TraceableConnectionTest extends TestCase
         self::assertSame('ROLLBACK app_db', $span->getName());
         $attr = $span->getAttributes()->toArray();
         self::assertSame('ROLLBACK', $attr['db.query.text']);
-        self::assertSame('ROLLBACK', $attr['db.statement']);
     }
 
     public function testSpanNameIsLowCardinalityForLongSql(): void
@@ -302,7 +293,6 @@ final class TraceableConnectionTest extends TestCase
 
         $attributes = $spans[0]->getAttributes()->toArray();
         self::assertSame('sqlite', $attributes['db.system.name']);
-        self::assertSame('sqlite', $attributes['db.system']);
         self::assertArrayNotHasKey('db.namespace', $attributes);
         self::assertArrayNotHasKey('db.name', $attributes);
         self::assertArrayNotHasKey('server.address', $attributes);

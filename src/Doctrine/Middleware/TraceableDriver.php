@@ -15,6 +15,7 @@ final class TraceableDriver extends AbstractDriverMiddleware
         private readonly string $tracerName,
         private readonly bool $recordStatements,
         private readonly bool $onlyWithParent = false,
+        private readonly ?DbSpanBudget $spanBudget = null,
     ) {
         parent::__construct($driver);
     }
@@ -32,6 +33,7 @@ final class TraceableDriver extends AbstractDriverMiddleware
             $params['host'] ?? null,
             isset($params['port']) ? (int) $params['port'] : null,
             $this->onlyWithParent,
+            $this->spanBudget,
         ];
 
         return self::isDbal4()

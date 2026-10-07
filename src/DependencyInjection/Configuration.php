@@ -102,7 +102,7 @@ final class Configuration implements ConfigurationInterface
             trigger_deprecation(
                 'traceway/opentelemetry-symfony',
                 '2.0',
-                'Configuring "open_telemetry.%s" is deprecated, use "open_telemetry.%s" instead. The legacy key will be removed in v4.0.',
+                'Configuring "open_telemetry.%s" is deprecated, use "open_telemetry.%s" instead. The legacy key will be removed in v5.0.',
                 $oldKey,
                 $newPath,
             );
@@ -235,6 +235,11 @@ final class Configuration implements ConfigurationInterface
                             ->info('Create root spans for consumed messages instead of linking to the dispatching trace. Useful for task-oriented backends (e.g. Traceway, Sentry).')
                             ->defaultFalse()
                         ->end()
+                        ->arrayNode('excluded_messages')
+                            ->info('Message classes (FQCN; parent classes and interfaces match too) to skip on both dispatch and consume. With doctrine.only_with_parent the handler\'s queries have no parent and stay untraced as well, so one noisy batch job can be removed from tracing without touching the rest.')
+                            ->scalarPrototype()->end()
+                            ->defaultValue([])
+                        ->end()
                     ->end()
                 ->end()
                 ->arrayNode('doctrine')
@@ -248,6 +253,11 @@ final class Configuration implements ConfigurationInterface
                         ->booleanNode('only_with_parent')
                             ->info('Only create DB spans when an active parent span exists. Suppresses orphan root spans from untraced contexts, e.g. the doctrine Messenger transport poll loop (BEGIN/SELECT/COMMIT every idle poll). Mirrors requireParentSpan from OTel JS instrumentations. Set false to restore pre-3.4.1 behavior (DB spans even without an active parent).')
                             ->defaultTrue()
+                        ->end()
+                        ->integerNode('max_spans_per_trace')
+                            ->info('Cap on DB spans recorded under one trace; 0 = unlimited. Once a trace has used its budget, further statements run untraced and the active parent span gets a traceway.db.spans_dropped attribute with the count. Protects against batch loops that emit thousands of single-row statements per request or message.')
+                            ->min(0)
+                            ->defaultValue(0)
                         ->end()
                     ->end()
                 ->end()

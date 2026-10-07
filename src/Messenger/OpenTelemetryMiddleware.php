@@ -39,19 +39,21 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface, ResetInterfa
     private const SCHEDULED_STAMP_CLASS = 'Symfony\\Component\\Scheduler\\Messenger\\ScheduledStamp';
 
     /**
-     * @param string $tracerName               Instrumentation library name
-     * @param bool   $rootSpans                When true, consumed messages create root spans (no parent)
-     *                                         so task-oriented backends classify them as independent jobs
-     * @param bool   $excludeScheduledMessages Skip envelopes carrying Symfony's ScheduledStamp on both dispatch and
-     *                                         consume paths. Enabled automatically when scheduler instrumentation is
-     *                                         active so the richer
-     *                                         {@see \Traceway\OpenTelemetryBundle\EventSubscriber\SchedulerSubscriber}
-     *                                         span owns scheduled-task observability without duplicate messenger spans.
+     * @param string       $tracerName               Instrumentation library name
+     * @param bool         $rootSpans                When true, consumed messages create root spans (no parent)
+     *                                               so task-oriented backends classify them as independent jobs
+     * @param bool         $excludeScheduledMessages Skip envelopes carrying Symfony's ScheduledStamp on both dispatch and
+     *                                               consume paths. Enabled automatically when scheduler instrumentation is
+     *                                               active so the richer
+     *                                               {@see \Traceway\OpenTelemetryBundle\EventSubscriber\SchedulerSubscriber}
+     *                                               span owns scheduled-task observability without duplicate messenger spans.
+     * @param list<string> $excludedMessages         Message classes or interfaces skipped on both paths
      */
     public function __construct(
         private readonly string $tracerName = 'opentelemetry-symfony',
         private readonly bool $rootSpans = false,
         private readonly bool $excludeScheduledMessages = false,
+        private readonly array $excludedMessages = [],
     ) {
     }
 
@@ -61,7 +63,7 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface, ResetInterfa
             return $stack->next()->handle($envelope, $stack);
         }
 
-        if ($this->isScheduledMessage($envelope)) {
+        if ($this->isScheduledMessage($envelope) || $this->isExcludedMessage($envelope)) {
             return $stack->next()->handle($envelope, $stack);
         }
 
@@ -70,6 +72,22 @@ final class OpenTelemetryMiddleware implements MiddlewareInterface, ResetInterfa
         }
 
         return $this->handleDispatch($envelope, $stack);
+    }
+
+    private function isExcludedMessage(Envelope $envelope): bool
+    {
+        if ([] === $this->excludedMessages) {
+            return false;
+        }
+
+        $message = $envelope->getMessage();
+        foreach ($this->excludedMessages as $class) {
+            if ($message instanceof $class) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isScheduledMessage(Envelope $envelope): bool

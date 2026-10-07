@@ -283,6 +283,27 @@ final class OpenTelemetryExtensionTest extends TestCase
         self::assertTrue($def->hasTag('doctrine.middleware'));
         self::assertFalse($def->getArgument('$recordStatements'));
         self::assertTrue($def->getArgument('$onlyWithParent'));
+        self::assertSame(0, $def->getArgument('$maxSpansPerTrace'));
+    }
+
+    public function testDoctrineSpanCapConfigured(): void
+    {
+        $container = $this->buildContainer([
+            'traces' => ['doctrine' => ['enabled' => true, 'max_spans_per_trace' => 250]],
+        ]);
+
+        $def = $container->getDefinition(DoctrineTraceableMiddleware::class);
+        self::assertSame(250, $def->getArgument('$maxSpansPerTrace'));
+    }
+
+    public function testMessengerExcludedMessagesWired(): void
+    {
+        $container = $this->buildContainer([
+            'traces' => ['messenger' => ['excluded_messages' => ['App\\Message\\MlFlats', 'App\\Message\\MlFlats', 'App\\Message\\Noise']]],
+        ]);
+
+        $def = $container->getDefinition(OpenTelemetryMiddleware::class);
+        self::assertSame(['App\\Message\\MlFlats', 'App\\Message\\Noise'], $def->getArgument('$excludedMessages'));
     }
 
     public function testDoctrineMiddlewareNotRegisteredWhenDisabled(): void

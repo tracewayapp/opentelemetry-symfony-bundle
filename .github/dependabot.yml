@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: composer
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dev-tooling:
+        patterns:
+          - phpstan/*
+          - php-cs-fixer/*
+          - phpunit/*
+          - symfony/phpunit-bridge
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

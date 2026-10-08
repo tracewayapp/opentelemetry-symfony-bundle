@@ -9,6 +9,8 @@ Pure-PHP OpenTelemetry instrumentation for Symfony. Supports PHP 8.1+ on Symfony
 | **HTTP requests** | SERVER | Route templates (`GET /api/items/{id}`), status codes, body sizes, client IP, network peer, exceptions, sub-requests |
 | **Console commands** | INTERNAL | Command name, argv, pid, exit code, exceptions |
 | **HttpClient** | CLIENT | Outgoing requests with W3C context propagation, OTLP endpoint auto-excluded, re-entrance guard |
+| **PSR-18 clients** | CLIENT | Every `Psr\Http\Client\ClientInterface` service is decorated: php-http adapters, `Psr18Client`, vendor SDK clients. Same attributes and exclusions as HttpClient |
+| **Guzzle** | CLIENT | Handler-stack middleware added to every `GuzzleHttp\Client` service without its own handler. One span per attempt with `http.request.resend_count` across redirects and retries |
 | **Messenger** | PRODUCER/CONSUMER | Message class, transport, W3C context propagation across async boundaries |
 | **Scheduler** | CONSUMER | Schedule name, trigger, next-run, cancellation marker. Requires `symfony/scheduler` |
 | **Mailer** | PRODUCER + CLIENT | `create` span on `MailerInterface::send`, `send` span on the transport. Recipient count, message-id, `X-Transport` routing |

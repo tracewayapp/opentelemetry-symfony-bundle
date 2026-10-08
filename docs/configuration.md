@@ -20,7 +20,9 @@ open_telemetry:
 
         http_client:
             enabled: true
-            excluded_hosts: []                # OTLP endpoint is auto-excluded
+            excluded_hosts: []                # OTLP endpoint is auto-excluded; applies to Symfony HttpClient, PSR-18 and Guzzle
+            psr18: true                       # decorate every Psr\Http\Client\ClientInterface service
+            guzzle: true                      # traced handler stack for GuzzleHttp\Client services without their own handler
 
         messenger:
             enabled: true
@@ -146,3 +148,23 @@ A few defaults exist because they are the difference between a few MB and a few 
 **Log channels.** `logs.export.excluded_channels` drops whole Monolog channels before export — `deprecation` and `php` are the usual candidates, since framework diagnostics otherwise land in your log storage. monolog-bundle's own `channels` key on the `opentelemetry` handler covers inclusive/exclusive rules if you need them.
 
 **Metrics exclusions.** `metrics.http_server.excluded_paths` and `metrics.http_client.excluded_hosts` are independent of their tracing counterparts, so excluding `/health` from traces still measures it — usually what you want for an uptime signal. Repeat the list under `metrics` when you want a path or host dropped from both signals.
+
+## Outgoing HTTP beyond Symfony HttpClient
+
+`traces.http_client` covers three client families with one set of attributes, exclusions and the same W3C propagation:
+
+- **Symfony HttpClient**: the `http_client` service and every scoped client are decorated.
+- **PSR-18**: every service implementing `Psr\Http\Client\ClientInterface` is decorated with `TracedPsr18Client`. This reaches php-http adapters, Symfony's `Psr18Client`, and SDKs that accept a PSR-18 client. Guzzle clients are skipped here because callers type-hint `GuzzleHttp\ClientInterface`.
+- **Guzzle**: every `GuzzleHttp\Client` service that does not pass its own `handler` gets a handler stack with the tracing middleware. A client that builds its own stack pushes the middleware service itself:
+
+```php
+use GuzzleHttp\HandlerStack;
+use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\TracingMiddleware;
+
+$stack = HandlerStack::create();
+$stack->push($retryMiddleware, 'retry');
+$stack->push($tracingMiddleware, TracingMiddleware::NAME);   // last, so it sees every attempt
+$client = new Client(['handler' => $stack]);
+```
+
+Push it last. Guzzle runs the first-pushed middleware outermost, so pushing the tracing middleware after your retry and redirect middlewares puts it closest to the transport, where each redirected or retried request passes through it and `http.request.resend_count` reflects Guzzle's own counters. A Guzzle client wrapped in a traced PSR-18 adapter produces one span, not two: the PSR-18 decorator marks the request in flight and the middleware steps aside.

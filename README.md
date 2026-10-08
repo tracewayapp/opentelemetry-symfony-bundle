@@ -64,7 +64,7 @@ bin/console traceway:doctor
 
 ## What Gets Traced
 
-HTTP requests (with route templates), Console commands, HttpClient, Messenger, Scheduler, Mailer, Doctrine DBAL, Cache, and Twig — plus Monolog `trace_id`/`span_id` correlation and opt-in OTel log export. Each subsystem is individually toggleable. See **[docs/index.md](docs/index.md)** for the per-component span breakdown.
+HTTP requests (with route templates), Console commands, outgoing HTTP through Symfony HttpClient, any PSR-18 client and Guzzle, Messenger, Scheduler, Mailer, Doctrine DBAL, Cache, and Twig — plus Monolog `trace_id`/`span_id` correlation and opt-in OTel log export. Each subsystem is individually toggleable. See **[docs/index.md](docs/index.md)** for the per-component span breakdown.
 
 ## Semantic Conventions
 
@@ -132,6 +132,7 @@ Opt-in OpenTelemetry metrics — Messenger, Doctrine DBAL, HTTP server/client, a
 | [Upgrade to v3.0](UPGRADE-3.0.md) | Semantic-conventions conformance changes |
 | [Upgrade from v1.x](UPGRADE-2.0.md) | Flat → nested config migration |
 | [Changelog](CHANGELOG.md) | Release history |
+| [Security](SECURITY.md) | Supported versions, private vulnerability reporting |
 
 ## Contributing
 

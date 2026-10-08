@@ -296,6 +296,21 @@ final class OpenTelemetryExtensionTest extends TestCase
         self::assertSame(250, $def->getArgument('$maxSpansPerTrace'));
     }
 
+    public function testPsr18AndGuzzleParametersFollowHttpClientConfig(): void
+    {
+        $container = $this->buildContainer([]);
+        self::assertTrue($container->getParameter('open_telemetry.http_client.psr18_enabled'));
+        self::assertTrue($container->getParameter('open_telemetry.http_client.guzzle_enabled'));
+
+        $container = $this->buildContainer(['traces' => ['http_client' => ['psr18' => false, 'guzzle' => false]]]);
+        self::assertFalse($container->getParameter('open_telemetry.http_client.psr18_enabled'));
+        self::assertFalse($container->getParameter('open_telemetry.http_client.guzzle_enabled'));
+
+        $container = $this->buildContainer(['traces' => ['http_client' => ['enabled' => false]]]);
+        self::assertFalse($container->getParameter('open_telemetry.http_client.psr18_enabled'));
+        self::assertFalse($container->getParameter('open_telemetry.http_client.guzzle_enabled'));
+    }
+
     public function testMessengerExcludedMessagesWired(): void
     {
         $container = $this->buildContainer([

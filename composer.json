@@ -39,6 +39,8 @@
         "doctrine/dbal": "Required for automatic Doctrine DBAL query tracing (^3.6 || ^4.0)",
         "symfony/cache": "Required for automatic cache pool tracing (get/delete/invalidateTags)",
         "symfony/http-client": "Required for automatic HttpClient outgoing request tracing",
+        "psr/http-client": "PSR-18 clients are decorated with CLIENT spans automatically (traces.http_client.psr18)",
+        "guzzlehttp/guzzle": "Guzzle clients get the tracing handler-stack middleware automatically (traces.http_client.guzzle)",
         "symfony/mailer": "Required for automatic Mailer instrumentation (PRODUCER spans around MailerInterface::send and CLIENT spans around the transport)",
         "symfony/messenger": "Required for automatic Messenger job/task tracing",
         "symfony/scheduler": "Required for automatic Scheduler tracing (CONSUMER spans around RecurringMessage execution, with trigger metadata)",
@@ -48,6 +50,7 @@
     },
     "require-dev": {
         "doctrine/dbal": "^4.0",
+        "guzzlehttp/guzzle": "^7.4",
         "monolog/monolog": "^3.0",
         "open-telemetry/contrib-aws": "^1.2",
         "php-cs-fixer/shim": "^3.0",

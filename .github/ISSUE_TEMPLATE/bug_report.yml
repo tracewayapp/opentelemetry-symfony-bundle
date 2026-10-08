@@ -1,0 +1,35 @@
+name: Bug report
+description: Something traces, meters or logs incorrectly, or the bundle breaks the application
+labels: [bug]
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Bundle, PHP, Symfony, and doctrine/dbal if relevant
+      placeholder: bundle 4.0.0, PHP 8.3.12, Symfony 7.4.2, DBAL 4.2
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Bundle configuration
+      description: Your `open_telemetry` config block, secrets removed
+      render: yaml
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead, with the output of `bin/console traceway:doctor` if it runs
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce

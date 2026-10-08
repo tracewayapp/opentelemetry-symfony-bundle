@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **PSR-18 client tracing** (`traces.http_client.psr18`, default on) — every service implementing `Psr\Http\Client\ClientInterface` is decorated with `HttpClient\Psr\TracedPsr18Client`: php-http adapters, Symfony's `Psr18Client`, and the clients vendor SDKs accept. Same CLIENT span attributes, status rules, `url.full` redaction, host exclusions and W3C propagation as the Symfony HttpClient decorator, from a shared `RequestTracer`. Guzzle clients are skipped by this pass since callers type-hint `GuzzleHttp\ClientInterface`.
+- **Guzzle tracing** (`traces.http_client.guzzle`, default on) — `HttpClient\Guzzle\TracingMiddleware` is registered as a public service and pushed onto a handler stack given to every `GuzzleHttp\Client` service that does not configure its own `handler`. It sits closest to the transport, so a redirect or a retry produces one span per attempt with `http.request.resend_count` taken from Guzzle's own counters, which is the per-attempt model the HTTP conventions describe and which Symfony HttpClient cannot offer. A Guzzle client wrapped in a traced PSR-18 adapter yields one span, not two. Pure PHP, no extension: this is the reach the C-extension auto-instrumentation had over the bundle.
+
 ## [4.0.0] - 2026-10-07
 
 The one breaking change is the removal of the deprecated database attribute names; see [UPGRADE-4.0.md](UPGRADE-4.0.md). Flat v1 config keys stay accepted.

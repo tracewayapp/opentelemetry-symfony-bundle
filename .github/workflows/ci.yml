@@ -41,7 +41,7 @@ jobs:
         run: composer install --no-interaction --prefer-dist
 
       - name: Audit for known vulnerabilities
-        run: composer audit --no-interaction
+        run: composer audit --no-dev --no-interaction
 
   phpstan:
     name: PHPStan

@@ -137,6 +137,25 @@ final class TracingMiddlewareTest extends TestCase
         self::assertSame(ConnectException::class, $span->getAttributes()->get('error.type'));
     }
 
+    public function testHandlerThatThrowsSynchronouslyStillEndsTheSpan(): void
+    {
+        $stack = new HandlerStack(static function (): never {
+            throw new \InvalidArgumentException('SSL CA bundle not found');
+        });
+        $stack->push(new TracingMiddleware('test'), TracingMiddleware::NAME);
+
+        try {
+            (new Client(['handler' => $stack]))->send(new Request('GET', 'https://api.example.com/'));
+            self::fail('expected the handler exception to propagate');
+        } catch (\InvalidArgumentException) {
+        }
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+        self::assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
+        self::assertSame(\InvalidArgumentException::class, $spans[0]->getAttributes()->get('error.type'));
+    }
+
     public function testAsyncRequestEndsSpanWhenThePromiseResolves(): void
     {
         $this->mock->append(new Response(200));

@@ -154,7 +154,7 @@ A few defaults exist because they are the difference between a few MB and a few 
 `traces.http_client` covers three client families with one set of attributes, exclusions and the same W3C propagation:
 
 - **Symfony HttpClient**: the `http_client` service and every scoped client are decorated.
-- **PSR-18**: every service implementing `Psr\Http\Client\ClientInterface` is decorated with `TracedPsr18Client`. This reaches php-http adapters, Symfony's `Psr18Client`, and SDKs that accept a PSR-18 client. Guzzle clients are skipped here because callers type-hint `GuzzleHttp\ClientInterface`.
+- **PSR-18**: a service whose class implements only `Psr\Http\Client\ClientInterface` (and optionally `ResetInterface`) is decorated with `TracedPsr18Client`, which covers an SDK's own client or one declared as the interface and built by discovery. A client implementing anything more is left alone, because the decorator replaces the service and would hide those interfaces from consumers. That rule skips Symfony's `Psr18Client` (also a PSR-17 factory), php-http adapters (also HTTPlug clients) and Guzzle; their requests are still traced, by the Symfony HttpClient decorator and the Guzzle middleware underneath. When a decorated PSR-18 client wraps a traced Symfony HttpClient, the inner decorator steps aside, so each request is one span.
 - **Guzzle**: every `GuzzleHttp\Client` service that does not pass its own `handler` gets a handler stack with the tracing middleware. A client that builds its own stack pushes the middleware service itself:
 
 ```php

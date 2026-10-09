@@ -62,8 +62,10 @@ final class TracingMiddleware implements ResetInterface
             }
 
             return $promise->then(
-                function (ResponseInterface $response) use ($span): ResponseInterface {
-                    $this->tracer->recordResponse($span, $response);
+                function (mixed $response) use ($span): mixed {
+                    if ($response instanceof ResponseInterface) {
+                        $this->tracer->recordResponse($span, $response);
+                    }
                     $span->end();
 
                     return $response;

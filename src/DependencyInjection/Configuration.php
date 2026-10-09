@@ -226,7 +226,7 @@ final class Configuration implements ConfigurationInterface
                             ->defaultValue([])
                         ->end()
                         ->booleanNode('psr18')
-                            ->info('Decorate every service implementing Psr\\Http\\Client\\ClientInterface (php-http adapters, Symfony\'s Psr18Client, vendor SDK clients). Guzzle clients are covered by the guzzle option instead, because callers type-hint GuzzleHttp\\ClientInterface.')
+                            ->info('Decorate PSR-18 client services whose class implements only Psr\\Http\\Client\\ClientInterface (and ResetInterface). Clients with more interfaces are left alone, since the decorator would hide them: Symfony\'s Psr18Client and php-http adapters wrap a transport traced already, and Guzzle is covered by the guzzle option.')
                             ->defaultTrue()
                         ->end()
                         ->booleanNode('guzzle')

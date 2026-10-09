@@ -17,6 +17,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 use Symfony\Contracts\HttpClient\ResponseStreamInterface;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestTracer;
 use Traceway\OpenTelemetryBundle\Instrumentation\TracerAwareTrait;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
 use Traceway\OpenTelemetryBundle\Util\HttpMethodResolver;
@@ -59,7 +60,7 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
      */
     public function request(string $method, string $url, array $options = []): ResponseInterface
     {
-        if (!$this->isEnabled() || $this->inFlight || $this->isExcluded($url)) {
+        if (!$this->isEnabled() || $this->inFlight || $this->isExcluded($url) || true === Context::getCurrent()->get(RequestTracer::inFlightKey())) {
             return $this->client->request($method, $url, $options);
         }
 

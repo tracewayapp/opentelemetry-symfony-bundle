@@ -14,8 +14,12 @@ use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpClient\MockHttpClient;
+use Symfony\Component\HttpClient\Psr18Client;
+use Symfony\Component\HttpClient\Response\MockResponse;
 use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\TracingMiddleware;
 use Traceway\OpenTelemetryBundle\HttpClient\Psr\TracedPsr18Client;
+use Traceway\OpenTelemetryBundle\HttpClient\TraceableHttpClient;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
 final class TracedPsr18ClientTest extends TestCase
@@ -163,6 +167,27 @@ final class TracedPsr18ClientTest extends TestCase
         $client->sendRequest(new Request('GET', 'https://api.example.com/'));
 
         self::assertCount(1, $this->exporter->getSpans());
+    }
+
+    public function testDoesNotDoubleTraceOverATracedSymfonyHttpClient(): void
+    {
+        $symfony = new TraceableHttpClient(new MockHttpClient(new MockResponse('ok', ['http_code' => 200])), 'test');
+        $client = new TracedPsr18Client(new Psr18Client($symfony), 'test');
+
+        $client->sendRequest(new Request('GET', 'https://api.example.com/'));
+
+        self::assertCount(1, $this->exporter->getSpans());
+    }
+
+    public function testSymfonyHttpClientTracesAgainOnceThePsr18RequestIsDone(): void
+    {
+        $this->mock->append(new Response(200));
+        $symfony = new TraceableHttpClient(new MockHttpClient(new MockResponse('ok', ['http_code' => 200])), 'test');
+
+        $this->client()->sendRequest(new Request('GET', 'https://api.example.com/'));
+        $symfony->request('GET', 'https://api.example.com/')->getStatusCode();
+
+        self::assertCount(2, $this->exporter->getSpans());
     }
 
     public function testResetKeepsTracing(): void

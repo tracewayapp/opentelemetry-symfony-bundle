@@ -5,8 +5,7 @@
 | Version | Supported |
 |---|---|
 | 4.x | Yes |
-| 3.x | Security fixes only, until 2027-04-07 |
-| < 3.0 | No |
+| < 4.0 | No |
 
 ## Reporting a vulnerability
 
@@ -15,15 +14,13 @@ Do not open a public issue for a suspected vulnerability.
 Report it privately through GitHub's advisory form:
 https://github.com/tracewayapp/opentelemetry-symfony-bundle/security/advisories/new
 
-If you cannot use GitHub, email security@tracewayapp.com.
-
 Include the bundle version, PHP and Symfony versions, a description of the issue, and a reproduction if you have one.
 
 ## What to expect
 
 - Acknowledgement within 3 business days, and in every case within 14 days.
 - An assessment of severity and affected versions within 14 days of the report.
-- A fix or mitigation for confirmed vulnerabilities of medium or higher severity within 60 days of the report, released as a patch version of every supported line.
+- A fix or mitigation for confirmed vulnerabilities of medium or higher severity within 60 days of the report, released as a patch version of the supported line.
 - Credit in the release notes and the GitHub advisory unless you ask otherwise.
 
 Reports are kept private until a fix is released. We will coordinate the disclosure date with you.

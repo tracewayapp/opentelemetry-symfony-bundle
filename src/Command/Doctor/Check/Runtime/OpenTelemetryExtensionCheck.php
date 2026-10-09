@@ -38,10 +38,9 @@ final class OpenTelemetryExtensionCheck implements CheckInterface
 
         $version = phpversion('opentelemetry') ?: 'unknown';
 
-        return CheckResult::warning(
+        return CheckResult::info(
             $this->name(),
-            \sprintf('ext-opentelemetry %s is loaded alongside this bundle', $version),
-            'If you also installed open-telemetry/opentelemetry-auto-symfony, you will see duplicate spans. Set OTEL_PHP_DISABLED_INSTRUMENTATIONS=symfony to disable the C-extension instrumentation, or remove this bundle if you prefer the C-extension path.',
+            \sprintf('ext-opentelemetry %s is loaded; contrib_instrumentation_overlap reports any package that duplicates this bundle', $version),
             ['loaded' => true, 'version' => $version],
         );
     }

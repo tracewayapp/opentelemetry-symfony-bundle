@@ -163,6 +163,8 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $container->setDefinition(SchedulerSubscriber::class, $schedulerDef);
         }
 
+        $container->setParameter('open_telemetry.traces.doctrine.enabled', $tracingEnabled && $traces['doctrine']['enabled'] && $this->isDoctrineAvailable());
+
         if ($tracingEnabled && $traces['doctrine']['enabled'] && $this->isDoctrineAvailable()) {
             $definition = new Definition(DoctrineTraceableMiddleware::class);
             $definition->setArgument('$tracerName', $tracerName);
@@ -206,6 +208,8 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $transportsDef->addTag('kernel.reset', ['method' => 'reset']);
             $container->setDefinition(TraceableTransports::class, $transportsDef);
         }
+
+        $container->setParameter('open_telemetry.logs.correlation.enabled', $config['logs']['correlation']['enabled'] && $this->isMonologAvailable());
 
         if ($config['logs']['correlation']['enabled'] && $this->isMonologAvailable()) {
             $monologDef = new Definition(TraceContextProcessor::class);

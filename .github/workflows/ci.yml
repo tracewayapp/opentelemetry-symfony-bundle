@@ -44,8 +44,14 @@ jobs:
         run: composer audit --no-dev --no-interaction
 
   phpstan:
-    name: PHPStan
+    name: PHPStan / Guzzle ${{ matrix.guzzle }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Guzzle 7 ships guzzlehttp/promises 2 (non-generic), Guzzle 8 ships
+        # promises 3 (generic PromiseInterface); the middleware must type-check on both.
+        guzzle: ['^7.4', '^8.0']
     steps:
       - uses: actions/checkout@v7
 
@@ -55,8 +61,11 @@ jobs:
           php-version: '8.3'
           coverage: none
 
+      - name: Pin Guzzle major
+        run: composer require --no-update --dev guzzlehttp/guzzle:${{ matrix.guzzle }}
+
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
+        run: composer update --no-interaction --prefer-dist
 
       - name: Run PHPStan
         run: vendor/bin/phpstan analyse

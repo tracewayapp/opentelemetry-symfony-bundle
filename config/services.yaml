@@ -93,6 +93,8 @@ services:
     # SDK configuration checks
     Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\ServiceNameCheck:
         autoconfigure: true
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\ContribInstrumentationOverlapCheck:
+        autoconfigure: true
     Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracesExporterCheck:
         autoconfigure: true
     Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\OtlpEndpointConfiguredCheck:

@@ -16,9 +16,8 @@ final class OpenTelemetryExtensionCheckTest extends TestCase
         $result = (new OpenTelemetryExtensionCheck())->run(CheckTestHelper::context());
 
         if (\extension_loaded('opentelemetry')) {
-            self::assertSame(Status::Warning, $result->status);
-            self::assertStringContainsString('ext-opentelemetry', $result->message);
-            self::assertNotNull($result->remediation);
+            self::assertSame(Status::Info, $result->status);
+            self::assertStringContainsString('contrib_instrumentation_overlap', $result->message);
         } else {
             self::assertSame(Status::Ok, $result->status);
             self::assertStringContainsString('not loaded', $result->message);

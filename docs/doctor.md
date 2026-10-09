@@ -10,6 +10,7 @@ Traceway Doctor
 Runtime
   ○ protocol is http/json; ext-protobuf not required
   ✓ ext-opentelemetry not loaded (no conflict risk)
+  ✓ ext-opentelemetry not loaded, so no contrib auto-instrumentation can run
 
 SDK configuration
   ✓ OTEL_SERVICE_NAME = "my-symfony-app"
@@ -27,7 +28,7 @@ Bundle configuration
 Connectivity
   ✓ OTLP endpoint reachable (HTTP 404, 7ms)
 
-Results: 9 ok, 0 warning, 0 error, 3 skipped, 0 info
+Results: 10 ok, 0 warning, 0 error, 3 skipped, 0 info
 ```
 
 The command is also discoverable in the `debug:` namespace as `debug:traceway`.
@@ -51,6 +52,24 @@ bin/console traceway:doctor --format=json --skip-network | jq '.summary.exit_cod
 ```
 
 A non-zero exit code means at least one check has severity at or above `--fail-on`. Pin doctor to a `--fail-on=warning` build step if you want CI to flag every issue, or leave the default `--fail-on=error` to fail only on hard misconfigurations.
+
+## Running alongside contrib auto-instrumentation
+
+The `opentelemetry-php-contrib` packages hook PHP functions through `ext-opentelemetry`. Several of them cover what this bundle already instruments, and running both records every span or log twice. `contrib_instrumentation_overlap` warns about each installed package that overlaps a bundle feature you have enabled, and prints the `OTEL_PHP_DISABLED_INSTRUMENTATIONS` value that switches the contrib side off:
+
+| Package | Disable name | Duplicates |
+|---|---|---|
+| `opentelemetry-auto-symfony` | `symfony` | HTTP server, HttpClient and Messenger spans |
+| `opentelemetry-auto-guzzle` | `guzzle` | Guzzle CLIENT spans |
+| `opentelemetry-auto-psr18` | `psr18` | PSR-18 CLIENT spans |
+| `opentelemetry-auto-http-async` | `http-async-client` | a CLIENT span above Symfony HttpClient requests made through HTTPlug |
+| `opentelemetry-auto-curl` | `curl` | a CLIENT span under Symfony HttpClient and Guzzle requests sent over curl |
+| `opentelemetry-auto-doctrine` | `doctrine` | Doctrine DBAL query spans |
+| `opentelemetry-auto-pdo`, `-mysqli`, `-postgresql` | `pdo`, `mysqli`, `postgresql` | a query span under every DBAL query on that driver |
+| `opentelemetry-auto-psr6`, `-psr16` | `psr6`, `psr16` | cache spans |
+| `opentelemetry-auto-psr3` | `psr3` | log trace-context injection, and every log record in export mode |
+
+Contrib packages that instrument what the bundle does not, such as `opentelemetry-auto-mongodb` or `opentelemetry-auto-ext-amqp`, compose with it without duplicates; keep them enabled.
 
 ## Extending with custom checks
 

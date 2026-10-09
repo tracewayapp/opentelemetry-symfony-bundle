@@ -9,14 +9,19 @@ use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\HttpClient\Psr\TracedPsr18Client;
 
 /**
- * Decorates every service implementing PSR-18 ClientInterface with {@see TracedPsr18Client}.
+ * Decorates PSR-18 client services with {@see TracedPsr18Client}.
  *
- * Guzzle clients are skipped: callers type-hint GuzzleHttp\ClientInterface, which the
- * decorator does not implement, and {@see GuzzleClientTracingPass} covers them through
- * the handler stack where every attempt is visible.
+ * Only a service whose class implements nothing beyond ClientInterface and
+ * ResetInterface is decorated: the decorator replaces the service, so any other
+ * interface (Symfony's Psr18Client is also a PSR-17 factory, Guzzle is
+ * GuzzleHttp\ClientInterface, php-http adapters are HTTPlug clients) would
+ * disappear from it and break consumers. Those multi-interface clients wrap a
+ * transport that is traced already: Symfony HttpClient, or Guzzle through
+ * {@see GuzzleClientTracingPass}.
  */
 final class Psr18ClientTracingPass implements CompilerPassInterface
 {
@@ -66,28 +71,37 @@ final class Psr18ClientTracingPass implements CompilerPassInterface
         }
 
         $class = $container->getParameterBag()->resolveValue($class);
-        if (!\is_string($class) || !self::implementsSafely($class, ClientInterface::class)) {
+        if (!\is_string($class) || TracedPsr18Client::class === ltrim($class, '\\')) {
             return false;
         }
 
-        if (is_a($class, TracedPsr18Client::class, true)) {
+        $interfaces = self::interfacesOf($class);
+        if (null === $interfaces || !\in_array(ClientInterface::class, $interfaces, true)) {
             return false;
         }
 
-        return !interface_exists(\GuzzleHttp\ClientInterface::class) || !is_a($class, \GuzzleHttp\ClientInterface::class, true);
+        return [] === array_diff($interfaces, self::DECORATOR_INTERFACES);
     }
+
+    private const DECORATOR_INTERFACES = [ClientInterface::class, ResetInterface::class];
 
     /**
      * Autoloading a service class can throw when one of its own dependencies is
      * not installed (an optional normalizer, a missing interface); such a class
      * cannot be a client we need to decorate.
+     *
+     * @return list<string>|null
      */
-    private static function implementsSafely(string $class, string $interface): bool
+    private static function interfacesOf(string $class): ?array
     {
         try {
-            return (class_exists($class) || interface_exists($class)) && is_a($class, $interface, true);
+            if (interface_exists($class)) {
+                return [$class, ...array_values(class_implements($class) ?: [])];
+            }
+
+            return class_exists($class) ? array_values(class_implements($class) ?: []) : null;
         } catch (\Throwable) {
-            return false;
+            return null;
         }
     }
 }

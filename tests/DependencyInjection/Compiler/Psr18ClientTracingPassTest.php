@@ -6,18 +6,20 @@ namespace Traceway\OpenTelemetryBundle\Tests\DependencyInjection\Compiler;
 
 use GuzzleHttp\Client as GuzzleClient;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Client\ClientInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\HttpClient\Psr18Client;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\Psr18ClientTracingPass;
 use Traceway\OpenTelemetryBundle\HttpClient\Psr\TracedPsr18Client;
+use Traceway\OpenTelemetryBundle\Tests\Fixtures\PlainPsr18Client;
 
 final class Psr18ClientTracingPassTest extends TestCase
 {
     public function testDecoratesPsr18ClientServices(): void
     {
         $container = $this->container(true);
-        $container->setDefinition('app.psr18', new Definition(Psr18Client::class));
+        $container->setDefinition('app.psr18', new Definition(PlainPsr18Client::class));
         $container->setDefinition('app.other', new Definition(\stdClass::class));
 
         (new Psr18ClientTracingPass())->process($container);
@@ -32,16 +34,36 @@ final class Psr18ClientTracingPassTest extends TestCase
         self::assertFalse($container->hasDefinition('app.other.otel'));
     }
 
-    public function testSkipsGuzzleClientsAbstractAndSyntheticDefinitions(): void
+    public function testSkipsClientsWithInterfacesTheDecoratorWouldHide(): void
     {
         $container = $this->container(true);
+        $container->setDefinition('psr18.http_client', new Definition(Psr18Client::class));
         $container->setDefinition('app.guzzle', new Definition(GuzzleClient::class));
-        $container->setDefinition('app.abstract', (new Definition(Psr18Client::class))->setAbstract(true));
-        $container->setDefinition('app.synthetic', (new Definition(Psr18Client::class))->setSynthetic(true));
 
         (new Psr18ClientTracingPass())->process($container);
 
-        self::assertFalse($container->hasDefinition('app.guzzle.otel'));
+        self::assertFalse($container->hasDefinition('psr18.http_client.otel'), 'Psr18Client is also a PSR-17 factory');
+        self::assertFalse($container->hasDefinition('app.guzzle.otel'), 'Guzzle is GuzzleHttp\\ClientInterface');
+    }
+
+    public function testDecoratesDefinitionsDeclaredAsTheInterface(): void
+    {
+        $container = $this->container(true);
+        $container->setDefinition('app.discovered', (new Definition(ClientInterface::class))->setFactory(['Http\\Discovery\\Psr18ClientDiscovery', 'find']));
+
+        (new Psr18ClientTracingPass())->process($container);
+
+        self::assertTrue($container->hasDefinition('app.discovered.otel'));
+    }
+
+    public function testSkipsAbstractAndSyntheticDefinitions(): void
+    {
+        $container = $this->container(true);
+        $container->setDefinition('app.abstract', (new Definition(PlainPsr18Client::class))->setAbstract(true));
+        $container->setDefinition('app.synthetic', (new Definition(PlainPsr18Client::class))->setSynthetic(true));
+
+        (new Psr18ClientTracingPass())->process($container);
+
         self::assertFalse($container->hasDefinition('app.abstract.otel'));
         self::assertFalse($container->hasDefinition('app.synthetic.otel'));
     }
@@ -50,7 +72,7 @@ final class Psr18ClientTracingPassTest extends TestCase
     {
         $container = $this->container(true);
         $container->setDefinition('app.broken', new Definition('App\\Missing\\ClassWithUninstalledParent'));
-        $container->setDefinition('app.psr18', new Definition(Psr18Client::class));
+        $container->setDefinition('app.psr18', new Definition(PlainPsr18Client::class));
 
         (new Psr18ClientTracingPass())->process($container);
 
@@ -61,7 +83,7 @@ final class Psr18ClientTracingPassTest extends TestCase
     public function testResolvesParameterizedClassNames(): void
     {
         $container = $this->container(true);
-        $container->setParameter('app.client_class', Psr18Client::class);
+        $container->setParameter('app.client_class', PlainPsr18Client::class);
         $container->setDefinition('app.psr18', new Definition('%app.client_class%'));
 
         (new Psr18ClientTracingPass())->process($container);
@@ -72,12 +94,12 @@ final class Psr18ClientTracingPassTest extends TestCase
     public function testSkipsWhenDisabledOrParameterMissing(): void
     {
         $container = $this->container(false);
-        $container->setDefinition('app.psr18', new Definition(Psr18Client::class));
+        $container->setDefinition('app.psr18', new Definition(PlainPsr18Client::class));
         (new Psr18ClientTracingPass())->process($container);
         self::assertFalse($container->hasDefinition('app.psr18.otel'));
 
         $bare = new ContainerBuilder();
-        $bare->setDefinition('app.psr18', new Definition(Psr18Client::class));
+        $bare->setDefinition('app.psr18', new Definition(PlainPsr18Client::class));
         (new Psr18ClientTracingPass())->process($bare);
         self::assertFalse($bare->hasDefinition('app.psr18.otel'));
     }

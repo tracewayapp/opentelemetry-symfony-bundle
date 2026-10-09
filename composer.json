@@ -50,7 +50,7 @@
     },
     "require-dev": {
         "doctrine/dbal": "^4.0",
-        "guzzlehttp/guzzle": "^7.4",
+        "guzzlehttp/guzzle": "^7.4 || ^8.0",
         "monolog/monolog": "^3.0",
         "open-telemetry/contrib-aws": "^1.2",
         "php-cs-fixer/shim": "^3.0",

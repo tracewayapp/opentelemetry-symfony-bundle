@@ -5,16 +5,21 @@ declare(strict_types=1);
 namespace Traceway\OpenTelemetryBundle\Tests\DependencyInjection\Compiler;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\GuzzleClientTracingPass;
 use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\TracingMiddleware;
+use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
 final class GuzzleClientTracingPassTest extends TestCase
 {
+    use OTelTestTrait;
+
     public function testRegistersMiddlewareAndHandlerStackServices(): void
     {
         $container = $this->container(true);
@@ -74,8 +79,18 @@ final class GuzzleClientTracingPassTest extends TestCase
         self::assertIsArray($config);
         $handler = $config['handler'] ?? null;
         self::assertInstanceOf(HandlerStack::class, $handler);
-        self::assertTrue($handler->hasHandler());
-        self::assertStringContainsString(TracingMiddleware::NAME, (string) $handler);
+
+        $this->setUpOTel();
+        try {
+            $handler->setHandler(new MockHandler([new Response(200)]));
+            $client->get('https://api.example.com/');
+
+            $spans = $this->exporter->getSpans();
+            self::assertCount(1, $spans);
+            self::assertSame('https://api.example.com/', $spans[0]->getAttributes()->get('url.full'));
+        } finally {
+            $this->tearDownOTel();
+        }
     }
 
     public function testSkipsWhenDisabled(): void

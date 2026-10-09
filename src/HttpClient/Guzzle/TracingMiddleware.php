@@ -52,7 +52,16 @@ final class TracingMiddleware implements ResetInterface
 
             [$span, $request] = $this->tracer->start($request, self::resendCount($options));
 
-            return $handler($request, $options)->then(
+            try {
+                $promise = $handler($request, $options);
+            } catch (\Throwable $e) {
+                $this->tracer->recordFailure($span, $e);
+                $span->end();
+
+                throw $e;
+            }
+
+            return $promise->then(
                 function (ResponseInterface $response) use ($span): ResponseInterface {
                     $this->tracer->recordResponse($span, $response);
                     $span->end();

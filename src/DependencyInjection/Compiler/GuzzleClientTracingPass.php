@@ -9,6 +9,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
 use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\TracingMiddleware;
+use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
 
 /**
  * Registers the Guzzle {@see TracingMiddleware} service and gives every
@@ -42,6 +43,7 @@ final class GuzzleClientTracingPass implements CompilerPassInterface
         $middleware = new Definition(TracingMiddleware::class);
         $middleware->setArgument('$tracerName', $tracerName);
         $middleware->setArgument('$excludedHosts', $excludedHosts);
+        $middleware->setArgument('$meter', self::meterReference($container));
         $middleware->setPublic(true);
         $middleware->addTag('kernel.reset', ['method' => 'reset']);
         $container->setDefinition(self::MIDDLEWARE_ID, $middleware);
@@ -89,5 +91,22 @@ final class GuzzleClientTracingPass implements CompilerPassInterface
         } catch (\Throwable) {
             return false;
         }
+    }
+
+    private static function meterReference(ContainerBuilder $container): ?Reference
+    {
+        if (true !== ($container->hasParameter('open_telemetry.http_client_metrics_enabled') ? $container->getParameter('open_telemetry.http_client_metrics_enabled') : false)) {
+            return null;
+        }
+
+        if (!$container->hasDefinition(RequestMeter::class)) {
+            $meter = new Definition(RequestMeter::class);
+            $meter->setArgument('$meterName', $container->hasParameter('open_telemetry.metrics_meter_name') ? $container->getParameter('open_telemetry.metrics_meter_name') : 'opentelemetry-symfony');
+            $meter->setArgument('$excludedHosts', $container->hasParameter('open_telemetry.http_client_metrics_excluded_hosts') ? $container->getParameter('open_telemetry.http_client_metrics_excluded_hosts') : []);
+            $meter->addTag('kernel.reset', ['method' => 'reset']);
+            $container->setDefinition(RequestMeter::class, $meter);
+        }
+
+        return new Reference(RequestMeter::class);
     }
 }

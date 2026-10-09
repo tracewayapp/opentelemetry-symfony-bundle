@@ -88,6 +88,11 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
             $spanBuilder->setAttribute(HttpAttributes::HTTP_REQUEST_METHOD_ORIGINAL, $method);
         }
 
+        $counter = \is_array($options['extra'] ?? null) ? ($options['extra'][ResendCounter::OPTION] ?? null) : null;
+        if ($counter instanceof ResendCounter && ($resendCount = $counter->next()) > 0) {
+            $spanBuilder->setAttribute(HttpAttributes::HTTP_REQUEST_RESEND_COUNT, $resendCount);
+        }
+
         if (\is_array($parsedUrl)) {
             if (null !== ($host = UrlParts::host($parsedUrl))) {
                 $spanBuilder->setAttribute(ServerAttributes::SERVER_ADDRESS, $host);

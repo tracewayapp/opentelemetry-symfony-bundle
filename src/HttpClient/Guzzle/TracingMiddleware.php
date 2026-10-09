@@ -6,9 +6,11 @@ namespace Traceway\OpenTelemetryBundle\HttpClient\Guzzle;
 
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
+use OpenTelemetry\API\Trace\SpanInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
 use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestTracer;
 
 /**
@@ -34,6 +36,7 @@ final class TracingMiddleware implements ResetInterface
         string $tracerName = 'opentelemetry-symfony',
         array $excludedHosts = [],
         ?RequestTracer $tracer = null,
+        private readonly ?RequestMeter $meter = null,
     ) {
         $this->tracer = $tracer ?? new RequestTracer($tracerName, $excludedHosts);
     }
@@ -46,33 +49,38 @@ final class TracingMiddleware implements ResetInterface
     public function __invoke(callable $handler): callable
     {
         $traced = function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
-            if (!$this->tracer->shouldTrace($request)) {
+            $traced = $this->tracer->shouldTrace($request);
+            $metered = null !== $this->meter && $this->meter->shouldMeter($request);
+            if (!$traced && !$metered) {
                 return $handler($request, $options);
             }
 
-            [$span, $request] = $this->tracer->start($request, self::resendCount($options));
+            $span = null;
+            if ($traced) {
+                [$span, $request] = $this->tracer->start($request, self::resendCount($options));
+            }
+            $measurement = $metered ? $this->meter->start($request) : null;
 
             try {
                 $promise = $handler($request, $options);
             } catch (\Throwable $e) {
-                $this->tracer->recordFailure($span, $e);
-                $span->end();
+                $this->fail($span, $measurement, $e);
 
                 throw $e;
             }
 
             return $promise->then(
-                function (mixed $response) use ($span): mixed {
+                function (mixed $response) use ($span, $measurement): mixed {
                     if ($response instanceof ResponseInterface) {
-                        $this->tracer->recordResponse($span, $response);
+                        null !== $span && $this->tracer->recordResponse($span, $response);
+                        null !== $measurement && $this->meter?->recordResponse($measurement, $response);
                     }
-                    $span->end();
+                    $span?->end();
 
                     return $response;
                 },
-                function (mixed $reason) use ($span): PromiseInterface {
-                    $this->tracer->recordFailure($span, $reason instanceof \Throwable ? $reason : new \RuntimeException(\is_scalar($reason) ? (string) $reason : 'Request rejected'));
-                    $span->end();
+                function (mixed $reason) use ($span, $measurement): PromiseInterface {
+                    $this->fail($span, $measurement, $reason instanceof \Throwable ? $reason : new \RuntimeException(\is_scalar($reason) ? (string) $reason : 'Request rejected'));
 
                     return Create::rejectionFor($reason);
                 },
@@ -85,6 +93,21 @@ final class TracingMiddleware implements ResetInterface
     public function reset(): void
     {
         $this->tracer->reset();
+        $this->meter?->reset();
+    }
+
+    /**
+     * @param array{start: int|float, attributes: array<non-empty-string, string|int>, requestBodySize: ?int}|null $measurement
+     */
+    private function fail(?SpanInterface $span, ?array $measurement, \Throwable $e): void
+    {
+        if (null !== $span) {
+            $this->tracer->recordFailure($span, $e);
+            $span->end();
+        }
+        if (null !== $measurement) {
+            $this->meter?->recordFailure($measurement, $e);
+        }
     }
 
     /**

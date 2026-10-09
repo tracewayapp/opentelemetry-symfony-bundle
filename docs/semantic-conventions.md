@@ -33,5 +33,5 @@ Custom attributes (`console.command`, `cache.*`, `twig.*`, `scheduler.*`, `messa
 
 - `framework.http_client.scoped_clients` keep their `base_uri` inside Symfony's `ScopingHttpClient`, invisible to the decorators — on the rare pre-transport failure of a relative-URL request, those clients miss `server.address`/`url.full` (successful and transport-failed requests are unaffected via effective-URL enrichment).
 - `db.collection.name` is omitted for JOINs (per spec: single-collection operations only), but legacy comma-joins (`FROM a, b`) can still slip a name through — a full SQL parser is out of scope.
-- Symfony HttpClient retries through `RetryableHttpClient` appear as one CLIENT span without `http.request.resend_count`; the client offers no per-attempt hook. Guzzle gets one span per attempt with the count, because its middleware stack exposes each one.
+- Redirects followed inside Symfony HttpClient's transport (`max_redirects`) stay within one CLIENT span, since the transport never hands them back to a decorator. Retries through `RetryableHttpClient` (`retry_failed`) and Guzzle's redirect and retry middlewares each produce one span per attempt with `http.request.resend_count`.
 - `db.stored_procedure.name` is not extracted from `CALL` statements.

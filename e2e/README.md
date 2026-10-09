@@ -8,6 +8,6 @@ bash e2e/run.sh
 
 Requires Docker (Compose v2) and PHP >= 8.1 with Composer. Runs in CI via `.github/workflows/e2e.yml`.
 
-What it asserts: SERVER span named `GET /hello/{name}` with `http.route`, status code, method, `network.peer.address`, and `service.name`; the manual `TracingInterface` span; the `cache.get` miss span; and that all spans share one trace.
+What it asserts: SERVER span named `GET /hello/{name}` with `http.route`, status code, method, `network.peer.address`, and `service.name`; the manual `TracingInterface` span; the `cache.get` miss span; a Guzzle CLIENT span for a real request answered 404 by the collector; exactly 5 of 22 Doctrine spans under `max_spans_per_trace: 5`, with `traceway.db.spans_dropped = 17` on the server span and no deprecated `db.statement`; and that all spans share one trace.
 
 To extend, add scenario steps in `scenario.php` and matching checks in `assert.php` — the collector's raw output lands in `output/traces.jsonl` for inspection.

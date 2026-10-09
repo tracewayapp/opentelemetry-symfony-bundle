@@ -9,6 +9,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\HttpClientTracingPass;
+use Traceway\OpenTelemetryBundle\HttpClient\ResendCountingHttpClient;
 use Traceway\OpenTelemetryBundle\HttpClient\TraceableHttpClient;
 
 final class HttpClientTracingPassTest extends TestCase
@@ -28,6 +29,13 @@ final class HttpClientTracingPassTest extends TestCase
         $decorator = $container->getDefinition('http_client.otel');
         self::assertSame(TraceableHttpClient::class, $decorator->getClass());
         self::assertSame('test-tracer', $decorator->getArgument('$tracerName'));
+
+        $counter = $container->getDefinition('http_client.otel_resend');
+        self::assertSame(ResendCountingHttpClient::class, $counter->getClass());
+        self::assertSame(['http_client', 'http_client.otel_resend.inner', HttpClientTracingPass::RESEND_COUNTER_PRIORITY], $counter->getDecoratedService());
+        self::assertSame(['http_client', 'http_client.otel.inner', HttpClientTracingPass::TRACER_PRIORITY], $decorator->getDecoratedService());
+        self::assertGreaterThan(25, HttpClientTracingPass::TRACER_PRIORITY, 'inside RetryableHttpClient on Symfony 7 and 8');
+        self::assertLessThan(10, HttpClientTracingPass::RESEND_COUNTER_PRIORITY, 'outside RetryableHttpClient on Symfony 6.4');
     }
 
     public function testDecoratesTaggedScopedClients(): void

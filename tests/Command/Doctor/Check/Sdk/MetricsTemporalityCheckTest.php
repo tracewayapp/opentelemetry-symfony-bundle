@@ -27,16 +27,23 @@ final class MetricsTemporalityCheckTest extends TestCase
         self::assertSame(Status::Warning, $result->status);
         self::assertNotNull($result->remediation);
         self::assertStringContainsString('service_instance', (string) $result->remediation);
-        self::assertStringContainsString('delta', (string) $result->remediation);
+        self::assertStringStartsWith('Every process', (string) $result->remediation);
+        self::assertLessThan(
+            strpos((string) $result->remediation, 'service_instance'),
+            strpos((string) $result->remediation, 'TEMPORALITY_PREFERENCE=delta'),
+            'delta is the lead recommendation, per-worker identity the worker-only alternative',
+        );
     }
 
-    public function testOkWhenCumulativeProducersAreToldApart(): void
+    public function testIdentityUnderCumulativeIsInformationalAndNamesThePhpFpmCaveat(): void
     {
         $result = (new MetricsTemporalityCheck())->run($this->context([
             'OTEL_PHP_DETECTORS' => 'host,process,service_instance',
         ]));
 
-        self::assertSame(Status::Ok, $result->status);
+        self::assertSame(Status::Info, $result->status);
+        self::assertStringContainsString('PHP-FPM', $result->message);
+        self::assertStringContainsString('delta', $result->message);
     }
 
     public function testOkUnderDeltaWithoutAnyIdentity(): void
@@ -77,7 +84,7 @@ final class MetricsTemporalityCheckTest extends TestCase
             'OTEL_RESOURCE_ATTRIBUTES' => 'deployment.environment=prod,service.instance.id=checkout-7f9c',
         ]));
 
-        self::assertSame(Status::Ok, $result->status);
+        self::assertSame(Status::Info, $result->status);
         self::assertSame('OTEL_RESOURCE_ATTRIBUTES', $result->details['source']);
     }
 

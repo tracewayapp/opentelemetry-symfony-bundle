@@ -10,6 +10,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
 use Traceway\OpenTelemetryBundle\HttpClient\Psr\TracedPsr18Client;
 
 /**
@@ -40,10 +41,12 @@ final class Psr18ClientTracingPass implements CompilerPassInterface
             ? $container->getParameter('open_telemetry.http_client_excluded_hosts')
             : [];
 
+        $meter = null;
         foreach ($container->getDefinitions() as $id => $definition) {
             if (!$this->isDecoratable($container, $definition)) {
                 continue;
             }
+            $meter ??= self::meterReference($container);
 
             $decoratorId = $id.'.otel';
             $innerId = $decoratorId.'.inner';
@@ -52,6 +55,7 @@ final class Psr18ClientTracingPass implements CompilerPassInterface
             $decorator->setArgument('$client', new Reference($innerId));
             $decorator->setArgument('$tracerName', $tracerName);
             $decorator->setArgument('$excludedHosts', $excludedHosts);
+            $decorator->setArgument('$meter', $meter);
             $decorator->setDecoratedService($id, $innerId, -16);
             $decorator->addTag('kernel.reset', ['method' => 'reset']);
 
@@ -103,5 +107,22 @@ final class Psr18ClientTracingPass implements CompilerPassInterface
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    private static function meterReference(ContainerBuilder $container): ?Reference
+    {
+        if (true !== ($container->hasParameter('open_telemetry.http_client_metrics_enabled') ? $container->getParameter('open_telemetry.http_client_metrics_enabled') : false)) {
+            return null;
+        }
+
+        if (!$container->hasDefinition(RequestMeter::class)) {
+            $meter = new Definition(RequestMeter::class);
+            $meter->setArgument('$meterName', $container->hasParameter('open_telemetry.metrics_meter_name') ? $container->getParameter('open_telemetry.metrics_meter_name') : 'opentelemetry-symfony');
+            $meter->setArgument('$excludedHosts', $container->hasParameter('open_telemetry.http_client_metrics_excluded_hosts') ? $container->getParameter('open_telemetry.http_client_metrics_excluded_hosts') : []);
+            $meter->addTag('kernel.reset', ['method' => 'reset']);
+            $container->setDefinition(RequestMeter::class, $meter);
+        }
+
+        return new Reference(RequestMeter::class);
     }
 }

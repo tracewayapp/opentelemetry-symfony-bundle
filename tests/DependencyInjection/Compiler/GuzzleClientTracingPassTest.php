@@ -14,6 +14,7 @@ use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\GuzzleClientTracingPass;
 use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\TracingMiddleware;
+use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
 final class GuzzleClientTracingPassTest extends TestCase
@@ -91,6 +92,26 @@ final class GuzzleClientTracingPassTest extends TestCase
         } finally {
             $this->tearDownOTel();
         }
+    }
+
+    public function testMeterIsWiredOnlyWhenHttpClientMetricsAreOn(): void
+    {
+        $container = $this->container(true);
+        (new GuzzleClientTracingPass())->process($container);
+        self::assertNull($container->getDefinition(GuzzleClientTracingPass::MIDDLEWARE_ID)->getArgument('$meter'));
+        self::assertFalse($container->hasDefinition(RequestMeter::class));
+
+        $container = $this->container(true);
+        $container->setParameter('open_telemetry.http_client_metrics_enabled', true);
+        $container->setParameter('open_telemetry.metrics_meter_name', 'meter');
+        $container->setParameter('open_telemetry.http_client_metrics_excluded_hosts', ['metrics.internal']);
+        (new GuzzleClientTracingPass())->process($container);
+
+        self::assertEquals(new Reference(RequestMeter::class), $container->getDefinition(GuzzleClientTracingPass::MIDDLEWARE_ID)->getArgument('$meter'));
+        $meter = $container->getDefinition(RequestMeter::class);
+        self::assertSame('meter', $meter->getArgument('$meterName'));
+        self::assertSame(['metrics.internal'], $meter->getArgument('$excludedHosts'));
+        self::assertTrue($meter->hasTag('kernel.reset'));
     }
 
     public function testSkipsWhenDisabled(): void

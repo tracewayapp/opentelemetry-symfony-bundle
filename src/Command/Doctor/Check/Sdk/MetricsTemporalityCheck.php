@@ -77,9 +77,9 @@ final class MetricsTemporalityCheck implements CheckInterface
         }
 
         if (null !== $identitySource) {
-            return CheckResult::ok(
+            return CheckResult::info(
                 $this->name(),
-                'cumulative temporality with a per-process service.instance.id',
+                'cumulative temporality with service.instance.id from '.$identitySource.': correct for long-lived workers (RoadRunner, FrankenPHP, Swoole, Messenger consumers); under PHP-FPM every request is a process, so a per-process identity creates a new series per request and OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta is the right setting',
                 ['temporality' => $temporality, 'source' => $identitySource],
             );
         }
@@ -88,8 +88,8 @@ final class MetricsTemporalityCheck implements CheckInterface
             $this->name(),
             'cumulative temporality without service.instance.id: producers share one time series',
             'Every process keeps its own cumulative totals, and without service.instance.id they are written to the same series, where they overwrite one another. '
-            .'Under a worker runtime, give each worker an identity: OTEL_PHP_DETECTORS=host,process,service_instance (or set service.instance.id in OTEL_RESOURCE_ATTRIBUTES). '
-            .'Under PHP-FPM that would instead create a series per request, so prefer OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta, where summing across producers is the intended semantics — your backend has to accept delta or convert it.',
+            .'Set OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta: summing across producers is what delta means, it is correct under PHP-FPM and under workers alike, and your backend has to accept delta or convert it. '
+            .'Only for long-lived workers is the alternative to keep cumulative and give each worker an identity (OTEL_PHP_DETECTORS=host,process,service_instance, or service.instance.id in OTEL_RESOURCE_ATTRIBUTES); under PHP-FPM that identity changes on every request and multiplies series.',
             ['temporality' => $temporality, 'detectors' => $detectors],
         );
     }

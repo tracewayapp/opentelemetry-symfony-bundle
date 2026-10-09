@@ -9,8 +9,10 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Client\ClientInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpClient\Psr18Client;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\Psr18ClientTracingPass;
+use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
 use Traceway\OpenTelemetryBundle\HttpClient\Psr\TracedPsr18Client;
 use Traceway\OpenTelemetryBundle\Tests\Fixtures\PlainPsr18Client;
 
@@ -31,6 +33,7 @@ final class Psr18ClientTracingPassTest extends TestCase
         self::assertSame('test-tracer', $decorator->getArgument('$tracerName'));
         self::assertSame(['collector.internal'], $decorator->getArgument('$excludedHosts'));
         self::assertTrue($decorator->hasTag('kernel.reset'));
+        self::assertNull($decorator->getArgument('$meter'));
         self::assertFalse($container->hasDefinition('app.other.otel'));
     }
 
@@ -78,6 +81,18 @@ final class Psr18ClientTracingPassTest extends TestCase
 
         self::assertFalse($container->hasDefinition('app.broken.otel'));
         self::assertTrue($container->hasDefinition('app.psr18.otel'));
+    }
+
+    public function testMeterIsWiredWhenHttpClientMetricsAreOn(): void
+    {
+        $container = $this->container(true);
+        $container->setParameter('open_telemetry.http_client_metrics_enabled', true);
+        $container->setDefinition('app.psr18', new Definition(PlainPsr18Client::class));
+
+        (new Psr18ClientTracingPass())->process($container);
+
+        self::assertEquals(new Reference(RequestMeter::class), $container->getDefinition('app.psr18.otel')->getArgument('$meter'));
+        self::assertTrue($container->hasDefinition(RequestMeter::class));
     }
 
     public function testResolvesParameterizedClassNames(): void

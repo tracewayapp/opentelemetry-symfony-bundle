@@ -4,6 +4,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # A library: add new majors to a range instead of raising its floor, which
+    # would silently drop support for versions users still run.
+    versioning-strategy: widen
     groups:
       dev-tooling:
         patterns:

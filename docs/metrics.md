@@ -44,6 +44,8 @@ Names and attributes follow OTel semantic conventions ([messaging](https://opent
 
 `http_client.excluded_hosts` skips matching hostnames; the OTLP endpoint (from `OTEL_EXPORTER_OTLP_ENDPOINT`) is always auto-excluded to prevent instrumentation loops.
 
+Guzzle clients and decorated PSR-18 clients record the same three instruments with the same attributes, as long as `traces.http_client.guzzle` or `traces.http_client.psr18` installs their instrumentation. Those paths measure per attempt, since Guzzle's redirects and retries pass through the middleware one by one. Symfony HttpClient measures the whole request, retries included, because its metered decorator sits outside `RetryableHttpClient`. A Guzzle client inside a decorated PSR-18 client is measured once.
+
 ## Mailer (outbound transport sends)
 
 | Instrument | Kind | Unit | Stability | Attributes |
@@ -127,13 +129,15 @@ OTEL_PHP_DETECTORS=host,process,service_instance
 
 `env`, `sdk` and `service` are always applied and need not be listed.
 
+This is for workers only. Under PHP-FPM every request is its own process, so a per-process identity gives every request a new series: a backend ends up holding one series per request served. Use delta temporality there instead, which needs no identity at all.
+
 Where the platform already knows the identity, state it instead of deriving one — a pod or task name survives a restart's worth of correlation in a way a fresh UUID does not:
 
 ```dotenv
 OTEL_RESOURCE_ATTRIBUTES=service.instance.id=${POD_NAME}
 ```
 
-`traceway:doctor` accepts either source.
+`traceway:doctor` accepts either source, and reports the identity as informational with this PHP-FPM caveat, since a console command cannot see which runtime serves the application.
 
 ## Manual Metrics
 

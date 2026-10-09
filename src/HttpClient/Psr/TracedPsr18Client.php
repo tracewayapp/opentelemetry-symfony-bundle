@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\HttpClient\Psr;
 
+use OpenTelemetry\Context\Context;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -24,30 +25,44 @@ final class TracedPsr18Client implements ClientInterface, ResetInterface
         string $tracerName = 'opentelemetry-symfony',
         array $excludedHosts = [],
         ?RequestTracer $tracer = null,
+        private readonly ?RequestMeter $meter = null,
     ) {
         $this->tracer = $tracer ?? new RequestTracer($tracerName, $excludedHosts);
     }
 
     public function sendRequest(RequestInterface $request): ResponseInterface
     {
-        if (!$this->tracer->shouldTrace($request)) {
+        $traced = $this->tracer->shouldTrace($request);
+        $metered = null !== $this->meter && $this->meter->shouldMeter($request);
+        if (!$traced && !$metered) {
             return $this->client->sendRequest($request);
         }
 
-        [$span, $request, $context] = $this->tracer->start($request);
+        $span = null;
+        $context = Context::getCurrent();
+        if ($traced) {
+            [$span, $request, $context] = $this->tracer->start($request);
+        }
+        $measurement = null;
+        if ($metered) {
+            $measurement = $this->meter->start($request);
+            $context = $this->meter->markInFlight($context);
+        }
         $scope = $context->activate();
 
         try {
             $response = $this->client->sendRequest($request);
-            $this->tracer->recordResponse($span, $response);
+            null !== $span && $this->tracer->recordResponse($span, $response);
+            null !== $measurement && $this->meter->recordResponse($measurement, $response);
 
             return $response;
         } catch (\Throwable $e) {
-            $this->tracer->recordFailure($span, $e);
+            null !== $span && $this->tracer->recordFailure($span, $e);
+            null !== $measurement && $this->meter->recordFailure($measurement, $e);
 
             throw $e;
         } finally {
-            $span->end();
+            $span?->end();
             $scope->detach();
         }
     }
@@ -60,6 +75,7 @@ final class TracedPsr18Client implements ClientInterface, ResetInterface
     public function reset(): void
     {
         $this->tracer->reset();
+        $this->meter?->reset();
 
         if ($this->client instanceof ResetInterface) {
             $this->client->reset();

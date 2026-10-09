@@ -66,6 +66,11 @@ function isServerKind(int|string $kind): bool
     return 2 === $kind || 'SPAN_KIND_SERVER' === $kind;
 }
 
+function isClientKind(int|string $kind): bool
+{
+    return 3 === $kind || 'SPAN_KIND_CLIENT' === $kind;
+}
+
 $failures = [];
 $check = static function (bool $ok, string $message) use (&$failures): void {
     if ($ok) {
@@ -99,8 +104,32 @@ if (null !== $cacheSpan) {
     $check(false === ($cacheSpan['attributes']['cache.hit'] ?? null), 'cache.get records the miss');
 }
 
+$guzzle = null;
+foreach ($spans as $span) {
+    if (isClientKind($span['kind']) && 'http://localhost:4318/e2e-guzzle-probe' === ($span['attributes']['url.full'] ?? null)) {
+        $guzzle = $span;
+    }
+}
+$check(null !== $guzzle, 'Guzzle CLIENT span for the probe request arrived');
+if (null !== $guzzle) {
+    $check('GET' === ($guzzle['attributes']['http.request.method'] ?? null), 'Guzzle span http.request.method is GET');
+    $check('localhost' === ($guzzle['attributes']['server.address'] ?? null) && 4318 === ($guzzle['attributes']['server.port'] ?? null), 'Guzzle span server.address and server.port');
+    $check(404 === ($guzzle['attributes']['http.response.status_code'] ?? null), 'Guzzle span records the real 404');
+}
+
+$dbSpans = array_values(array_filter($spans, static fn (array $span): bool => isClientKind($span['kind']) && isset($span['attributes']['db.system.name'])));
+$check(5 === count($dbSpans), sprintf('max_spans_per_trace keeps 5 of 22 DB spans (got %d)', count($dbSpans)));
+if (null !== $server) {
+    $check(17 === ($server['attributes']['traceway.db.spans_dropped'] ?? null), 'server span reports traceway.db.spans_dropped = 17');
+}
+$check([] === array_filter($dbSpans, static fn (array $span): bool => isset($span['attributes']['db.statement'])), 'DB spans carry no deprecated db.statement');
+
 if (null !== $server && null !== $work && null !== $cacheSpan) {
-    $check($server['traceId'] === $work['traceId'] && $server['traceId'] === $cacheSpan['traceId'], 'all spans share one trace');
+    $sameTrace = $server['traceId'] === $work['traceId'] && $server['traceId'] === $cacheSpan['traceId'];
+    foreach ([$guzzle, ...$dbSpans] as $span) {
+        $sameTrace = $sameTrace && null !== $span && $server['traceId'] === $span['traceId'];
+    }
+    $check($sameTrace, 'all spans share one trace');
 }
 
 if ([] !== $failures) {

@@ -8,6 +8,7 @@ use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
+use Traceway\OpenTelemetryBundle\HttpClient\ResendCountingHttpClient;
 use Traceway\OpenTelemetryBundle\HttpClient\TraceableHttpClient;
 
 /**
@@ -15,11 +16,17 @@ use Traceway\OpenTelemetryBundle\HttpClient\TraceableHttpClient;
  * scoped HTTP clients) and the default 'http_client' service with our
  * {@see TraceableHttpClient} wrapper.
  *
- * The decoration priority is set low (-16) so it wraps after Symfony's own
- * TraceableHttpClient (used by the profiler) but still captures the span.
+ * A higher decoration priority sits closer to the transport. The tracer goes
+ * at 64, inside Symfony's RetryableHttpClient (25; 10 on 6.4), ScopingHttpClient
+ * and UriTemplateHttpClient, so each retried attempt is its own span and url.full
+ * is the URL actually sent. A {@see ResendCountingHttpClient} goes at -16, outside
+ * the retry wrapper, so the attempts share one counter for http.request.resend_count.
  */
 final class HttpClientTracingPass implements CompilerPassInterface
 {
+    public const TRACER_PRIORITY = 64;
+    public const RESEND_COUNTER_PRIORITY = -16;
+
     public function process(ContainerBuilder $container): void
     {
         if (!$container->hasParameter('open_telemetry.http_client_enabled')) {
@@ -48,10 +55,15 @@ final class HttpClientTracingPass implements CompilerPassInterface
             $decorator->setArgument('$client', new Reference($innerId));
             $decorator->setArgument('$tracerName', $tracerName);
             $decorator->setArgument('$excludedHosts', $excludedHosts);
-            $decorator->setDecoratedService($clientId, $innerId, -16);
+            $decorator->setDecoratedService($clientId, $innerId, self::TRACER_PRIORITY);
             $decorator->addTag('kernel.reset', ['method' => 'reset']);
 
             $container->setDefinition($decoratorId, $decorator);
+
+            $counter = new Definition(ResendCountingHttpClient::class);
+            $counter->setArgument('$client', new Reference($clientId.'.otel_resend.inner'));
+            $counter->setDecoratedService($clientId, $clientId.'.otel_resend.inner', self::RESEND_COUNTER_PRIORITY);
+            $container->setDefinition($clientId.'.otel_resend', $counter);
         }
     }
 

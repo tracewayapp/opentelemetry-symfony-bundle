@@ -9,7 +9,9 @@ use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
+use Symfony\Component\HttpClient\Retry\GenericRetryStrategy;
 use Symfony\Component\HttpClient\RetryableHttpClient;
+use Traceway\OpenTelemetryBundle\HttpClient\ResendCountingHttpClient;
 use Traceway\OpenTelemetryBundle\HttpClient\TraceableHttpClient;
 use Traceway\OpenTelemetryBundle\HttpClient\TracedResponse;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
@@ -425,6 +427,38 @@ final class TraceableHttpClientTest extends TestCase
         foreach ($stream as $r => $chunk) {
             self::assertInstanceOf(TracedResponse::class, $r);
             self::assertSame($response, $r);
+        }
+    }
+
+    public function testRetriedRequestGetsOneSpanPerAttemptWithResendCount(): void
+    {
+        $attempt = 0;
+        $mock = new MockHttpClient(static function () use (&$attempt): MockResponse {
+            return new MockResponse('', ['http_code' => ++$attempt < 3 ? 503 : 200]);
+        });
+        $client = new ResendCountingHttpClient(
+            new RetryableHttpClient(new TraceableHttpClient($mock), new GenericRetryStrategy([503], 0), 3),
+        );
+
+        $client->request('GET', 'https://api.example.com/flaky')->getContent(false);
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(3, $spans);
+        self::assertArrayNotHasKey('http.request.resend_count', $spans[0]->getAttributes()->toArray());
+        self::assertSame(1, $spans[1]->getAttributes()->get('http.request.resend_count'));
+        self::assertSame(2, $spans[2]->getAttributes()->get('http.request.resend_count'));
+        self::assertSame(200, $spans[2]->getAttributes()->get('http.response.status_code'));
+    }
+
+    public function testSeparateRequestsEachStartAtZero(): void
+    {
+        $client = new ResendCountingHttpClient(new TraceableHttpClient(new MockHttpClient([new MockResponse('a'), new MockResponse('b')])));
+
+        $client->request('GET', 'https://api.example.com/a')->getContent();
+        $client->request('GET', 'https://api.example.com/b')->getContent();
+
+        foreach ($this->exporter->getSpans() as $span) {
+            self::assertArrayNotHasKey('http.request.resend_count', $span->getAttributes()->toArray());
         }
     }
 

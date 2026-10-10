@@ -6,6 +6,7 @@ namespace Traceway\OpenTelemetryBundle\HttpClient\Guzzle;
 
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\TransferStats;
 use OpenTelemetry\API\Trace\SpanInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -62,6 +63,10 @@ final class OpenTelemetryMiddleware implements ResetInterface
             }
             $measurement = $metered ? $this->meter->start($request) : null;
 
+            if (null !== $span) {
+                $options['on_stats'] = $this->recordPeerOnStats($span, $options['on_stats'] ?? null);
+            }
+
             try {
                 $promise = $handler($request, $options);
             } catch (\Throwable $e) {
@@ -109,6 +114,25 @@ final class OpenTelemetryMiddleware implements ResetInterface
         if (null !== $measurement) {
             $this->meter?->recordFailure($measurement, $e);
         }
+    }
+
+    /**
+     * The curl handler reports the connected peer through on_stats before it
+     * settles the promise, on failures too. The application's own on_stats
+     * callback, if any, still runs, unchanged.
+     */
+    private function recordPeerOnStats(SpanInterface $span, mixed $applicationCallback): \Closure
+    {
+        return function (TransferStats $stats) use ($span, $applicationCallback): void {
+            try {
+                $this->tracer->recordPeer($span, $stats->getHandlerStat('primary_ip'), $stats->getHandlerStat('primary_port'));
+            } catch (\Throwable) {
+            }
+
+            if (\is_callable($applicationCallback)) {
+                $applicationCallback($stats);
+            }
+        };
     }
 
     /**

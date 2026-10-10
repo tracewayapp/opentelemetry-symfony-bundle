@@ -140,6 +140,19 @@ final class RequestTracer
         }
     }
 
+    /** Sets network.peer.* from what the transport reports, when it reports anything. */
+    public function recordPeer(SpanInterface $span, mixed $address, mixed $port): void
+    {
+        if (!\is_string($address) || '' === $address) {
+            return;
+        }
+
+        $span->setAttribute(NetworkAttributes::NETWORK_PEER_ADDRESS, $address);
+        if (\is_int($port) && $port > 0) {
+            $span->setAttribute(NetworkAttributes::NETWORK_PEER_PORT, $port);
+        }
+    }
+
     public function recordFailure(SpanInterface $span, \Throwable $e): void
     {
         if (method_exists($e, 'getResponse')) {

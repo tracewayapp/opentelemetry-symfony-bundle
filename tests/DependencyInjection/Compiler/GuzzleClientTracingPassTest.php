@@ -113,7 +113,7 @@ final class GuzzleClientTracingPassTest extends TestCase
         $container = $this->container(true);
         (new GuzzleClientTracingPass())->process($container);
         self::assertNull($container->getDefinition(GuzzleClientTracingPass::MIDDLEWARE_ID)->getArgument('$meter'));
-        self::assertFalse($container->hasDefinition(RequestMeter::class));
+        self::assertFalse($container->has(RequestMeter::class));
 
         $container = $this->container(true);
         $container->setParameter('open_telemetry.http_client_metrics_enabled', true);
@@ -121,8 +121,8 @@ final class GuzzleClientTracingPassTest extends TestCase
         $container->setParameter('open_telemetry.http_client_metrics_excluded_hosts', ['metrics.internal']);
         (new GuzzleClientTracingPass())->process($container);
 
-        self::assertEquals(new Reference(RequestMeter::class), $container->getDefinition(GuzzleClientTracingPass::MIDDLEWARE_ID)->getArgument('$meter'));
-        $meter = $container->getDefinition(RequestMeter::class);
+        self::assertEquals(new Reference(GuzzleClientTracingPass::REQUEST_METER_ID), $container->getDefinition(GuzzleClientTracingPass::MIDDLEWARE_ID)->getArgument('$meter'));
+        $meter = $container->findDefinition(RequestMeter::class);
         self::assertSame('meter', $meter->getArgument('$meterName'));
         self::assertSame(['metrics.internal'], $meter->getArgument('$excludedHosts'));
         self::assertTrue($meter->hasTag('kernel.reset'));

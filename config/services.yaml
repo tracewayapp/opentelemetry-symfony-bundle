@@ -1,123 +1,201 @@
+# Every service is defined explicitly under the bundle alias, per Symfony's
+# reusable-bundle guide: no autowiring, no autoconfiguration. The class-name ids
+# from before 4.1 remain as private aliases, so autowiring and existing
+# references keep resolving.
 services:
-    _instanceof:
-        Traceway\OpenTelemetryBundle\Command\Doctor\Check\CheckInterface:
-            tags: ['traceway.doctor.check']
+    open_telemetry.tracing:
+        class: Traceway\OpenTelemetryBundle\Tracing
+        tags:
+            - { name: kernel.reset, method: reset }
+    Traceway\OpenTelemetryBundle\Tracing: '@open_telemetry.tracing'
+    Traceway\OpenTelemetryBundle\TracingInterface: '@open_telemetry.tracing'
 
-    Traceway\OpenTelemetryBundle\Tracing:
-        autoconfigure: true
-
-    Traceway\OpenTelemetryBundle\TracingInterface:
-        alias: Traceway\OpenTelemetryBundle\Tracing
-
-    Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver:
-        autoconfigure: true
+    open_telemetry.routing.route_template_resolver:
+        class: Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver
         arguments:
             $router: '@?router'
             $cacheDir: '%kernel.cache_dir%'
             $buildDir: '%kernel.build_dir%'
             $debug: '%kernel.debug%'
+        tags:
+            - { name: kernel.reset, method: reset }
+    Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver: '@open_telemetry.routing.route_template_resolver'
 
-    Traceway\OpenTelemetryBundle\Routing\RouteTemplateCacheWarmer:
-        autoconfigure: true
+    open_telemetry.routing.route_template_cache_warmer:
+        class: Traceway\OpenTelemetryBundle\Routing\RouteTemplateCacheWarmer
         arguments:
             $router: '@?router'
             $debug: '%kernel.debug%'
+        tags:
+            - { name: kernel.cache_warmer }
+    Traceway\OpenTelemetryBundle\Routing\RouteTemplateCacheWarmer: '@open_telemetry.routing.route_template_cache_warmer'
 
-    Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber:
-        autoconfigure: true
+    open_telemetry.http_server.subscriber:
+        class: Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber
         arguments:
-            $routeTemplateResolver: '@Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver'
+            $routeTemplateResolver: '@open_telemetry.routing.route_template_resolver'
+        tags:
+            - { name: kernel.event_subscriber }
+            - { name: kernel.reset, method: reset }
+    Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber: '@open_telemetry.http_server.subscriber'
 
-    Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber:
-        autoconfigure: true
+    open_telemetry.console.subscriber:
+        class: Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber
+        tags:
+            - { name: kernel.event_subscriber }
+            - { name: kernel.reset, method: reset }
+    Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber: '@open_telemetry.console.subscriber'
 
-    Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware:
-        autoconfigure: true
+    open_telemetry.messenger.middleware:
+        class: Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware
+        tags:
+            - { name: kernel.reset, method: reset }
+    Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware: '@open_telemetry.messenger.middleware'
 
-    Traceway\OpenTelemetryBundle\Metrics\MeterRegistry:
-        autoconfigure: true
+    open_telemetry.metrics.registry:
+        class: Traceway\OpenTelemetryBundle\Metrics\MeterRegistry
+        tags:
+            - { name: kernel.reset, method: reset }
+    Traceway\OpenTelemetryBundle\Metrics\MeterRegistry: '@open_telemetry.metrics.registry'
+    Traceway\OpenTelemetryBundle\Metrics\MeterRegistryInterface: '@open_telemetry.metrics.registry'
 
-    Traceway\OpenTelemetryBundle\Metrics\MeterRegistryInterface:
-        alias: Traceway\OpenTelemetryBundle\Metrics\MeterRegistry
+    open_telemetry.metrics.flusher:
+        class: Traceway\OpenTelemetryBundle\Metrics\MetricFlusher
+    Traceway\OpenTelemetryBundle\Metrics\MetricFlusher: '@open_telemetry.metrics.flusher'
+    Traceway\OpenTelemetryBundle\Metrics\MetricFlusherInterface: '@open_telemetry.metrics.flusher'
 
-    Traceway\OpenTelemetryBundle\Metrics\MetricFlusher:
-        autoconfigure: true
-
-    Traceway\OpenTelemetryBundle\Metrics\MetricFlusherInterface:
-        alias: Traceway\OpenTelemetryBundle\Metrics\MetricFlusher
-
-    Traceway\OpenTelemetryBundle\EventSubscriber\OtelMetricsFlushSubscriber:
-        autoconfigure: true
+    open_telemetry.metrics.flush_subscriber:
+        class: Traceway\OpenTelemetryBundle\EventSubscriber\OtelMetricsFlushSubscriber
         arguments:
-            $flusher: '@Traceway\OpenTelemetryBundle\Metrics\MetricFlusherInterface'
+            $flusher: '@open_telemetry.metrics.flusher'
+        tags:
+            - { name: kernel.event_subscriber }
+    Traceway\OpenTelemetryBundle\EventSubscriber\OtelMetricsFlushSubscriber: '@open_telemetry.metrics.flush_subscriber'
 
-    Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMetricsMiddleware:
-        autoconfigure: true
+    open_telemetry.messenger.metrics_middleware:
+        class: Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMetricsMiddleware
+        tags:
+            - { name: kernel.reset, method: reset }
+    Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMetricsMiddleware: '@open_telemetry.messenger.metrics_middleware'
 
-    Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetryMetricsSubscriber:
-        autoconfigure: true
+    open_telemetry.http_server.metrics_subscriber:
+        class: Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetryMetricsSubscriber
         arguments:
-            $routeTemplateResolver: '@Traceway\OpenTelemetryBundle\Routing\RouteTemplateResolver'
+            $routeTemplateResolver: '@open_telemetry.routing.route_template_resolver'
+        tags:
+            - { name: kernel.event_subscriber }
+            - { name: kernel.reset, method: reset }
+    Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetryMetricsSubscriber: '@open_telemetry.http_server.metrics_subscriber'
 
-    # traceway:doctor command and supporting services
-    Traceway\OpenTelemetryBundle\Command\DoctorCommand:
-        autoconfigure: true
+    # traceway:doctor
+    open_telemetry.doctor.command:
+        class: Traceway\OpenTelemetryBundle\Command\DoctorCommand
         arguments:
-            $runner: '@Traceway\OpenTelemetryBundle\Command\Doctor\Support\CheckRunner'
+            $runner: '@open_telemetry.doctor.check_runner'
+        tags:
+            - { name: console.command, command: 'traceway:doctor|debug:traceway', description: 'Diagnose Traceway OpenTelemetry configuration and wiring' }
+    Traceway\OpenTelemetryBundle\Command\DoctorCommand: '@open_telemetry.doctor.command'
 
-    Traceway\OpenTelemetryBundle\Command\Doctor\Support\CheckRunner:
+    open_telemetry.doctor.check_runner:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Support\CheckRunner
         arguments:
             $checks: !tagged_iterator traceway.doctor.check
-            $globals: '@Traceway\OpenTelemetryBundle\Command\Doctor\Support\GlobalsAccessorInterface'
-            $env: '@Traceway\OpenTelemetryBundle\Command\Doctor\Support\EnvReaderInterface'
+            $globals: '@open_telemetry.doctor.globals_accessor'
+            $env: '@open_telemetry.doctor.env_reader'
             $params: '@parameter_bag'
+    Traceway\OpenTelemetryBundle\Command\Doctor\Support\CheckRunner: '@open_telemetry.doctor.check_runner'
 
-    Traceway\OpenTelemetryBundle\Command\Doctor\Support\GlobalsAccessor: ~
-    Traceway\OpenTelemetryBundle\Command\Doctor\Support\GlobalsAccessorInterface:
-        alias: Traceway\OpenTelemetryBundle\Command\Doctor\Support\GlobalsAccessor
+    open_telemetry.doctor.globals_accessor:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Support\GlobalsAccessor
+    Traceway\OpenTelemetryBundle\Command\Doctor\Support\GlobalsAccessor: '@open_telemetry.doctor.globals_accessor'
+    Traceway\OpenTelemetryBundle\Command\Doctor\Support\GlobalsAccessorInterface: '@open_telemetry.doctor.globals_accessor'
 
-    Traceway\OpenTelemetryBundle\Command\Doctor\Support\EnvReader: ~
-    Traceway\OpenTelemetryBundle\Command\Doctor\Support\EnvReaderInterface:
-        alias: Traceway\OpenTelemetryBundle\Command\Doctor\Support\EnvReader
+    open_telemetry.doctor.env_reader:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Support\EnvReader
+    Traceway\OpenTelemetryBundle\Command\Doctor\Support\EnvReader: '@open_telemetry.doctor.env_reader'
+    Traceway\OpenTelemetryBundle\Command\Doctor\Support\EnvReaderInterface: '@open_telemetry.doctor.env_reader'
 
-    # Runtime checks
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\ProtobufExtensionCheck:
-        autoconfigure: true
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\OpenTelemetryExtensionCheck:
-        autoconfigure: true
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\GrpcTransportCheck:
-        autoconfigure: true
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\DebugScopesCheck:
-        autoconfigure: true
+    open_telemetry.doctor.check.runtime.protobuf_extension:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\ProtobufExtensionCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\ProtobufExtensionCheck: '@open_telemetry.doctor.check.runtime.protobuf_extension'
 
-    # SDK configuration checks
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\ServiceNameCheck:
-        autoconfigure: true
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\ContribInstrumentationOverlapCheck:
-        autoconfigure: true
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracesExporterCheck:
-        autoconfigure: true
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\OtlpEndpointConfiguredCheck:
-        autoconfigure: true
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\OtlpProtocolCheck:
-        autoconfigure: true
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracesSamplerCheck:
-        autoconfigure: true
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracerProviderCheck:
-        autoconfigure: true
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\MetricsTemporalityCheck:
-        autoconfigure: true
+    open_telemetry.doctor.check.runtime.opentelemetry_extension:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\OpenTelemetryExtensionCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\OpenTelemetryExtensionCheck: '@open_telemetry.doctor.check.runtime.opentelemetry_extension'
 
-    # Bundle configuration checks
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\XRayDependencyCheck:
-        autoconfigure: true
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\HttpClientInstrumentationCheck:
-        autoconfigure: true
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\MessengerMiddlewareCheck:
-        autoconfigure: true
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\OtelLogHandlerCheck:
-        autoconfigure: true
+    open_telemetry.doctor.check.runtime.grpc_transport:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\GrpcTransportCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\GrpcTransportCheck: '@open_telemetry.doctor.check.runtime.grpc_transport'
 
-    # Connectivity checks
-    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Connectivity\OtlpEndpointReachabilityCheck:
-        autoconfigure: true
+    open_telemetry.doctor.check.runtime.debug_scopes:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\DebugScopesCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\DebugScopesCheck: '@open_telemetry.doctor.check.runtime.debug_scopes'
+
+    open_telemetry.doctor.check.runtime.contrib_instrumentation_overlap:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\ContribInstrumentationOverlapCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Runtime\ContribInstrumentationOverlapCheck: '@open_telemetry.doctor.check.runtime.contrib_instrumentation_overlap'
+
+    open_telemetry.doctor.check.sdk.service_name:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\ServiceNameCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\ServiceNameCheck: '@open_telemetry.doctor.check.sdk.service_name'
+
+    open_telemetry.doctor.check.sdk.traces_exporter:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracesExporterCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracesExporterCheck: '@open_telemetry.doctor.check.sdk.traces_exporter'
+
+    open_telemetry.doctor.check.sdk.otlp_endpoint_configured:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\OtlpEndpointConfiguredCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\OtlpEndpointConfiguredCheck: '@open_telemetry.doctor.check.sdk.otlp_endpoint_configured'
+
+    open_telemetry.doctor.check.sdk.otlp_protocol:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\OtlpProtocolCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\OtlpProtocolCheck: '@open_telemetry.doctor.check.sdk.otlp_protocol'
+
+    open_telemetry.doctor.check.sdk.traces_sampler:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracesSamplerCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracesSamplerCheck: '@open_telemetry.doctor.check.sdk.traces_sampler'
+
+    open_telemetry.doctor.check.sdk.tracer_provider:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracerProviderCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\TracerProviderCheck: '@open_telemetry.doctor.check.sdk.tracer_provider'
+
+    open_telemetry.doctor.check.sdk.metrics_temporality:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\MetricsTemporalityCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Sdk\MetricsTemporalityCheck: '@open_telemetry.doctor.check.sdk.metrics_temporality'
+
+    open_telemetry.doctor.check.bundle.xray_dependency:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\XRayDependencyCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\XRayDependencyCheck: '@open_telemetry.doctor.check.bundle.xray_dependency'
+
+    open_telemetry.doctor.check.bundle.http_client_instrumentation:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\HttpClientInstrumentationCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\HttpClientInstrumentationCheck: '@open_telemetry.doctor.check.bundle.http_client_instrumentation'
+
+    open_telemetry.doctor.check.bundle.messenger_middleware:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\MessengerMiddlewareCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\MessengerMiddlewareCheck: '@open_telemetry.doctor.check.bundle.messenger_middleware'
+
+    open_telemetry.doctor.check.bundle.otel_log_handler:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\OtelLogHandlerCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\OtelLogHandlerCheck: '@open_telemetry.doctor.check.bundle.otel_log_handler'
+
+    open_telemetry.doctor.check.connectivity.otlp_endpoint_reachability:
+        class: Traceway\OpenTelemetryBundle\Command\Doctor\Check\Connectivity\OtlpEndpointReachabilityCheck
+        tags: [traceway.doctor.check]
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Connectivity\OtlpEndpointReachabilityCheck: '@open_telemetry.doctor.check.connectivity.otlp_endpoint_reachability'

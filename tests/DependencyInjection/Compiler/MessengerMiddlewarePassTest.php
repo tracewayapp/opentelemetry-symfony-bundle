@@ -13,11 +13,39 @@ use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
 
 final class MessengerMiddlewarePassTest extends TestCase
 {
+    private const TRACING_ID = 'open_telemetry.messenger.middleware';
+    private const METRICS_ID = 'open_telemetry.messenger.metrics_middleware';
+
+    public function testDoesNotDuplicateMiddlewareListedUnderTheNewIds(): void
+    {
+        $container = $this->containerWithDefaultBus('default');
+        $this->registerMiddleware($container);
+        $container->setParameter('default.middleware', [
+            ['id' => self::TRACING_ID],
+            ['id' => 'messenger.middleware.'.self::METRICS_ID],
+            ['id' => 'send_message'],
+        ]);
+
+        (new MessengerMiddlewarePass())->process($container);
+
+        self::assertSame([self::TRACING_ID, 'messenger.middleware.'.self::METRICS_ID, 'send_message'], $this->middlewareIds($container, 'default.middleware'));
+    }
+
+    /** As the bundle registers them: bundle-alias ids, with the pre-4.1 class-name ids as aliases. */
+    private function registerMiddleware(ContainerBuilder $container, bool $metrics = true): void
+    {
+        $container->setDefinition(self::TRACING_ID, new Definition(OpenTelemetryMiddleware::class));
+        $container->setAlias(OpenTelemetryMiddleware::class, self::TRACING_ID);
+        if ($metrics) {
+            $container->setDefinition(self::METRICS_ID, new Definition(OpenTelemetryMetricsMiddleware::class));
+            $container->setAlias(OpenTelemetryMetricsMiddleware::class, self::METRICS_ID);
+        }
+    }
+
     public function testInsertsAvailableMiddlewareOnConfiguredDefaultBus(): void
     {
         $container = $this->containerWithDefaultBus('command.bus');
-        $container->setDefinition(OpenTelemetryMiddleware::class, new Definition(OpenTelemetryMiddleware::class));
-        $container->setDefinition(OpenTelemetryMetricsMiddleware::class, new Definition(OpenTelemetryMetricsMiddleware::class));
+        $this->registerMiddleware($container);
         $container->setParameter('command.bus.middleware', [
             ['id' => 'add_default_stamps_middleware'],
             ['id' => 'application_middleware'],
@@ -36,8 +64,8 @@ final class MessengerMiddlewarePassTest extends TestCase
             [
                 'add_default_stamps_middleware',
                 'application_middleware',
-                OpenTelemetryMiddleware::class,
-                OpenTelemetryMetricsMiddleware::class,
+                self::TRACING_ID,
+                self::METRICS_ID,
                 'send_message',
                 'handle_message',
             ],
@@ -52,8 +80,7 @@ final class MessengerMiddlewarePassTest extends TestCase
     public function testDoesNotDuplicateManuallyConfiguredMiddleware(): void
     {
         $container = $this->containerWithDefaultBus('default');
-        $container->setDefinition(OpenTelemetryMiddleware::class, new Definition(OpenTelemetryMiddleware::class));
-        $container->setDefinition(OpenTelemetryMetricsMiddleware::class, new Definition(OpenTelemetryMetricsMiddleware::class));
+        $this->registerMiddleware($container);
         $container->setParameter('default.middleware', [
             ['id' => OpenTelemetryMiddleware::class],
             ['id' => 'messenger.middleware.'.OpenTelemetryMetricsMiddleware::class],
@@ -78,7 +105,7 @@ final class MessengerMiddlewarePassTest extends TestCase
     public function testAppendsMiddlewareWhenDefaultMiddlewareIsDisabled(): void
     {
         $container = $this->containerWithDefaultBus('default');
-        $container->setDefinition(OpenTelemetryMiddleware::class, new Definition(OpenTelemetryMiddleware::class));
+        $this->registerMiddleware($container, metrics: false);
         $container->setParameter('default.middleware', [
             ['id' => 'application_middleware'],
         ]);
@@ -87,7 +114,7 @@ final class MessengerMiddlewarePassTest extends TestCase
         $pass->process($container);
 
         self::assertSame(
-            ['application_middleware', OpenTelemetryMiddleware::class],
+            ['application_middleware', self::TRACING_ID],
             $this->middlewareIds($container, 'default.middleware'),
         );
     }

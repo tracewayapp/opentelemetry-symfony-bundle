@@ -116,4 +116,62 @@ final class OtlpEndpointReachabilityCheckTest extends TestCase
 
         self::assertSame('https://traces.example.com:4318/', $capturedUrl);
     }
+
+    public function testGrpcEndpointIsProbedOverTcpAndReportedReachable(): void
+    {
+        $server = stream_socket_server('tcp://127.0.0.1:0', $errno, $error);
+        self::assertNotFalse($server, $error);
+        $port = (int) substr((string) strrchr((string) stream_socket_get_name($server, false), ':'), 1);
+
+        try {
+            $result = (new OtlpEndpointReachabilityCheck())->run(CheckTestHelper::context([
+                'OTEL_EXPORTER_OTLP_ENDPOINT' => '127.0.0.1:'.$port,
+                'OTEL_EXPORTER_OTLP_PROTOCOL' => 'grpc',
+            ]));
+        } finally {
+            fclose($server);
+        }
+
+        self::assertSame(Status::Ok, $result->status);
+        self::assertStringContainsString('gRPC endpoint reachable (TCP 127.0.0.1:'.$port, $result->message);
+        self::assertSame($port, $result->details['port']);
+    }
+
+    public function testGrpcEndpointThatRefusesTheConnectionIsAnError(): void
+    {
+        $server = stream_socket_server('tcp://127.0.0.1:0', $errno, $error);
+        self::assertNotFalse($server, $error);
+        $port = (int) substr((string) strrchr((string) stream_socket_get_name($server, false), ':'), 1);
+        fclose($server);
+
+        $result = (new OtlpEndpointReachabilityCheck())->run(CheckTestHelper::context(
+            ['OTEL_EXPORTER_OTLP_ENDPOINT' => 'http://127.0.0.1:'.$port, 'OTEL_EXPORTER_OTLP_PROTOCOL' => 'grpc'],
+            networkTimeoutSeconds: 0.5,
+        ));
+
+        self::assertSame(Status::Error, $result->status);
+        self::assertStringContainsString('OTLP gRPC endpoint unreachable', $result->message);
+        self::assertNotNull($result->remediation);
+    }
+
+    public function testGrpcEndpointWithoutAPortDefaultsTo4317(): void
+    {
+        $result = (new OtlpEndpointReachabilityCheck())->run(CheckTestHelper::context(
+            ['OTEL_EXPORTER_OTLP_ENDPOINT' => 'http://127.0.0.1', 'OTEL_EXPORTER_OTLP_PROTOCOL' => 'grpc'],
+            networkTimeoutSeconds: 0.5,
+        ));
+
+        self::assertSame(4317, $result->details['port']);
+    }
+
+    public function testUnparsableGrpcEndpointIsAnError(): void
+    {
+        $result = (new OtlpEndpointReachabilityCheck())->run(CheckTestHelper::context([
+            'OTEL_EXPORTER_OTLP_ENDPOINT' => 'http:///nohost',
+            'OTEL_EXPORTER_OTLP_PROTOCOL' => 'grpc',
+        ]));
+
+        self::assertSame(Status::Error, $result->status);
+        self::assertStringContainsString('Cannot parse gRPC endpoint', $result->message);
+    }
 }

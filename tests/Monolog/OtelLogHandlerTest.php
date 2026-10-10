@@ -10,6 +10,7 @@ use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Logs\Severity;
 use OpenTelemetry\API\Trace\SpanContext;
 use OpenTelemetry\SDK\Logs\ReadableLogRecord;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Traceway\OpenTelemetryBundle\Monolog\OtelLogHandler;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
@@ -53,6 +54,33 @@ final class OtelLogHandlerTest extends TestCase
         self::assertSame('Something went wrong', $log->getBody());
         self::assertSame(Severity::WARN->value, $log->getSeverityNumber());
         self::assertSame('WARNING', $log->getSeverityText());
+    }
+
+    /**
+     * @return iterable<string, array{Level, Severity, string}>
+     */
+    public static function monologLevels(): iterable
+    {
+        yield 'debug' => [Level::Debug, Severity::DEBUG, 'DEBUG'];
+        yield 'info' => [Level::Info, Severity::INFO, 'INFO'];
+        yield 'notice' => [Level::Notice, Severity::INFO2, 'NOTICE'];
+        yield 'warning' => [Level::Warning, Severity::WARN, 'WARNING'];
+        yield 'error' => [Level::Error, Severity::ERROR, 'ERROR'];
+        yield 'critical' => [Level::Critical, Severity::ERROR2, 'CRITICAL'];
+        yield 'alert' => [Level::Alert, Severity::ERROR3, 'ALERT'];
+        yield 'emergency' => [Level::Emergency, Severity::FATAL, 'EMERGENCY'];
+    }
+
+    #[DataProvider('monologLevels')]
+    public function testEveryMonologLevelMapsToItsLogsDataModelSeverity(Level $level, Severity $severity, string $text): void
+    {
+        (new OtelLogHandler())->handle(new LogRecord(datetime: new \DateTimeImmutable(), channel: 'app', level: $level, message: 'm'));
+
+        /** @var ReadableLogRecord $log */
+        $log = $this->logExporter->getStorage()[0];
+        self::assertSame($severity->value, $log->getSeverityNumber());
+        self::assertSame($text, $log->getSeverityText(), 'SeverityText is the original level name from the source');
+        self::assertNotNull($log->getObservedTimestamp(), 'ObservedTimestamp is set when OpenTelemetry observes the record');
     }
 
     public function testExportsLogWithTimestamp(): void

@@ -31,5 +31,16 @@
         <include>
             <directory>src</directory>
         </include>
+        <!--
+            DBAL 3 compatibility classes cannot be loaded next to DBAL 4 (incompatible
+            signatures), so the DBAL 4 coverage job can never execute them. Their tests
+            run in the DBAL 3 CI cell; phpstan.neon.dist excludes the same files.
+        -->
+        <exclude>
+            <file>src/Doctrine/Middleware/TraceableConnectionDbal3.php</file>
+            <file>src/Doctrine/Middleware/TraceableStatementDbal3.php</file>
+            <file>src/Doctrine/Middleware/MeteredConnectionDbal3.php</file>
+            <file>src/Doctrine/Middleware/MeteredStatementDbal3.php</file>
+        </exclude>
     </source>
 </phpunit>

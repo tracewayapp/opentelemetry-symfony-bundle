@@ -6,6 +6,7 @@ namespace Traceway\OpenTelemetryBundle\Tests\HttpClient\Psr;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Request;
@@ -101,6 +102,37 @@ final class RequestMeterTest extends TestCase
         $attrs = [...$this->collectMetrics()['http.client.request.duration']->data->dataPoints][0]->attributes->toArray();
         self::assertSame(ConnectException::class, $attrs['error.type']);
         self::assertArrayNotHasKey('http.response.status_code', $attrs);
+    }
+
+    public function testExceptionCarryingAResponseRecordsItsStatus(): void
+    {
+        $request = new Request('GET', 'https://api.example.com/');
+        $failure = RequestException::create($request, new Response(503));
+        $this->mock->append($failure);
+        $stack = HandlerStack::create($this->mock);
+        $stack->push(new OpenTelemetryMiddleware('test', [], null, new RequestMeter('test')), OpenTelemetryMiddleware::NAME);
+
+        try {
+            (new Client(['handler' => $stack]))->send($request);
+        } catch (RequestException) {
+        }
+
+        $attrs = [...$this->collectMetrics()['http.client.request.duration']->data->dataPoints][0]->attributes->toArray();
+        self::assertSame(503, $attrs['http.response.status_code']);
+        self::assertSame($failure::class, $attrs['error.type']);
+    }
+
+    public function testResetRecordsIntoTheProviderInstalledAfterIt(): void
+    {
+        $meter = new RequestMeter('test');
+        $client = new InstrumentedPsr18Client(new PlainPsr18ClientReturning200(), 'test', [], null, $meter);
+        $client->sendRequest(new Request('GET', 'https://api.example.com/'));
+
+        $meter->reset();
+        $this->setUpOTel();
+        $client->sendRequest(new Request('GET', 'https://api.example.com/'));
+
+        self::assertSame(1, [...$this->collectMetrics()['http.client.request.duration']->data->dataPoints][0]->count);
     }
 
     public function testMetersEvenWhenTracingExcludesTheHost(): void

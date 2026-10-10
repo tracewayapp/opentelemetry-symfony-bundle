@@ -6,6 +6,8 @@ namespace Traceway\OpenTelemetryBundle\Tests\DependencyInjection;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\DependencyInjection\Definition;
 use Traceway\OpenTelemetryBundle\DependencyInjection\OpenTelemetryExtension;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableMiddleware as DoctrineTraceableMiddleware;
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
@@ -14,6 +16,7 @@ use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetrySubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OtelLoggerFlushSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OtelMetricsFlushSubscriber;
 use Traceway\OpenTelemetryBundle\EventSubscriber\SchedulerSubscriber;
+use Traceway\OpenTelemetryBundle\Mailer\MeteredTransports;
 use Traceway\OpenTelemetryBundle\Mailer\TraceableMailer;
 use Traceway\OpenTelemetryBundle\Mailer\TraceableTransports;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
@@ -21,6 +24,7 @@ use Traceway\OpenTelemetryBundle\Metrics\MetricFlusher;
 use Traceway\OpenTelemetryBundle\Metrics\MetricFlusherInterface;
 use Traceway\OpenTelemetryBundle\Monolog\OtelLogHandler;
 use Traceway\OpenTelemetryBundle\Monolog\TraceContextProcessor;
+use Traceway\OpenTelemetryBundle\Tests\Fixtures\ApplicationDoctorCheck;
 use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\TracingInterface;
 use Traceway\OpenTelemetryBundle\Twig\OpenTelemetryTwigExtension;
@@ -31,10 +35,10 @@ final class OpenTelemetryExtensionTest extends TestCase
     {
         $container = $this->buildContainer([]);
 
-        self::assertTrue($container->hasDefinition(Tracing::class));
-        self::assertTrue($container->hasDefinition(OpenTelemetrySubscriber::class));
-        self::assertTrue($container->hasDefinition(ConsoleSubscriber::class));
-        self::assertTrue($container->hasDefinition(OpenTelemetryMiddleware::class));
+        self::assertTrue($container->has(Tracing::class));
+        self::assertTrue($container->has(OpenTelemetrySubscriber::class));
+        self::assertTrue($container->has(ConsoleSubscriber::class));
+        self::assertTrue($container->has(OpenTelemetryMiddleware::class));
         self::assertTrue($container->hasAlias(TracingInterface::class));
     }
 
@@ -44,9 +48,9 @@ final class OpenTelemetryExtensionTest extends TestCase
             'metrics' => ['enabled' => true],
         ]);
 
-        self::assertTrue($container->hasDefinition(MetricFlusher::class));
+        self::assertTrue($container->has(MetricFlusher::class));
         self::assertTrue($container->hasAlias(MetricFlusherInterface::class));
-        self::assertTrue($container->hasDefinition(OtelMetricsFlushSubscriber::class));
+        self::assertTrue($container->has(OtelMetricsFlushSubscriber::class));
     }
 
     public function testUnsetIntervalDefersToTheSdkCadence(): void
@@ -57,7 +61,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             'metrics' => ['enabled' => true],
         ]);
 
-        self::assertNull($container->getDefinition(MetricFlusher::class)->getArgument('$intervalSeconds'));
+        self::assertNull($container->findDefinition(MetricFlusher::class)->getArgument('$intervalSeconds'));
     }
 
     public function testMetricFlushIntervalIsConfigurable(): void
@@ -66,7 +70,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             'metrics' => ['enabled' => true, 'flush' => ['interval' => 15.0]],
         ]);
 
-        self::assertSame(15.0, $container->getDefinition(MetricFlusher::class)->getArgument('$intervalSeconds'));
+        self::assertSame(15.0, $container->findDefinition(MetricFlusher::class)->getArgument('$intervalSeconds'));
     }
 
     public function testMetricFlushCanBeDisabledOnItsOwn(): void
@@ -75,9 +79,9 @@ final class OpenTelemetryExtensionTest extends TestCase
             'metrics' => ['enabled' => true, 'flush' => ['enabled' => false]],
         ]);
 
-        self::assertFalse($container->hasDefinition(MetricFlusher::class));
+        self::assertFalse($container->has(MetricFlusher::class));
         self::assertFalse($container->hasAlias(MetricFlusherInterface::class));
-        self::assertFalse($container->hasDefinition(OtelMetricsFlushSubscriber::class));
+        self::assertFalse($container->has(OtelMetricsFlushSubscriber::class));
     }
 
     public function testMetricFlushIsRemovedWhenMetricsAreOff(): void
@@ -85,8 +89,8 @@ final class OpenTelemetryExtensionTest extends TestCase
         // Nothing records, so there is nothing to export.
         $container = $this->buildContainer([]);
 
-        self::assertFalse($container->hasDefinition(MetricFlusher::class));
-        self::assertFalse($container->hasDefinition(OtelMetricsFlushSubscriber::class));
+        self::assertFalse($container->has(MetricFlusher::class));
+        self::assertFalse($container->has(OtelMetricsFlushSubscriber::class));
     }
 
     public function testHttpClientParametersSet(): void
@@ -110,16 +114,16 @@ final class OpenTelemetryExtensionTest extends TestCase
             'traces' => ['tracer_name' => 'custom-tracer'],
         ]);
 
-        $tracingDef = $container->getDefinition(Tracing::class);
+        $tracingDef = $container->findDefinition(Tracing::class);
         self::assertSame('custom-tracer', $tracingDef->getArgument('$tracerName'));
 
-        $subscriberDef = $container->getDefinition(OpenTelemetrySubscriber::class);
+        $subscriberDef = $container->findDefinition(OpenTelemetrySubscriber::class);
         self::assertSame('custom-tracer', $subscriberDef->getArgument('$tracerName'));
 
-        $consoleDef = $container->getDefinition(ConsoleSubscriber::class);
+        $consoleDef = $container->findDefinition(ConsoleSubscriber::class);
         self::assertSame('custom-tracer', $consoleDef->getArgument('$tracerName'));
 
-        $middlewareDef = $container->getDefinition(OpenTelemetryMiddleware::class);
+        $middlewareDef = $container->findDefinition(OpenTelemetryMiddleware::class);
         self::assertSame('custom-tracer', $middlewareDef->getArgument('$tracerName'));
     }
 
@@ -127,8 +131,8 @@ final class OpenTelemetryExtensionTest extends TestCase
     {
         $container = $this->buildContainer(['traces' => ['enabled' => false]]);
 
-        self::assertFalse($container->hasDefinition(OpenTelemetrySubscriber::class));
-        self::assertTrue($container->hasDefinition(Tracing::class));
+        self::assertFalse($container->has(OpenTelemetrySubscriber::class));
+        self::assertTrue($container->has(Tracing::class));
     }
 
     public function testTraceSubsystemsDisabledWhenTracesDisabled(): void
@@ -151,22 +155,22 @@ final class OpenTelemetryExtensionTest extends TestCase
         self::assertFalse($container->getParameter('open_telemetry.traces.messenger.enabled'));
         self::assertFalse($container->getParameter('open_telemetry.cache_enabled'));
 
-        self::assertFalse($container->hasDefinition(OpenTelemetrySubscriber::class));
-        self::assertFalse($container->hasDefinition(ConsoleSubscriber::class));
-        self::assertFalse($container->hasDefinition(OpenTelemetryMiddleware::class));
-        self::assertFalse($container->hasDefinition(DoctrineTraceableMiddleware::class));
-        self::assertFalse($container->hasDefinition(OpenTelemetryTwigExtension::class));
-        self::assertFalse($container->hasDefinition(SchedulerSubscriber::class));
-        self::assertFalse($container->hasDefinition(TraceableMailer::class));
-        self::assertFalse($container->hasDefinition(TraceableTransports::class));
+        self::assertFalse($container->has(OpenTelemetrySubscriber::class));
+        self::assertFalse($container->has(ConsoleSubscriber::class));
+        self::assertFalse($container->has(OpenTelemetryMiddleware::class));
+        self::assertFalse($container->has(DoctrineTraceableMiddleware::class));
+        self::assertFalse($container->has(OpenTelemetryTwigExtension::class));
+        self::assertFalse($container->has(SchedulerSubscriber::class));
+        self::assertFalse($container->has(TraceableMailer::class));
+        self::assertFalse($container->has(TraceableTransports::class));
     }
 
     public function testConsoleSubscriberRemovedWhenDisabled(): void
     {
         $container = $this->buildContainer(['traces' => ['console' => ['enabled' => false]]]);
 
-        self::assertFalse($container->hasDefinition(ConsoleSubscriber::class));
-        self::assertTrue($container->hasDefinition(OpenTelemetrySubscriber::class));
+        self::assertFalse($container->has(ConsoleSubscriber::class));
+        self::assertTrue($container->has(OpenTelemetrySubscriber::class));
     }
 
     public function testConsoleSubscriberReceivesExcludedCommands(): void
@@ -175,7 +179,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             'traces' => ['console' => ['excluded_commands' => ['cache:clear', 'assets:install']]],
         ]);
 
-        $def = $container->getDefinition(ConsoleSubscriber::class);
+        $def = $container->findDefinition(ConsoleSubscriber::class);
         self::assertSame(
             ['cache:clear', 'assets:install', 'messenger:consume', 'messenger:consume-messages'],
             $def->getArgument('$excludedCommands'),
@@ -189,7 +193,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             'traces' => ['console' => ['excluded_commands' => ['messenger:consume', 'cache:clear']]],
         ]);
 
-        $def = $container->getDefinition(ConsoleSubscriber::class);
+        $def = $container->findDefinition(ConsoleSubscriber::class);
         self::assertSame(
             ['messenger:consume', 'cache:clear', 'messenger:consume-messages'],
             $def->getArgument('$excludedCommands'),
@@ -205,7 +209,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             ]],
         ]);
 
-        $def = $container->getDefinition(ConsoleSubscriber::class);
+        $def = $container->findDefinition(ConsoleSubscriber::class);
         self::assertSame(['cache:clear'], $def->getArgument('$excludedCommands'));
     }
 
@@ -213,8 +217,8 @@ final class OpenTelemetryExtensionTest extends TestCase
     {
         $container = $this->buildContainer(['traces' => ['messenger' => ['enabled' => false]]]);
 
-        self::assertFalse($container->hasDefinition(OpenTelemetryMiddleware::class));
-        self::assertTrue($container->hasDefinition(OpenTelemetrySubscriber::class));
+        self::assertFalse($container->has(OpenTelemetryMiddleware::class));
+        self::assertTrue($container->has(OpenTelemetrySubscriber::class));
     }
 
     public function testSubscriberReceivesConfig(): void
@@ -227,7 +231,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             ],
         ]);
 
-        $def = $container->getDefinition(OpenTelemetrySubscriber::class);
+        $def = $container->findDefinition(OpenTelemetrySubscriber::class);
 
         self::assertSame(['/health'], $def->getArgument('$excludedPaths'));
         self::assertFalse($def->getArgument('$recordClientIp'));
@@ -238,7 +242,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     {
         $container = $this->buildContainer(['traces' => ['messenger' => ['root_spans' => true]]]);
 
-        $def = $container->getDefinition(OpenTelemetryMiddleware::class);
+        $def = $container->findDefinition(OpenTelemetryMiddleware::class);
         self::assertTrue($def->getArgument('$rootSpans'));
     }
 
@@ -246,7 +250,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     {
         $container = $this->buildContainer([]);
 
-        $def = $container->getDefinition(OpenTelemetryMiddleware::class);
+        $def = $container->findDefinition(OpenTelemetryMiddleware::class);
         self::assertFalse($def->getArgument('$rootSpans'));
     }
 
@@ -277,9 +281,9 @@ final class OpenTelemetryExtensionTest extends TestCase
     {
         $container = $this->buildContainer(['traces' => ['doctrine' => ['enabled' => true]]]);
 
-        self::assertTrue($container->hasDefinition(DoctrineTraceableMiddleware::class));
+        self::assertTrue($container->has(DoctrineTraceableMiddleware::class));
 
-        $def = $container->getDefinition(DoctrineTraceableMiddleware::class);
+        $def = $container->findDefinition(DoctrineTraceableMiddleware::class);
         self::assertTrue($def->hasTag('doctrine.middleware'));
         self::assertFalse($def->getArgument('$recordStatements'));
         self::assertTrue($def->getArgument('$onlyWithParent'));
@@ -292,7 +296,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             'traces' => ['doctrine' => ['enabled' => true, 'max_spans_per_trace' => 250]],
         ]);
 
-        $def = $container->getDefinition(DoctrineTraceableMiddleware::class);
+        $def = $container->findDefinition(DoctrineTraceableMiddleware::class);
         self::assertSame(250, $def->getArgument('$maxSpansPerTrace'));
     }
 
@@ -311,6 +315,48 @@ final class OpenTelemetryExtensionTest extends TestCase
         self::assertFalse($container->getParameter('open_telemetry.http_client.guzzle_enabled'));
     }
 
+    public function testMailerMetricsDecorateTheTransportsInsideTheTracingDecorator(): void
+    {
+        $container = $this->buildContainer(['metrics' => ['enabled' => true, 'meter_name' => 'meter', 'mailer' => ['enabled' => true]]]);
+
+        self::assertTrue($container->has(MeteredTransports::class));
+        $definition = $container->findDefinition(MeteredTransports::class);
+        self::assertSame(['mailer.transports', null, 8, ContainerInterface::IGNORE_ON_INVALID_REFERENCE], $definition->getDecoratedService());
+        self::assertSame('meter', $definition->getArgument('$meterName'));
+        self::assertTrue($definition->hasTag('kernel.reset'));
+
+        $off = $this->buildContainer(['metrics' => ['enabled' => true, 'mailer' => ['enabled' => false]]]);
+        self::assertFalse($off->has(MeteredTransports::class));
+    }
+
+    public function testApplicationChecksAreTaggedByAutoconfiguration(): void
+    {
+        $container = $this->buildContainer([]);
+        $container->setDefinition('app.check', (new Definition(ApplicationDoctorCheck::class))->setAutoconfigured(true)->setPublic(true));
+        $container->getCompilerPassConfig()->setRemovingPasses([]);
+        $container->compile();
+
+        self::assertTrue($container->getDefinition('app.check')->hasTag('traceway.doctor.check'), 'docs/doctor.md promises autoconfigure tags custom checks');
+    }
+
+    public function testEveryBundleServiceUsesTheBundleAliasAndExplicitWiring(): void
+    {
+        $container = $this->buildContainer([
+            'metrics' => ['enabled' => true, 'messenger' => ['enabled' => true], 'doctrine' => ['enabled' => true], 'http_server' => ['enabled' => true], 'http_client' => ['enabled' => true], 'mailer' => ['enabled' => true]],
+            'logs' => ['correlation' => ['enabled' => true]],
+        ]);
+
+        foreach ($container->getDefinitions() as $id => $definition) {
+            if (!str_starts_with((string) $definition->getClass(), 'Traceway\\OpenTelemetryBundle\\')) {
+                continue;
+            }
+            self::assertStringStartsWith('open_telemetry.', $id, "service {$id} must use the bundle alias");
+            self::assertFalse($definition->isAutowired(), "{$id} must not be autowired");
+            self::assertFalse($definition->isAutoconfigured(), "{$id} must not be autoconfigured");
+            self::assertTrue($container->has((string) $definition->getClass()) || null !== $definition->getDecoratedService(), "the class-name id of {$id} must still resolve");
+        }
+    }
+
     public function testHttpClientExcludedServicesWired(): void
     {
         $container = $this->buildContainer(['traces' => ['http_client' => ['excluded_services' => ['app.legacy', 'app.legacy', 'app.sdk']]]]);
@@ -324,7 +370,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             'traces' => ['messenger' => ['excluded_messages' => ['App\\Message\\MlFlats', 'App\\Message\\MlFlats', 'App\\Message\\Noise']]],
         ]);
 
-        $def = $container->getDefinition(OpenTelemetryMiddleware::class);
+        $def = $container->findDefinition(OpenTelemetryMiddleware::class);
         self::assertSame(['App\\Message\\MlFlats', 'App\\Message\\Noise'], $def->getArgument('$excludedMessages'));
     }
 
@@ -332,7 +378,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     {
         $container = $this->buildContainer(['traces' => ['doctrine' => ['enabled' => false]]]);
 
-        self::assertFalse($container->hasDefinition(DoctrineTraceableMiddleware::class));
+        self::assertFalse($container->has(DoctrineTraceableMiddleware::class));
     }
 
     public function testDoctrineRecordStatementsConfigured(): void
@@ -341,7 +387,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             'traces' => ['doctrine' => ['enabled' => true, 'record_statements' => true]],
         ]);
 
-        $def = $container->getDefinition(DoctrineTraceableMiddleware::class);
+        $def = $container->findDefinition(DoctrineTraceableMiddleware::class);
         self::assertTrue($def->getArgument('$recordStatements'));
     }
 
@@ -351,7 +397,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             'traces' => ['doctrine' => ['enabled' => true, 'only_with_parent' => false]],
         ]);
 
-        $def = $container->getDefinition(DoctrineTraceableMiddleware::class);
+        $def = $container->findDefinition(DoctrineTraceableMiddleware::class);
         self::assertFalse($def->getArgument('$onlyWithParent'));
     }
 
@@ -361,7 +407,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             'traces' => ['tracer_name' => 'my-tracer', 'doctrine' => ['enabled' => true]],
         ]);
 
-        $def = $container->getDefinition(DoctrineTraceableMiddleware::class);
+        $def = $container->findDefinition(DoctrineTraceableMiddleware::class);
         self::assertSame('my-tracer', $def->getArgument('$tracerName'));
     }
 
@@ -402,9 +448,9 @@ final class OpenTelemetryExtensionTest extends TestCase
     {
         $container = $this->buildContainer(['traces' => ['twig' => ['enabled' => true]]]);
 
-        self::assertTrue($container->hasDefinition(OpenTelemetryTwigExtension::class));
+        self::assertTrue($container->has(OpenTelemetryTwigExtension::class));
 
-        $def = $container->getDefinition(OpenTelemetryTwigExtension::class);
+        $def = $container->findDefinition(OpenTelemetryTwigExtension::class);
         self::assertTrue($def->hasTag('twig.extension'));
     }
 
@@ -412,7 +458,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     {
         $container = $this->buildContainer(['traces' => ['twig' => ['enabled' => false]]]);
 
-        self::assertFalse($container->hasDefinition(OpenTelemetryTwigExtension::class));
+        self::assertFalse($container->has(OpenTelemetryTwigExtension::class));
     }
 
     public function testTwigExtensionTracerNameWired(): void
@@ -421,7 +467,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             'traces' => ['tracer_name' => 'my-tracer', 'twig' => ['enabled' => true]],
         ]);
 
-        $def = $container->getDefinition(OpenTelemetryTwigExtension::class);
+        $def = $container->findDefinition(OpenTelemetryTwigExtension::class);
         self::assertSame('my-tracer', $def->getArgument('$tracerName'));
     }
 
@@ -431,7 +477,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             'traces' => ['twig' => ['enabled' => true, 'excluded_templates' => ['@WebProfiler/', '@Debug/']]],
         ]);
 
-        $def = $container->getDefinition(OpenTelemetryTwigExtension::class);
+        $def = $container->findDefinition(OpenTelemetryTwigExtension::class);
         self::assertSame(['@WebProfiler/', '@Debug/'], $def->getArgument('$excludedTemplates'));
     }
 
@@ -439,7 +485,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     {
         $container = $this->buildContainer(['traces' => ['twig' => ['enabled' => true]]]);
 
-        $def = $container->getDefinition(OpenTelemetryTwigExtension::class);
+        $def = $container->findDefinition(OpenTelemetryTwigExtension::class);
         self::assertSame([], $def->getArgument('$excludedTemplates'));
     }
 
@@ -447,9 +493,9 @@ final class OpenTelemetryExtensionTest extends TestCase
     {
         $container = $this->buildContainer([]);
 
-        self::assertTrue($container->hasDefinition(TraceContextProcessor::class));
+        self::assertTrue($container->has(TraceContextProcessor::class));
 
-        $def = $container->getDefinition(TraceContextProcessor::class);
+        $def = $container->findDefinition(TraceContextProcessor::class);
         self::assertTrue($def->hasTag('monolog.processor'));
     }
 
@@ -457,7 +503,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     {
         $container = $this->buildContainer(['logs' => ['correlation' => ['enabled' => false]]]);
 
-        self::assertFalse($container->hasDefinition(TraceContextProcessor::class));
+        self::assertFalse($container->has(TraceContextProcessor::class));
     }
 
     public function testLogExportCompilesWithMonologBundleRegisteredFirst(): void
@@ -477,13 +523,13 @@ final class OpenTelemetryExtensionTest extends TestCase
         $handlerConfig = $monologConfigs[0]['handlers']['opentelemetry'] ?? null;
         self::assertNotNull($handlerConfig, 'opentelemetry handler should be prepended');
         self::assertSame('service', $handlerConfig['type']);
-        self::assertSame(OtelLogHandler::class, $handlerConfig['id']);
+        self::assertSame('open_telemetry.logs.handler', $handlerConfig['id']);
 
         self::assertTrue(
-            $container->hasDefinition(OtelLogHandler::class),
+            $container->has(OtelLogHandler::class),
             'OtelLogHandler service must be registered in prepend() so it exists before MonologBundle compiles',
         );
-        self::assertTrue($container->hasDefinition(OtelLoggerFlushSubscriber::class));
+        self::assertTrue($container->has(OtelLoggerFlushSubscriber::class));
     }
 
     public function testLogExportExcludedHttpCodesWiredToHandler(): void
@@ -499,7 +545,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
         $extension->prepend($container);
 
-        $handlerDef = $container->getDefinition(OtelLogHandler::class);
+        $handlerDef = $container->findDefinition(OtelLogHandler::class);
         self::assertSame([404, 405], $handlerDef->getArgument('$excludedHttpCodes'));
     }
 
@@ -516,7 +562,7 @@ final class OpenTelemetryExtensionTest extends TestCase
 
         $extension->prepend($container);
 
-        $handlerDef = $container->getDefinition(OtelLogHandler::class);
+        $handlerDef = $container->findDefinition(OtelLogHandler::class);
         self::assertSame(['deprecation', 'php'], $handlerDef->getArgument('$excludedChannels'));
     }
 
@@ -527,7 +573,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             'metrics' => ['enabled' => true, 'http_server' => ['enabled' => true], 'http_client' => ['enabled' => true]],
         ]);
 
-        $def = $container->getDefinition(OpenTelemetryMetricsSubscriber::class);
+        $def = $container->findDefinition(OpenTelemetryMetricsSubscriber::class);
         self::assertSame([], $def->getArgument('$excludedPaths'), '/health stays measured unless metrics exclude it too');
         self::assertSame([], $container->getParameter('open_telemetry.http_client_metrics_excluded_hosts'));
     }
@@ -539,7 +585,7 @@ final class OpenTelemetryExtensionTest extends TestCase
             'metrics' => ['enabled' => true, 'http_server' => ['enabled' => true, 'excluded_paths' => ['/metrics']]],
         ]);
 
-        $def = $container->getDefinition(OpenTelemetryMetricsSubscriber::class);
+        $def = $container->findDefinition(OpenTelemetryMetricsSubscriber::class);
         self::assertSame(['/metrics'], $def->getArgument('$excludedPaths'));
     }
 
@@ -547,7 +593,7 @@ final class OpenTelemetryExtensionTest extends TestCase
     {
         $container = $this->buildContainer(['traces' => ['record_exception_min_status' => 500]]);
 
-        $def = $container->getDefinition(OpenTelemetrySubscriber::class);
+        $def = $container->findDefinition(OpenTelemetrySubscriber::class);
         self::assertSame(500, $def->getArgument('$recordExceptionMinStatus'));
     }
 

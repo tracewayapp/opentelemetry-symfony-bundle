@@ -18,9 +18,10 @@ use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
  */
 final class MessengerMiddlewarePass implements CompilerPassInterface
 {
+    /** Service id => the pre-4.1 class-name id an application may still list in its bus config. */
     private const OPENTELEMETRY_MIDDLEWARE_IDS = [
-        OpenTelemetryMiddleware::class,
-        OpenTelemetryMetricsMiddleware::class,
+        'open_telemetry.messenger.middleware' => OpenTelemetryMiddleware::class,
+        'open_telemetry.messenger.metrics_middleware' => OpenTelemetryMetricsMiddleware::class,
     ];
 
     private const TERMINAL_MIDDLEWARE_IDS = [
@@ -46,17 +47,16 @@ final class MessengerMiddlewarePass implements CompilerPassInterface
         $middlewareIds = array_column($middlewares, 'id');
         $middlewareToInsert = [];
 
-        foreach (self::OPENTELEMETRY_MIDDLEWARE_IDS as $serviceId) {
+        foreach (self::OPENTELEMETRY_MIDDLEWARE_IDS as $serviceId => $classId) {
             if (!$container->has($serviceId)) {
                 continue;
             }
 
-            if (\in_array($serviceId, $middlewareIds, true)) {
-                continue;
-            }
-
-            if (\in_array('messenger.middleware.'.$serviceId, $middlewareIds, true)) {
-                continue;
+            // Listed by hand under either id: inserting it again would trace every message twice.
+            foreach ([$serviceId, $classId] as $id) {
+                if (\in_array($id, $middlewareIds, true) || \in_array('messenger.middleware.'.$id, $middlewareIds, true)) {
+                    continue 2;
+                }
             }
 
             $middlewareToInsert[] = ['id' => $serviceId];

@@ -179,6 +179,30 @@ final class DoctorCommandTest extends TestCase
         self::assertStringContainsString('Unknown --format', $tester->getDisplay());
     }
 
+    public function testNonNumericTimeoutIsRejected(): void
+    {
+        $tester = new CommandTester($this->command());
+
+        self::assertSame(2, $tester->execute(['--timeout' => 'soon']));
+        self::assertStringContainsString('Invalid --timeout "soon"', $tester->getDisplay());
+    }
+
+    public function testNonPositiveTimeoutIsRejected(): void
+    {
+        $tester = new CommandTester($this->command());
+
+        self::assertSame(2, $tester->execute(['--timeout' => '0']));
+        self::assertStringContainsString('--timeout must be a positive number of seconds', $tester->getDisplay());
+    }
+
+    public function testUnknownCheckNameInOnlyIsRejectedInsteadOfReportingGreen(): void
+    {
+        $tester = new CommandTester($this->command());
+
+        self::assertSame(2, $tester->execute(['--only' => 'service_name,no_such_check']));
+        self::assertStringContainsString('Unknown check name(s) in --only: "no_such_check"', $tester->getDisplay());
+    }
+
     public function testInvalidFailOnReturnsInvalidExitCode(): void
     {
         $tester = new CommandTester($this->command());

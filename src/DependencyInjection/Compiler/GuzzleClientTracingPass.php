@@ -22,7 +22,8 @@ use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
  */
 final class GuzzleClientTracingPass implements CompilerPassInterface
 {
-    public const MIDDLEWARE_ID = OpenTelemetryMiddleware::class;
+    public const REQUEST_METER_ID = 'open_telemetry.http_client.request_meter';
+    public const MIDDLEWARE_ID = 'open_telemetry.http_client.guzzle_middleware';
     public const HANDLER_STACK_ID = 'open_telemetry.guzzle.handler_stack';
 
     public function process(ContainerBuilder $container): void
@@ -48,6 +49,7 @@ final class GuzzleClientTracingPass implements CompilerPassInterface
         $middleware->setPublic(true);
         $middleware->addTag('kernel.reset', ['method' => 'reset']);
         $container->setDefinition(self::MIDDLEWARE_ID, $middleware);
+        $container->setAlias(OpenTelemetryMiddleware::class, self::MIDDLEWARE_ID)->setPublic(true);
 
         $stack = new Definition(\GuzzleHttp\HandlerStack::class);
         $stack->setFactory([\GuzzleHttp\HandlerStack::class, 'create']);
@@ -105,15 +107,16 @@ final class GuzzleClientTracingPass implements CompilerPassInterface
             return null;
         }
 
-        if (!$container->hasDefinition(RequestMeter::class)) {
+        if (!$container->hasDefinition(self::REQUEST_METER_ID)) {
             $meter = new Definition(RequestMeter::class);
             $meter->setArgument('$meterName', $container->hasParameter('open_telemetry.metrics_meter_name') ? $container->getParameter('open_telemetry.metrics_meter_name') : 'opentelemetry-symfony');
             $meter->setArgument('$excludedHosts', $container->hasParameter('open_telemetry.http_client_metrics_excluded_hosts') ? $container->getParameter('open_telemetry.http_client_metrics_excluded_hosts') : []);
             $meter->addTag('kernel.reset', ['method' => 'reset']);
-            $container->setDefinition(RequestMeter::class, $meter);
+            $container->setDefinition(self::REQUEST_METER_ID, $meter);
+            $container->setAlias(RequestMeter::class, self::REQUEST_METER_ID);
         }
 
-        return new Reference(RequestMeter::class);
+        return new Reference(self::REQUEST_METER_ID);
     }
 
     /** @return list<string> */

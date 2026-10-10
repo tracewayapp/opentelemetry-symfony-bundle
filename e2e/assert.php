@@ -115,6 +115,7 @@ if (null !== $guzzle) {
     $check('GET' === ($guzzle['attributes']['http.request.method'] ?? null), 'Guzzle span http.request.method is GET');
     $check('localhost' === ($guzzle['attributes']['server.address'] ?? null) && 4318 === ($guzzle['attributes']['server.port'] ?? null), 'Guzzle span server.address and server.port');
     $check(404 === ($guzzle['attributes']['http.response.status_code'] ?? null), 'Guzzle span records the real 404');
+    $check(\in_array($guzzle['attributes']['network.peer.address'] ?? null, ['127.0.0.1', '::1'], true) && 4318 === ($guzzle['attributes']['network.peer.port'] ?? null), sprintf('Guzzle span records the real peer (got %s:%s)', $guzzle['attributes']['network.peer.address'] ?? '-', $guzzle['attributes']['network.peer.port'] ?? '-'));
 }
 
 $dbSpans = array_values(array_filter($spans, static fn (array $span): bool => isClientKind($span['kind']) && isset($span['attributes']['db.system.name'])));

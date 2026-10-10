@@ -10,8 +10,10 @@ use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
+use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
+use GuzzleHttp\TransferStats;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\TestCase;
@@ -156,6 +158,56 @@ final class OpenTelemetryMiddlewareTest extends TestCase
         self::assertSame(\InvalidArgumentException::class, $spans[0]->getAttributes()->get('error.type'));
     }
 
+    public function testPeerAddressAndPortComeFromTheTransferStats(): void
+    {
+        $span = $this->sendThroughStatsReportingHandler(new Response(200), ['primary_ip' => '93.184.216.34', 'primary_port' => 443]);
+
+        self::assertSame('93.184.216.34', $span->getAttributes()->get('network.peer.address'));
+        self::assertSame(443, $span->getAttributes()->get('network.peer.port'));
+    }
+
+    public function testPeerIsRecordedWhenTheTransportFails(): void
+    {
+        $request = new Request('GET', 'https://api.example.com/');
+        $handler = static function (Request $request, array $options) {
+            $options['on_stats'](new TransferStats($request, null, 0.01, 'connection reset', ['primary_ip' => '10.0.0.7', 'primary_port' => 8443]));
+
+            return Create::rejectionFor(new ConnectException('connection reset', $request));
+        };
+        $stack = new HandlerStack($handler);
+        $stack->push(new OpenTelemetryMiddleware('test'), OpenTelemetryMiddleware::NAME);
+
+        try {
+            (new Client(['handler' => $stack]))->send($request);
+            self::fail('expected ConnectException');
+        } catch (ConnectException) {
+        }
+
+        $attrs = $this->exporter->getSpans()[0]->getAttributes()->toArray();
+        self::assertSame('10.0.0.7', $attrs['network.peer.address']);
+        self::assertSame(8443, $attrs['network.peer.port']);
+        self::assertSame(ConnectException::class, $attrs['error.type']);
+    }
+
+    public function testTheApplicationsOwnOnStatsCallbackStillRuns(): void
+    {
+        $seen = [];
+        $this->sendThroughStatsReportingHandler(new Response(200), ['primary_ip' => '127.0.0.1', 'primary_port' => 80], static function (TransferStats $stats) use (&$seen): void {
+            $seen[] = $stats->getHandlerStat('primary_ip');
+        });
+
+        self::assertSame(['127.0.0.1'], $seen);
+    }
+
+    public function testNoPeerWhenTheHandlerReportsNone(): void
+    {
+        $this->mock->append(new Response(200));
+
+        $this->client()->get('https://api.example.com/');
+
+        self::assertArrayNotHasKey('network.peer.address', $this->exporter->getSpans()[0]->getAttributes()->toArray());
+    }
+
     public function testAsyncRequestEndsSpanWhenThePromiseResolves(): void
     {
         $this->mock->append(new Response(200));
@@ -176,6 +228,27 @@ final class OpenTelemetryMiddlewareTest extends TestCase
         (new Client(['handler' => $stack]))->get('https://api.example.com/');
 
         self::assertCount(0, $this->exporter->getSpans());
+    }
+
+    /**
+     * @param array<string, mixed> $handlerStats
+     */
+    private function sendThroughStatsReportingHandler(Response $response, array $handlerStats, ?\Closure $onStats = null): \OpenTelemetry\SDK\Trace\ImmutableSpan
+    {
+        $handler = static function (Request $request, array $options) use ($response, $handlerStats) {
+            $options['on_stats'](new TransferStats($request, $response, 0.01, null, $handlerStats));
+
+            return Create::promiseFor($response);
+        };
+        $stack = new HandlerStack($handler);
+        $stack->push(new OpenTelemetryMiddleware('test'), OpenTelemetryMiddleware::NAME);
+
+        (new Client(['handler' => $stack, 'on_stats' => $onStats]))->get('https://api.example.com/');
+
+        $spans = $this->exporter->getSpans();
+        self::assertCount(1, $spans);
+
+        return $spans[0];
     }
 
     private function client(): Client

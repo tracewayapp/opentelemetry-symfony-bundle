@@ -58,6 +58,21 @@ final class SqlOperationExtractorTest extends TestCase
      */
     public static function extractTargetProvider(): iterable
     {
+        // Keywords hidden in comments and strings, and malformed SQL
+        yield 'block comment hides FROM' => ['SELECT a /* FROM fake */ FROM items', 'items'];
+        yield 'unterminated block comment' => ['SELECT a /* unterminated FROM items', null];
+        yield 'line comment hides FROM' => ["SELECT a -- FROM fake\nFROM items", 'items'];
+        yield 'line comment without newline' => ['SELECT a -- trailing comment', null];
+        yield 'hash comment hides FROM' => ["SELECT a # FROM fake\nFROM items", 'items'];
+        yield 'doubled quote inside string' => ["SELECT 'it''s FROM fake' AS s FROM items", 'items'];
+        yield 'unterminated quote' => ['SELECT "unterminated FROM items', null];
+        yield 'quoted FROM in WHERE' => ["SELECT a FROM items AS i WHERE x = 'FROM fake'", 'items'];
+
+        // Derived tables
+        yield 'derived table without inner FROM' => ['SELECT a FROM (SELECT 1) AS t', null];
+        yield 'derived table reports inner table' => ['SELECT a FROM (SELECT b FROM inner_items) AS t', 'inner_items'];
+        yield 'derived table with JOIN' => ['SELECT a FROM (SELECT b FROM x JOIN y ON x.id = y.id) AS t', null];
+
         // INSERT
         yield 'insert simple' => ['INSERT INTO items (name) VALUES (?)', 'items'];
         yield 'insert lowercase' => ['insert into items values (?)', 'items'];

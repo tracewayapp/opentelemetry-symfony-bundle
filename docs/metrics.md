@@ -117,6 +117,16 @@ The catch is on the receiving side: Prometheus and its ecosystem are natively cu
 
 `traceway:doctor` reports the combination in use and warns about the one that silently produces meaningless data: cumulative temporality with no per-process identity.
 
+The bundle can set the preference for you:
+
+```yaml
+open_telemetry:
+    metrics:
+        temporality: auto
+```
+
+`auto` selects delta wherever PHP rebuilds the SDK for every request: PHP-FPM, CGI, mod_php, LiteSpeed, the built-in server, and FrankenPHP outside worker mode. Long-lived processes (console commands, Messenger workers, RoadRunner, Swoole, FrankenPHP workers) keep the SDK default. `delta`, `cumulative` and `lowmemory` set that value everywhere. The option is applied at kernel boot, before the SDK builds its meter provider, so it works whether the bundle (`sdk.enabled`) or `OTEL_PHP_AUTOLOAD_ENABLED` started the SDK; only code that uses OpenTelemetry before the kernel boots would see the earlier default. An `OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE` already present in the environment always wins.
+
 ### One instance identity per worker
 
 Worker runtimes need one more thing from the resource, and it is not the bundle's to set. Each worker holds its own `MeterProvider` with its own cumulative counters; without a unique `service.instance.id` they all land on the same series, and a backend that reads OTLP as Prometheus sees one counter that repeatedly falls backwards.

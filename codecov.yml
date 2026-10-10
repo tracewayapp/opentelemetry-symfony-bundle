@@ -1,0 +1,11 @@
+# Symfony's reusable-bundle guide asks for at least 95% coverage. The project
+# status fails below it; new code in a pull request is held to the same bar.
+coverage:
+  status:
+    project:
+      default:
+        target: 95%
+        threshold: 0.2%
+    patch:
+      default:
+        target: 95%

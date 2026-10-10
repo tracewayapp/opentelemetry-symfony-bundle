@@ -55,6 +55,14 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
     private \WeakMap $requestData;
 
     /**
+     * Held strongly, in attach order: a worker can free an aborted request before
+     * it resets services, and the WeakMap entry holding its scope goes with it.
+     *
+     * @var array<int, array{ScopeInterface, SpanInterface}>
+     */
+    private array $openScopes = [];
+
+    /**
      * @param string   $tracerName               Instrumentation library name
      * @param string[] $excludedPaths            URL path prefixes to skip (must start with /)
      * @param bool     $recordClientIp           Whether to record client.address
@@ -138,6 +146,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
         $scope = $span->storeInContext($parentContext)->activate();
 
         $this->requestData[$request] = ['span' => $span, 'scope' => $scope];
+        $this->openScopes[spl_object_id($scope)] = [$scope, $span];
     }
 
     /**
@@ -296,11 +305,13 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
     {
         $this->resetTracer();
 
-        // Drain in-flight entries so aborted requests can't corrupt the context stack.
+        // Drain aborted requests so their scopes can't parent the next request. Newest first, as scopes nest.
+        foreach (array_reverse($this->openScopes) as [$scope, $span]) {
+            $scope->detach();
+            $span->end();
+        }
+        $this->openScopes = [];
         foreach ($this->requestData as $data) {
-            if (isset($data['scope'])) {
-                $data['scope']->detach();
-            }
             if (isset($data['span'])) {
                 $data['span']->end();
             }
@@ -341,6 +352,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
             return;
         }
 
+        unset($this->openScopes[spl_object_id($data['scope'])]);
         $data['scope']->detach();
         unset($data['scope']);
         $this->requestData[$request] = $data;

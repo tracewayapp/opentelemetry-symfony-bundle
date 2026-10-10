@@ -8,6 +8,7 @@ use Traceway\OpenTelemetryBundle\Command\Doctor\Check\CheckGroup;
 use Traceway\OpenTelemetryBundle\Command\Doctor\Check\CheckInterface;
 use Traceway\OpenTelemetryBundle\Command\Doctor\Check\CheckResult;
 use Traceway\OpenTelemetryBundle\Command\Doctor\Support\CheckContext;
+use Traceway\OpenTelemetryBundle\Metrics\TemporalityResolver;
 
 /**
  * Cumulative temporality assumes one long-lived producer per time series. PHP
@@ -55,7 +56,16 @@ final class MetricsTemporalityCheck implements CheckInterface
             return CheckResult::skipped($this->name(), 'metrics are disabled');
         }
 
-        $temporality = strtolower($context->env->get('OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE') ?? 'cumulative');
+        $explicit = $context->env->get('OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE');
+        if (null === $explicit && TemporalityResolver::AUTO === $context->param('open_telemetry.metrics.temporality')) {
+            return CheckResult::info(
+                $this->name(),
+                'metrics.temporality: auto selects delta at runtime under PHP-FPM, CGI, mod_php, LiteSpeed, the built-in server and FrankenPHP outside worker mode, and keeps cumulative in long-lived processes such as this console command and Messenger workers',
+                ['temporality' => TemporalityResolver::AUTO],
+            );
+        }
+
+        $temporality = strtolower($explicit ?? 'cumulative');
 
         if (self::DELTA === $temporality) {
             return CheckResult::ok(
@@ -88,7 +98,7 @@ final class MetricsTemporalityCheck implements CheckInterface
             $this->name(),
             'cumulative temporality without service.instance.id: producers share one time series',
             'Every process keeps its own cumulative totals, and without service.instance.id they are written to the same series, where they overwrite one another. '
-            .'Set OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta: summing across producers is what delta means, it is correct under PHP-FPM and under workers alike, and your backend has to accept delta or convert it. '
+            .'Use delta temporality, where summing across producers is the intended meaning: set metrics.temporality: auto to get it wherever PHP rebuilds the SDK per request (PHP-FPM, mod_php), or OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta for every runtime. Your backend has to accept delta or convert it. '
             .'Only for long-lived workers is the alternative to keep cumulative and give each worker an identity (OTEL_PHP_DETECTORS=host,process,service_instance, or service.instance.id in OTEL_RESOURCE_ATTRIBUTES); under PHP-FPM that identity changes on every request and multiplies series.',
             ['temporality' => $temporality, 'detectors' => $detectors],
         );

@@ -58,6 +58,7 @@ open_telemetry:
     metrics:
         enabled: false
         meter_name: 'opentelemetry-symfony'
+        temporality: ~                        # auto | delta | cumulative | lowmemory; auto = delta under PHP-FPM, mod_php and other per-request runtimes. An explicit OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE wins
 
         flush:
             enabled: true                     # required in worker runtimes; see docs/metrics.md

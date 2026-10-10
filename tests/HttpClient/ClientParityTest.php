@@ -8,8 +8,10 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware as GuzzleMiddleware;
+use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
+use GuzzleHttp\TransferStats;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Client\ClientInterface;
@@ -30,13 +32,17 @@ use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 /**
  * Symfony HttpClient, Guzzle and PSR-18 are three implementations of one
  * convention. The same request through each must yield the same span (name,
- * status, attributes) and the same metric attributes.
+ * status, attributes) and the same metric attributes. Every client reports a
+ * real peer here, so a missing network.peer.* cannot pass unnoticed; only a
+ * plain PSR-18 client, which exposes no transport at all, is compared without it.
  */
 final class ClientParityTest extends TestCase
 {
     use OTelTestTrait;
 
     private const CURL_HTTP_VERSION_1_1 = 2;
+    private const PEER_ADDRESS = '93.184.216.34';
+    private const PEER_PORT = 8443;
 
     protected function setUp(): void
     {
@@ -64,13 +70,22 @@ final class ClientParityTest extends TestCase
             $mock = new MockHttpClient(new MockResponse('hello', [
                 'http_code' => $status,
                 'http_version' => self::CURL_HTTP_VERSION_1_1,
+                'primary_ip' => self::PEER_ADDRESS,
+                'primary_port' => self::PEER_PORT,
                 'response_headers' => ['content-length' => '5'],
             ]));
             (new MeteredHttpClient(new TraceableHttpClient($mock, 'test'), 'test'))->request($method, $url)->getContent(false);
         });
 
         $guzzle = $this->observe(static function () use ($status, $method, $url): void {
-            $stack = HandlerStack::create(new MockHandler([new Response($status, ['Content-Length' => '5'], 'hello')]));
+            $response = new Response($status, ['Content-Length' => '5'], 'hello');
+            $stack = HandlerStack::create(static function (RequestInterface $request, array $options) use ($response) {
+                if (isset($options['on_stats'])) {
+                    $options['on_stats'](new TransferStats($request, $response, 0.01, null, ['primary_ip' => self::PEER_ADDRESS, 'primary_port' => self::PEER_PORT]));
+                }
+
+                return Create::promiseFor($response);
+            });
             $stack->push(new OpenTelemetryMiddleware('test', [], null, new RequestMeter('test')), OpenTelemetryMiddleware::NAME);
             (new Client(['handler' => $stack, 'http_errors' => false]))->request($method, $url);
         });
@@ -89,8 +104,11 @@ final class ClientParityTest extends TestCase
             (new InstrumentedPsr18Client($inner, 'test', [], null, new RequestMeter('test')))->sendRequest(new Request($method, $url));
         });
 
+        self::assertSame(self::PEER_ADDRESS, $symfony['attributes']['network.peer.address'] ?? null, 'the comparison must include a real peer');
         self::assertSame($symfony, $guzzle, 'Guzzle diverges from Symfony HttpClient');
-        self::assertSame($symfony, $psr18, 'PSR-18 diverges from Symfony HttpClient');
+
+        unset($symfony['attributes']['network.peer.address'], $symfony['attributes']['network.peer.port']);
+        self::assertSame($symfony, $psr18, 'PSR-18 diverges from Symfony HttpClient beyond the peer a plain PSR-18 client cannot expose');
     }
 
     public function testRetriesAreOneSpanAndOneMeasurementPerAttemptOnEveryClient(): void

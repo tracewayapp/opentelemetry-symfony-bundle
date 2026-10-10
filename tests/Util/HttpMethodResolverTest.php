@@ -9,6 +9,35 @@ use Traceway\OpenTelemetryBundle\Util\HttpMethodResolver;
 
 final class HttpMethodResolverTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        unset($_SERVER['OTEL_INSTRUMENTATION_HTTP_KNOWN_METHODS']);
+        self::resetKnownMethods();
+    }
+
+    public function testKnownMethodsCanBeOverriddenFromTheEnvironment(): void
+    {
+        $_SERVER['OTEL_INSTRUMENTATION_HTTP_KNOWN_METHODS'] = ' get, purge ,,';
+        self::resetKnownMethods();
+
+        self::assertSame('PURGE', HttpMethodResolver::normalize('PURGE'));
+        self::assertSame('GET', HttpMethodResolver::normalize('GET'));
+        self::assertSame('_OTHER', HttpMethodResolver::normalize('POST'), 'the override replaces the default list');
+    }
+
+    public function testBlankOverrideFallsBackToTheDefaultList(): void
+    {
+        $_SERVER['OTEL_INSTRUMENTATION_HTTP_KNOWN_METHODS'] = ' , ';
+        self::resetKnownMethods();
+
+        self::assertSame('POST', HttpMethodResolver::normalize('POST'));
+    }
+
+    private static function resetKnownMethods(): void
+    {
+        (new \ReflectionProperty(HttpMethodResolver::class, 'knownMethods'))->setValue(null, null);
+    }
+
     public function testKnownMethodPassesThrough(): void
     {
         self::assertSame('GET', HttpMethodResolver::normalize('GET'));

@@ -126,4 +126,22 @@ final class MetricsTemporalityCheckTest extends TestCase
     {
         return CheckTestHelper::context($env, ['open_telemetry.metrics.enabled' => true]);
     }
+
+    public function testAutoIsReportedAsResolvedAtRuntime(): void
+    {
+        $result = (new MetricsTemporalityCheck())->run(CheckTestHelper::context([], ['open_telemetry.metrics.enabled' => true, 'open_telemetry.metrics.temporality' => 'auto']));
+
+        self::assertSame(Status::Info, $result->status);
+        self::assertStringContainsString('auto selects delta at runtime', $result->message);
+    }
+
+    public function testExplicitEnvironmentValueIsCheckedEvenWithAuto(): void
+    {
+        $result = (new MetricsTemporalityCheck())->run(CheckTestHelper::context(
+            ['OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE' => 'delta'],
+            ['open_telemetry.metrics.enabled' => true, 'open_telemetry.metrics.temporality' => 'auto'],
+        ));
+
+        self::assertSame(Status::Ok, $result->status);
+    }
 }

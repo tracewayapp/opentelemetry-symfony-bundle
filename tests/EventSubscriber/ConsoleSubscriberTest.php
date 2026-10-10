@@ -400,4 +400,79 @@ final class ConsoleSubscriberTest extends TestCase
         self::assertSame('app:first', $spans[0]->getName());
         self::assertSame('app:second', $spans[1]->getName());
     }
+
+    public function testRerunningTheSameCommandInstanceEndsThePreviousSpan(): void
+    {
+        $command = new Command('app:sync');
+        $input = new ArrayInput([]);
+        $output = new NullOutput();
+
+        $this->subscriber->onCommand(new ConsoleCommandEvent($command, $input, $output));
+        $this->subscriber->onCommand(new ConsoleCommandEvent($command, $input, $output));
+        self::assertCount(1, $this->exporter->getSpans(), 'the first run is ended when the instance runs again');
+
+        $this->subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, Command::SUCCESS));
+
+        self::assertCount(2, $this->exporter->getSpans());
+        self::assertNull(Context::storage()->scope(), 'no scope is left behind');
+    }
+
+    public function testInputStringIsTheCommandArgsWhenThereIsNoArgv(): void
+    {
+        $argv = $_SERVER['argv'];
+        unset($_SERVER['argv']);
+        $command = new Command('app:import');
+        $input = new ArrayInput(['--dry-run' => true]);
+        $output = new NullOutput();
+
+        try {
+            $this->subscriber->onCommand(new ConsoleCommandEvent($command, $input, $output));
+            $this->subscriber->onTerminate(new ConsoleTerminateEvent($command, $input, $output, Command::SUCCESS));
+        } finally {
+            $_SERVER['argv'] = $argv;
+        }
+
+        self::assertSame(['--dry-run=1'], $this->exporter->getSpans()[0]->getAttributes()->get('process.command_args'));
+    }
+
+    public function testErrorAndExitCodeOnAnOrphanSpanWithoutACommand(): void
+    {
+        $input = new ArrayInput([]);
+        $output = new NullOutput();
+
+        $this->subscriber->onCommand(new ConsoleCommandEvent(null, $input, $output));
+        $this->subscriber->onError(new ConsoleErrorEvent($input, $output, new \RuntimeException('no such command'), null));
+        $this->subscriber->onTerminate(new ConsoleTerminateEvent(new Command('list'), $input, $output, 1));
+
+        $span = $this->exporter->getSpans()[0];
+        self::assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
+        self::assertSame(\RuntimeException::class, $span->getAttributes()->get('error.type'), 'the recorded exception wins over the exit code');
+        self::assertSame(1, $span->getAttributes()->get('process.exit.code'));
+    }
+
+    public function testASecondOrphanEndsTheFirst(): void
+    {
+        $input = new ArrayInput([]);
+        $output = new NullOutput();
+
+        $this->subscriber->onCommand(new ConsoleCommandEvent(null, $input, $output));
+        $this->subscriber->onCommand(new ConsoleCommandEvent(null, $input, $output));
+        self::assertCount(1, $this->exporter->getSpans());
+
+        $this->subscriber->onTerminate(new ConsoleTerminateEvent(new Command('list'), $input, $output, Command::SUCCESS));
+        self::assertCount(2, $this->exporter->getSpans());
+        self::assertNull(Context::storage()->scope());
+    }
+
+    public function testDestructorEndsALiveOrphanSpan(): void
+    {
+        $subscriber = new ConsoleSubscriber();
+        $subscriber->onCommand(new ConsoleCommandEvent(null, new ArrayInput([]), new NullOutput()));
+
+        unset($subscriber);
+        gc_collect_cycles();
+
+        self::assertCount(1, $this->exporter->getSpans());
+        self::assertNull(Context::storage()->scope());
+    }
 }

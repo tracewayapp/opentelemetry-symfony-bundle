@@ -16,6 +16,7 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Messenger\Middleware\MiddlewareInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Traceway\OpenTelemetryBundle\Command\Doctor\Check\CheckInterface;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\MeteredMiddleware as DoctrineMeteredMiddleware;
 use Traceway\OpenTelemetryBundle\Doctrine\Middleware\TraceableMiddleware as DoctrineTraceableMiddleware;
 use Traceway\OpenTelemetryBundle\EventSubscriber\ConsoleSubscriber;
@@ -35,7 +36,6 @@ use Traceway\OpenTelemetryBundle\Metrics\MetricFlusher;
 use Traceway\OpenTelemetryBundle\Metrics\MetricFlusherInterface;
 use Traceway\OpenTelemetryBundle\Monolog\OtelLogHandler;
 use Traceway\OpenTelemetryBundle\Monolog\TraceContextProcessor;
-use Traceway\OpenTelemetryBundle\Tracing;
 use Traceway\OpenTelemetryBundle\Twig\OpenTelemetryTwigExtension;
 use Traceway\OpenTelemetryBundle\XRay\XRayBootstrapper;
 
@@ -65,7 +65,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
                 'handlers' => [
                     'opentelemetry' => [
                         'type' => 'service',
-                        'id' => OtelLogHandler::class,
+                        'id' => 'open_telemetry.logs.handler',
                     ],
                 ],
             ]);
@@ -76,23 +76,26 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $handlerDef->setArgument('$unprefixedAttributes', $config['logs']['export']['unprefixed_attributes']);
             $handlerDef->setArgument('$excludedHttpCodes', $config['logs']['export']['excluded_http_codes']);
             $handlerDef->setArgument('$excludedChannels', $config['logs']['export']['excluded_channels']);
-            $handlerDef->setAutoconfigured(true);
-            $container->setDefinition(OtelLogHandler::class, $handlerDef);
+            $handlerDef->addTag('kernel.reset', ['method' => 'reset']);
+            self::register($container, 'open_telemetry.logs.handler', $handlerDef);
 
             $flushDef = new Definition(OtelLoggerFlushSubscriber::class);
-            $flushDef->setAutoconfigured(true);
-            $container->setDefinition(OtelLoggerFlushSubscriber::class, $flushDef);
+            $flushDef->addTag('kernel.event_subscriber');
+            self::register($container, 'open_telemetry.logs.flush_subscriber', $flushDef);
         }
     }
 
     public function load(array $configs, ContainerBuilder $container): void
     {
         $configuration = new Configuration();
-        /** @var array{traces: array{enabled: bool, propagator: string, id_generator: string, tracer_name: string, excluded_paths: list<string>, record_client_ip: bool, error_status_threshold: int, record_exception_min_status: int, console: array{enabled: bool, excluded_commands: list<string>, trace_long_running_commands: bool}, http_client: array{enabled: bool, excluded_hosts: list<string>, excluded_services: list<string>, psr18: bool, guzzle: bool}, messenger: array{enabled: bool, root_spans: bool, excluded_messages: list<string>}, doctrine: array{enabled: bool, record_statements: bool, only_with_parent: bool, max_spans_per_trace: int}, cache: array{enabled: bool, excluded_pools: list<string>}, twig: array{enabled: bool, excluded_templates: list<string>}, scheduler: array{enabled: bool}, mailer: array{enabled: bool, record_subject: bool}}, metrics: array{enabled: bool, meter_name: string, flush: array{enabled: bool, interval: int|float|null}, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}}, logs: array{correlation: array{enabled: bool}, export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool, excluded_http_codes: list<int>, excluded_channels: list<string>}}, sdk: array{enabled: bool, autoload_enabled: bool, use_putenv: bool, resource_attributes: array<string, string>, exporter_otlp_headers: array<string, string>}} $config */
+        /** @var array{traces: array{enabled: bool, propagator: string, id_generator: string, tracer_name: string, excluded_paths: list<string>, record_client_ip: bool, error_status_threshold: int, record_exception_min_status: int, console: array{enabled: bool, excluded_commands: list<string>, trace_long_running_commands: bool}, http_client: array{enabled: bool, excluded_hosts: list<string>, excluded_services: list<string>, psr18: bool, guzzle: bool}, messenger: array{enabled: bool, root_spans: bool, excluded_messages: list<string>}, doctrine: array{enabled: bool, record_statements: bool, only_with_parent: bool, max_spans_per_trace: int}, cache: array{enabled: bool, excluded_pools: list<string>}, twig: array{enabled: bool, excluded_templates: list<string>}, scheduler: array{enabled: bool}, mailer: array{enabled: bool, record_subject: bool}}, metrics: array{enabled: bool, meter_name: string, temporality: ?string, flush: array{enabled: bool, interval: int|float|null}, messenger: array{enabled: bool, excluded_queues: list<string>}, doctrine: array{enabled: bool}, http_server: array{enabled: bool, excluded_paths: list<string>}, http_client: array{enabled: bool, excluded_hosts: list<string>}, mailer: array{enabled: bool}}, logs: array{correlation: array{enabled: bool}, export: array{enabled: bool, level: string, capture_code_attributes: bool, unprefixed_attributes: bool, excluded_http_codes: list<int>, excluded_channels: list<string>}}, sdk: array{enabled: bool, autoload_enabled: bool, use_putenv: bool, resource_attributes: array<string, string>, exporter_otlp_headers: array<string, string>}} $config */
         $config = $this->processConfiguration($configuration, $configs);
 
         $loader = new YamlFileLoader($container, new FileLocator(\dirname(__DIR__, 2).'/config'));
         $loader->load('services.yaml');
+
+        // Applications' own checks get the tag the doctor collects, as docs/doctor.md promises.
+        $container->registerForAutoconfiguration(CheckInterface::class)->addTag('traceway.doctor.check');
 
         $sdk = $config['sdk'];
 
@@ -100,7 +103,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         $tracingEnabled = $traces['enabled'];
         $tracerName = $traces['tracer_name'];
 
-        $container->getDefinition(Tracing::class)
+        $container->getDefinition('open_telemetry.tracing')
             ->setArgument('$tracerName', $tracerName);
 
         $httpClientEnabled = $tracingEnabled && $traces['http_client']['enabled'] && $this->isHttpClientAvailable();
@@ -115,6 +118,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         $container->setParameter('open_telemetry.traces.id_generator', $traces['id_generator']);
         $container->setParameter('open_telemetry.traces.messenger.enabled', $messengerTracingEnabled);
         $container->setParameter('open_telemetry.metrics.enabled', $config['metrics']['enabled']);
+        $container->setParameter('open_telemetry.metrics.temporality', $config['metrics']['temporality']);
         $container->setParameter('open_telemetry.logs.export.enabled', $config['logs']['export']['enabled']);
 
         /** @var string[] $httpExcludedHosts */
@@ -127,41 +131,42 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         }
 
         if ($tracingEnabled) {
-            $container->getDefinition(OpenTelemetrySubscriber::class)
+            $container->getDefinition('open_telemetry.http_server.subscriber')
                 ->setArgument('$tracerName', $tracerName)
                 ->setArgument('$excludedPaths', $traces['excluded_paths'])
                 ->setArgument('$recordClientIp', $traces['record_client_ip'])
                 ->setArgument('$errorStatusThreshold', $traces['error_status_threshold'])
                 ->setArgument('$recordExceptionMinStatus', $traces['record_exception_min_status']);
         } else {
-            $container->removeDefinition(OpenTelemetrySubscriber::class);
+            self::remove($container, 'open_telemetry.http_server.subscriber', OpenTelemetrySubscriber::class);
         }
 
         if ($tracingEnabled && $traces['console']['enabled']) {
-            $container->getDefinition(ConsoleSubscriber::class)
+            $container->getDefinition('open_telemetry.console.subscriber')
                 ->setArgument('$tracerName', $tracerName)
                 ->setArgument('$excludedCommands', $this->resolveExcludedCommands($traces['console']));
         } else {
-            $container->removeDefinition(ConsoleSubscriber::class);
+            self::remove($container, 'open_telemetry.console.subscriber', ConsoleSubscriber::class);
         }
 
         $schedulerEnabled = $tracingEnabled && $traces['scheduler']['enabled'] && $this->isSchedulerAvailable();
 
         if ($messengerTracingEnabled && $this->isMessengerAvailable()) {
-            $container->getDefinition(OpenTelemetryMiddleware::class)
+            $container->getDefinition('open_telemetry.messenger.middleware')
                 ->setArgument('$tracerName', $tracerName)
                 ->setArgument('$rootSpans', $traces['messenger']['root_spans'])
                 ->setArgument('$excludeScheduledMessages', $schedulerEnabled)
                 ->setArgument('$excludedMessages', array_values(array_unique($traces['messenger']['excluded_messages'])));
         } else {
-            $container->removeDefinition(OpenTelemetryMiddleware::class);
+            self::remove($container, 'open_telemetry.messenger.middleware', OpenTelemetryMiddleware::class);
         }
 
         if ($schedulerEnabled) {
             $schedulerDef = new Definition(SchedulerSubscriber::class);
             $schedulerDef->setArgument('$tracerName', $tracerName);
-            $schedulerDef->setAutoconfigured(true);
-            $container->setDefinition(SchedulerSubscriber::class, $schedulerDef);
+            $schedulerDef->addTag('kernel.event_subscriber');
+            $schedulerDef->addTag('kernel.reset', ['method' => 'reset']);
+            self::register($container, 'open_telemetry.scheduler.subscriber', $schedulerDef);
         }
 
         $container->setParameter('open_telemetry.traces.doctrine.enabled', $tracingEnabled && $traces['doctrine']['enabled'] && $this->isDoctrineAvailable());
@@ -173,7 +178,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $definition->setArgument('$onlyWithParent', $traces['doctrine']['only_with_parent']);
             $definition->setArgument('$maxSpansPerTrace', $traces['doctrine']['max_spans_per_trace']);
             $definition->addTag('doctrine.middleware');
-            $container->setDefinition(DoctrineTraceableMiddleware::class, $definition);
+            self::register($container, 'open_telemetry.doctrine.tracing_middleware', $definition);
         }
 
         $cacheEnabled = $tracingEnabled && $traces['cache']['enabled'] && $this->isCacheAvailable();
@@ -188,9 +193,9 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $twigExtDef = new Definition(OpenTelemetryTwigExtension::class);
             $twigExtDef->setArgument('$tracerName', $tracerName);
             $twigExtDef->setArgument('$excludedTemplates', $twigExcluded);
-            $twigExtDef->setAutoconfigured(true);
             $twigExtDef->addTag('twig.extension');
-            $container->setDefinition(OpenTelemetryTwigExtension::class, $twigExtDef);
+            $twigExtDef->addTag('kernel.reset', ['method' => 'reset']);
+            self::register($container, 'open_telemetry.twig.extension', $twigExtDef);
         }
 
         if ($tracingEnabled && $traces['mailer']['enabled'] && $this->isMailerAvailable()) {
@@ -200,14 +205,14 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $mailerDef->setArgument('$tracerName', $tracerName);
             $mailerDef->setArgument('$recordSubject', $traces['mailer']['record_subject']);
             $mailerDef->addTag('kernel.reset', ['method' => 'reset']);
-            $container->setDefinition(TraceableMailer::class, $mailerDef);
+            self::register($container, 'open_telemetry.mailer.traceable_mailer', $mailerDef);
 
             $transportsDef = new Definition(TraceableTransports::class);
             $transportsDef->setDecoratedService('mailer.transports', null, 0, ContainerInterface::IGNORE_ON_INVALID_REFERENCE);
             $transportsDef->setArgument('$decorated', new Reference('.inner'));
             $transportsDef->setArgument('$tracerName', $tracerName);
             $transportsDef->addTag('kernel.reset', ['method' => 'reset']);
-            $container->setDefinition(TraceableTransports::class, $transportsDef);
+            self::register($container, 'open_telemetry.mailer.traceable_transports', $transportsDef);
         }
 
         $container->setParameter('open_telemetry.logs.correlation.enabled', $config['logs']['correlation']['enabled'] && $this->isMonologAvailable());
@@ -215,7 +220,7 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
         if ($config['logs']['correlation']['enabled'] && $this->isMonologAvailable()) {
             $monologDef = new Definition(TraceContextProcessor::class);
             $monologDef->addTag('monolog.processor');
-            $container->setDefinition(TraceContextProcessor::class, $monologDef);
+            self::register($container, 'open_telemetry.logs.trace_context_processor', $monologDef);
         }
 
         $propagator = $config['traces']['propagator'];
@@ -228,52 +233,50 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $xrayDef = new Definition(XRayBootstrapper::class);
             $xrayDef->setArgument('$propagator', $propagator);
             $xrayDef->setArgument('$idGenerator', $idGenerator);
-            $xrayDef->setAutoconfigured(true);
-            $container->setDefinition(XRayBootstrapper::class, $xrayDef);
+            $xrayDef->addTag('kernel.event_subscriber');
+            self::register($container, 'open_telemetry.xray.bootstrapper', $xrayDef);
         }
 
         $metrics = $config['metrics'];
         $meterName = $metrics['meter_name'];
 
         if ($metrics['enabled']) {
-            $container->getDefinition(MeterRegistry::class)
+            $container->getDefinition('open_telemetry.metrics.registry')
                 ->setArgument('$meterName', $meterName);
         } else {
-            $container->removeDefinition(MeterRegistry::class);
-            $container->removeAlias(MeterRegistryInterface::class);
+            self::remove($container, 'open_telemetry.metrics.registry', MeterRegistry::class, MeterRegistryInterface::class);
         }
 
         if ($metrics['enabled'] && $metrics['flush']['enabled']) {
-            $container->getDefinition(MetricFlusher::class)
+            $container->getDefinition('open_telemetry.metrics.flusher')
                 ->setArgument('$intervalSeconds', $metrics['flush']['interval']);
         } else {
-            $container->removeDefinition(MetricFlusher::class);
-            $container->removeAlias(MetricFlusherInterface::class);
-            $container->removeDefinition(OtelMetricsFlushSubscriber::class);
+            self::remove($container, 'open_telemetry.metrics.flusher', MetricFlusher::class, MetricFlusherInterface::class);
+            self::remove($container, 'open_telemetry.metrics.flush_subscriber', OtelMetricsFlushSubscriber::class);
         }
 
         if ($metrics['enabled'] && $metrics['messenger']['enabled'] && $this->isMessengerAvailable()) {
-            $container->getDefinition(OpenTelemetryMetricsMiddleware::class)
+            $container->getDefinition('open_telemetry.messenger.metrics_middleware')
                 ->setArgument('$meterName', $meterName)
                 ->setArgument('$excludedQueues', $metrics['messenger']['excluded_queues']);
         } else {
-            $container->removeDefinition(OpenTelemetryMetricsMiddleware::class);
+            self::remove($container, 'open_telemetry.messenger.metrics_middleware', OpenTelemetryMetricsMiddleware::class);
         }
 
         if ($metrics['enabled'] && $metrics['doctrine']['enabled'] && $this->isDoctrineAvailable()) {
             $definition = new Definition(DoctrineMeteredMiddleware::class);
             $definition->setArgument('$meterName', $meterName);
             $definition->addTag('doctrine.middleware');
-            $container->setDefinition(DoctrineMeteredMiddleware::class, $definition);
+            self::register($container, 'open_telemetry.doctrine.metrics_middleware', $definition);
         }
 
         if ($metrics['enabled'] && $metrics['http_server']['enabled']) {
-            $container->getDefinition(OpenTelemetryMetricsSubscriber::class)
+            $container->getDefinition('open_telemetry.http_server.metrics_subscriber')
                 ->setArgument('$meterName', $meterName)
                 ->setArgument('$excludedPaths', $metrics['http_server']['excluded_paths'])
                 ->setArgument('$errorStatusThreshold', $traces['error_status_threshold']);
         } else {
-            $container->removeDefinition(OpenTelemetryMetricsSubscriber::class);
+            self::remove($container, 'open_telemetry.http_server.metrics_subscriber', OpenTelemetryMetricsSubscriber::class);
         }
 
         $httpClientMetricsEnabled = $metrics['enabled'] && $metrics['http_client']['enabled'] && $this->isHttpClientAvailable();
@@ -290,7 +293,28 @@ final class OpenTelemetryExtension extends Extension implements PrependExtension
             $meteredTransportsDef->setArgument('$decorated', new Reference('.inner'));
             $meteredTransportsDef->setArgument('$meterName', $meterName);
             $meteredTransportsDef->addTag('kernel.reset', ['method' => 'reset']);
-            $container->setDefinition(MeteredTransports::class, $meteredTransportsDef);
+            self::register($container, 'open_telemetry.mailer.metered_transports', $meteredTransportsDef);
+        }
+    }
+
+    /**
+     * Registers a service under its bundle-alias id, with the pre-4.1 class-name id as a private alias.
+     */
+    private static function register(ContainerBuilder $container, string $id, Definition $definition): void
+    {
+        $container->setDefinition($id, $definition);
+
+        $class = $definition->getClass();
+        if (null !== $class) {
+            $container->setAlias($class, $id);
+        }
+    }
+
+    private static function remove(ContainerBuilder $container, string $id, string ...$aliases): void
+    {
+        $container->removeDefinition($id);
+        foreach ($aliases as $alias) {
+            $container->removeAlias($alias);
         }
     }
 

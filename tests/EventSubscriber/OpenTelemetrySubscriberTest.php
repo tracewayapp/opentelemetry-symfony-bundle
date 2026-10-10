@@ -79,6 +79,26 @@ final class OpenTelemetrySubscriberTest extends TestCase
         self::assertSame(302, $this->exporter->getSpans()[0]->getAttributes()->get('http.response.status_code'), 'status taken from the response that was sent');
     }
 
+    public function testResetEndsAndDetachesAnAbortedRequest(): void
+    {
+        $kernel = $this->createStub(HttpKernelInterface::class);
+        $this->subscriber->onRequest(new RequestEvent($kernel, Request::create('/aborted'), HttpKernelInterface::MAIN_REQUEST));
+        self::assertNotNull(Context::storage()->scope());
+
+        // A worker resets services after a request that never reached kernel.terminate.
+        $this->subscriber->reset();
+
+        self::assertNull(Context::storage()->scope(), 'an aborted request must not leave its scope for the next one');
+        self::assertCount(1, $this->exporter->getSpans(), 'the aborted request span is ended, not lost');
+
+        $next = Request::create('/next');
+        $this->subscriber->onRequest(new RequestEvent($kernel, $next, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onTerminate(new TerminateEvent($kernel, $next, new Response()));
+        $spans = $this->exporter->getSpans();
+        self::assertCount(2, $spans);
+        self::assertFalse($spans[1]->getParentContext()->isValid(), 'the next request starts a new trace');
+    }
+
     public function testScopeIsDetachedExactlyOnceOnTheNormalPath(): void
     {
         $request = Request::create('/api/items', 'GET');

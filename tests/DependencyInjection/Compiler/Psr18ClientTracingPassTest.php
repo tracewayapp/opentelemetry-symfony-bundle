@@ -91,8 +91,8 @@ final class Psr18ClientTracingPassTest extends TestCase
 
         (new Psr18ClientTracingPass())->process($container);
 
-        self::assertEquals(new Reference(RequestMeter::class), $container->getDefinition('app.psr18.otel')->getArgument('$meter'));
-        self::assertTrue($container->hasDefinition(RequestMeter::class));
+        self::assertEquals(new Reference(Psr18ClientTracingPass::REQUEST_METER_ID), $container->getDefinition('app.psr18.otel')->getArgument('$meter'));
+        self::assertTrue($container->has(RequestMeter::class));
     }
 
     public function testExcludedServiceIsLeftUndecorated(): void

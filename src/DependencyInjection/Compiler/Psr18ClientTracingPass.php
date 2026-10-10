@@ -27,6 +27,8 @@ use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
  */
 final class Psr18ClientTracingPass implements CompilerPassInterface
 {
+    public const REQUEST_METER_ID = 'open_telemetry.http_client.request_meter';
+
     public function process(ContainerBuilder $container): void
     {
         if (!$container->hasParameter('open_telemetry.http_client.psr18_enabled')
@@ -121,15 +123,16 @@ final class Psr18ClientTracingPass implements CompilerPassInterface
             return null;
         }
 
-        if (!$container->hasDefinition(RequestMeter::class)) {
+        if (!$container->hasDefinition(self::REQUEST_METER_ID)) {
             $meter = new Definition(RequestMeter::class);
             $meter->setArgument('$meterName', $container->hasParameter('open_telemetry.metrics_meter_name') ? $container->getParameter('open_telemetry.metrics_meter_name') : 'opentelemetry-symfony');
             $meter->setArgument('$excludedHosts', $container->hasParameter('open_telemetry.http_client_metrics_excluded_hosts') ? $container->getParameter('open_telemetry.http_client_metrics_excluded_hosts') : []);
             $meter->addTag('kernel.reset', ['method' => 'reset']);
-            $container->setDefinition(RequestMeter::class, $meter);
+            $container->setDefinition(self::REQUEST_METER_ID, $meter);
+            $container->setAlias(RequestMeter::class, self::REQUEST_METER_ID);
         }
 
-        return new Reference(RequestMeter::class);
+        return new Reference(self::REQUEST_METER_ID);
     }
 
     /** @return list<string> */

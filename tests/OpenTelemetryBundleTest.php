@@ -91,7 +91,7 @@ final class OpenTelemetryBundleTest extends TestCase
         $bundle->setContainer($container);
         $bundle->boot();
 
-        foreach ([Variables::OTEL_EXPORTER_OTLP_HEADERS, Variables::OTEL_RESOURCE_ATTRIBUTES, Variables::OTEL_PHP_AUTOLOAD_ENABLED] as $variable) {
+        foreach ([Variables::OTEL_EXPORTER_OTLP_HEADERS, Variables::OTEL_RESOURCE_ATTRIBUTES, Variables::OTEL_PHP_AUTOLOAD_ENABLED, Variables::OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE] as $variable) {
             self::assertArrayNotHasKey($variable, $_SERVER);
             self::assertArrayNotHasKey($variable, $_ENV);
             self::assertFalse(getenv($variable));
@@ -244,6 +244,47 @@ final class OpenTelemetryBundleTest extends TestCase
             $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'],
             'sdk.enabled defaults to false, so this must not depend on the sdk config parameter',
         );
+    }
+
+    public function testExplicitTemporalityIsAppliedAtBoot(): void
+    {
+        $this->bootWithTemporality('delta');
+
+        self::assertSame('delta', $_SERVER[Variables::OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE]);
+    }
+
+    public function testAutoKeepsTheSdkDefaultUnderTheCli(): void
+    {
+        $this->bootWithTemporality('auto');
+
+        self::assertArrayNotHasKey(Variables::OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE, $_SERVER, 'PHPUnit runs under the cli SAPI, a long-lived runtime');
+    }
+
+    public function testEnvironmentValueWinsOverConfiguration(): void
+    {
+        $_SERVER[Variables::OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE] = 'cumulative';
+
+        $this->bootWithTemporality('delta');
+
+        self::assertSame('cumulative', $_SERVER[Variables::OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE]);
+    }
+
+    public function testUnsetTemporalityChangesNothing(): void
+    {
+        $this->bootWithTemporality(null);
+
+        self::assertArrayNotHasKey(Variables::OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE, $_SERVER);
+    }
+
+    private function bootWithTemporality(?string $temporality): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.debug', true);
+        $container->setParameter('open_telemetry.metrics.temporality', $temporality);
+
+        $bundle = new OpenTelemetryBundle();
+        $bundle->setContainer($container);
+        $bundle->boot();
     }
 
     private function bootWithDebug(bool $debug): void
@@ -427,7 +468,7 @@ final class OpenTelemetryBundleTest extends TestCase
 
         Globals::reset();
 
-        foreach ([Variables::OTEL_EXPORTER_OTLP_HEADERS, Variables::OTEL_RESOURCE_ATTRIBUTES, Variables::OTEL_PHP_AUTOLOAD_ENABLED] as $variable) {
+        foreach ([Variables::OTEL_EXPORTER_OTLP_HEADERS, Variables::OTEL_RESOURCE_ATTRIBUTES, Variables::OTEL_PHP_AUTOLOAD_ENABLED, Variables::OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE] as $variable) {
             unset($_SERVER[$variable]);
             unset($_ENV[$variable]);
             putenv($variable);

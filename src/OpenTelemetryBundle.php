@@ -15,6 +15,7 @@ use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\HttpClientMetricsP
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\HttpClientTracingPass;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\MessengerMiddlewarePass;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\Psr18ClientTracingPass;
+use Traceway\OpenTelemetryBundle\Metrics\TemporalityResolver;
 
 final class OpenTelemetryBundle extends Bundle
 {
@@ -78,6 +79,29 @@ final class OpenTelemetryBundle extends Bundle
         // Independent of sdk.enabled: the DebugScope cost applies to any app whose spans get activated.
         $this->disableDebugScopes($this->usePutEnv());
         $this->bootSdkConfig();
+        $this->applyMetricsTemporality($this->usePutEnv());
+    }
+
+    /**
+     * The SDK reads the preference when it first builds the meter provider, which
+     * is lazy, so setting it at boot works whether the bundle or OTEL_PHP_AUTOLOAD_ENABLED
+     * started the SDK. An explicit environment value always wins.
+     */
+    private function applyMetricsTemporality(bool $usePutEnv): void
+    {
+        if (null === $this->container || !$this->container->hasParameter('open_telemetry.metrics.temporality')) {
+            return;
+        }
+
+        $configured = $this->container->getParameter('open_telemetry.metrics.temporality');
+        if (!\is_string($configured) || Configuration::has(Variables::OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE)) {
+            return;
+        }
+
+        $value = TemporalityResolver::resolve($configured, \PHP_SAPI, isset($_SERVER['FRANKENPHP_WORKER']));
+        if (null !== $value) {
+            $this->setEnvVariable(Variables::OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE, $value, $usePutEnv);
+        }
     }
 
     private function autoloadSdk(bool $autoloadEnabled, bool $usePutEnv): void

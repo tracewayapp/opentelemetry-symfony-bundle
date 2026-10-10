@@ -13,7 +13,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\GuzzleClientTracingPass;
-use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\TracingMiddleware;
+use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\OpenTelemetryMiddleware;
 use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
@@ -28,7 +28,7 @@ final class GuzzleClientTracingPassTest extends TestCase
         (new GuzzleClientTracingPass())->process($container);
 
         $middleware = $container->getDefinition(GuzzleClientTracingPass::MIDDLEWARE_ID);
-        self::assertSame(TracingMiddleware::class, $middleware->getClass());
+        self::assertSame(OpenTelemetryMiddleware::class, $middleware->getClass());
         self::assertSame('test-tracer', $middleware->getArgument('$tracerName'));
         self::assertSame(['collector.internal'], $middleware->getArgument('$excludedHosts'));
         self::assertTrue($middleware->isPublic());
@@ -37,7 +37,7 @@ final class GuzzleClientTracingPassTest extends TestCase
         self::assertSame(HandlerStack::class, $stack->getClass());
         self::assertSame([HandlerStack::class, 'create'], $stack->getFactory());
         self::assertFalse($stack->isShared());
-        self::assertEquals([['push', [new Reference(GuzzleClientTracingPass::MIDDLEWARE_ID), TracingMiddleware::NAME]]], $stack->getMethodCalls());
+        self::assertEquals([['push', [new Reference(GuzzleClientTracingPass::MIDDLEWARE_ID), OpenTelemetryMiddleware::NAME]]], $stack->getMethodCalls());
     }
 
     public function testClientWithoutHandlerGetsTheTracedStack(): void
@@ -53,6 +53,20 @@ final class GuzzleClientTracingPassTest extends TestCase
             ['base_uri' => 'https://api.example.com', 'handler' => new Reference(GuzzleClientTracingPass::HANDLER_STACK_ID)],
             $container->getDefinition('app.guzzle_with_base')->getArgument(0),
         );
+        self::assertSame(['app.guzzle', 'app.guzzle_with_base'], $container->getParameter('open_telemetry.http_client.instrumented.guzzle'));
+    }
+
+    public function testExcludedServiceKeepsItsOwnHandler(): void
+    {
+        $container = $this->container(true);
+        $container->setParameter('open_telemetry.http_client.excluded_services', ['app.legacy_guzzle']);
+        $container->setDefinition('app.legacy_guzzle', new Definition(Client::class));
+        $container->setDefinition('app.guzzle', new Definition(Client::class));
+
+        (new GuzzleClientTracingPass())->process($container);
+
+        self::assertSame([], $container->getDefinition('app.legacy_guzzle')->getArguments());
+        self::assertEquals(['handler' => new Reference(GuzzleClientTracingPass::HANDLER_STACK_ID)], $container->getDefinition('app.guzzle')->getArgument(0));
     }
 
     public function testClientWithOwnHandlerIsLeftAlone(): void

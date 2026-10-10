@@ -8,6 +8,7 @@ use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
+use Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\HttpClientInstrumentationCheck;
 use Traceway\OpenTelemetryBundle\HttpClient\ResendCountingHttpClient;
 use Traceway\OpenTelemetryBundle\HttpClient\TraceableHttpClient;
 
@@ -45,7 +46,9 @@ final class HttpClientTracingPass implements CompilerPassInterface
             ? $container->getParameter('open_telemetry.http_client_excluded_hosts')
             : [];
 
-        $clientIds = $this->findHttpClientServiceIds($container);
+        $clientIds = array_diff($this->findHttpClientServiceIds($container), self::excludedServices($container));
+
+        $container->setParameter(HttpClientInstrumentationCheck::PARAMETER_PREFIX.'symfony', array_values($clientIds));
 
         foreach ($clientIds as $clientId) {
             $decoratorId = $clientId.'.otel';
@@ -85,5 +88,17 @@ final class HttpClientTracingPass implements CompilerPassInterface
         }
 
         return $ids;
+    }
+
+    /** @return list<string> */
+    private static function excludedServices(ContainerBuilder $container): array
+    {
+        if (!$container->hasParameter('open_telemetry.http_client.excluded_services')) {
+            return [];
+        }
+
+        $ids = $container->getParameter('open_telemetry.http_client.excluded_services');
+
+        return \is_array($ids) ? array_values(array_filter($ids, 'is_string')) : [];
     }
 }

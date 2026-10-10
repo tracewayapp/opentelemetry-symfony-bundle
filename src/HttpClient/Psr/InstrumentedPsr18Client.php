@@ -11,9 +11,10 @@ use Psr\Http\Message\ResponseInterface;
 use Symfony\Contracts\Service\ResetInterface;
 
 /**
- * Decorates any PSR-18 client with a CLIENT span per request and W3C context propagation.
+ * Decorates a PSR-18 client with a CLIENT span, http.client.* metrics and W3C
+ * context propagation per request.
  */
-final class TracedPsr18Client implements ClientInterface, ResetInterface
+final class InstrumentedPsr18Client implements ClientInterface, ResetInterface
 {
     private readonly RequestTracer $tracer;
 

@@ -15,16 +15,18 @@ use Traceway\OpenTelemetryBundle\HttpClient\MeteredHttpClient;
  * 'http_client' service with {@see MeteredHttpClient} when metrics are
  * enabled for the HTTP client subsystem.
  *
- * Decoration priority is -8. In Symfony's {@see \Symfony\Component\DependencyInjection\Compiler\DecoratorServicePass},
+ * In Symfony's {@see \Symfony\Component\DependencyInjection\Compiler\DecoratorServicePass},
  * decorators are processed via a max-heap priority queue: the highest priority
  * is processed first and the lowest priority wins the public alias, so HIGHER
- * priority = DEEPER nesting. The metered client therefore sits outside
- * RetryableHttpClient and measures the whole request including retries, while
- * the tracer ({@see HttpClientTracingPass::TRACER_PRIORITY}) sits inside it with
- * one span per attempt.
+ * priority = DEEPER nesting. At {@see self::METER_PRIORITY} the metered client
+ * sits inside RetryableHttpClient (25; 10 on 6.4), so each attempt is measured
+ * like Guzzle and PSR-18 measure it, and just outside the tracer
+ * ({@see HttpClientTracingPass::TRACER_PRIORITY}).
  */
 final class HttpClientMetricsPass implements CompilerPassInterface
 {
+    public const METER_PRIORITY = 60;
+
     public function process(ContainerBuilder $container): void
     {
         if (!$container->hasParameter('open_telemetry.http_client_metrics_enabled')) {
@@ -51,7 +53,7 @@ final class HttpClientMetricsPass implements CompilerPassInterface
             $decorator->setArgument('$client', new Reference($innerId));
             $decorator->setArgument('$meterName', $meterName);
             $decorator->setArgument('$excludedHosts', $excludedHosts);
-            $decorator->setDecoratedService($clientId, $innerId, -8);
+            $decorator->setDecoratedService($clientId, $innerId, self::METER_PRIORITY);
             $decorator->addTag('kernel.reset', ['method' => 'reset']);
 
             $container->setDefinition($decoratorId, $decorator);

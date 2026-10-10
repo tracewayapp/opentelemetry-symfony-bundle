@@ -12,8 +12,8 @@ use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpClient\Psr18Client;
 use Traceway\OpenTelemetryBundle\DependencyInjection\Compiler\Psr18ClientTracingPass;
+use Traceway\OpenTelemetryBundle\HttpClient\Psr\InstrumentedPsr18Client;
 use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
-use Traceway\OpenTelemetryBundle\HttpClient\Psr\TracedPsr18Client;
 use Traceway\OpenTelemetryBundle\Tests\Fixtures\PlainPsr18Client;
 
 final class Psr18ClientTracingPassTest extends TestCase
@@ -28,7 +28,7 @@ final class Psr18ClientTracingPassTest extends TestCase
 
         self::assertTrue($container->hasDefinition('app.psr18.otel'));
         $decorator = $container->getDefinition('app.psr18.otel');
-        self::assertSame(TracedPsr18Client::class, $decorator->getClass());
+        self::assertSame(InstrumentedPsr18Client::class, $decorator->getClass());
         self::assertSame(['app.psr18', 'app.psr18.otel.inner', -16], $decorator->getDecoratedService());
         self::assertSame('test-tracer', $decorator->getArgument('$tracerName'));
         self::assertSame(['collector.internal'], $decorator->getArgument('$excludedHosts'));
@@ -93,6 +93,20 @@ final class Psr18ClientTracingPassTest extends TestCase
 
         self::assertEquals(new Reference(RequestMeter::class), $container->getDefinition('app.psr18.otel')->getArgument('$meter'));
         self::assertTrue($container->hasDefinition(RequestMeter::class));
+    }
+
+    public function testExcludedServiceIsLeftUndecorated(): void
+    {
+        $container = $this->container(true);
+        $container->setParameter('open_telemetry.http_client.excluded_services', ['app.sdk']);
+        $container->setDefinition('app.sdk', new Definition(PlainPsr18Client::class));
+        $container->setDefinition('app.psr18', new Definition(PlainPsr18Client::class));
+
+        (new Psr18ClientTracingPass())->process($container);
+
+        self::assertFalse($container->hasDefinition('app.sdk.otel'));
+        self::assertTrue($container->hasDefinition('app.psr18.otel'));
+        self::assertSame(['app.psr18'], $container->getParameter('open_telemetry.http_client.instrumented.psr18'));
     }
 
     public function testResolvesParameterizedClassNames(): void

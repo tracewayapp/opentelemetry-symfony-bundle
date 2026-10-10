@@ -19,13 +19,13 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/9tPn2SB3)
 
-Pure-PHP OpenTelemetry instrumentation for Symfony. Automatic tracing for HTTP, Console, HttpClient, Messenger, Mailer, Scheduler, Doctrine DBAL, Cache, and Twig — plus Monolog log-trace correlation, OTel log export, and opt-in metrics. **No C extension required.**
+Pure-PHP OpenTelemetry instrumentation for Symfony. Automatic tracing for HTTP, Console, Messenger, Mailer, Scheduler, Doctrine DBAL, Cache, and Twig, and for outgoing HTTP through Symfony HttpClient, Guzzle and PSR-18 clients — plus Monolog log-trace correlation, OTel log export, and opt-in metrics. **No C extension required.**
 
 Works with any OpenTelemetry-compatible backend: [Traceway](https://tracewayapp.com), [Jaeger](https://www.jaegertracing.io/), [Zipkin](https://zipkin.io/), [Datadog](https://www.datadoghq.com/), [Grafana Tempo](https://grafana.com/oss/tempo/), [Honeycomb](https://www.honeycomb.io/), [AWS X-Ray](docs/aws-xray.md), and more.
 
 - **Pure PHP** — installs on every managed Symfony host
 - **Production-ready** — stable since v1.0, PHPStan level 10 with no baseline, Symfony 6.4 LTS through 8.x
-- **Correct under load** — Messenger context propagates across async boundaries, DBAL 3 and 4 CI-tested, re-entrance guards on HttpClient and the log handler
+- **Correct under load** — Messenger context propagates across async boundaries, DBAL 3 and 4 CI-tested, re-entrance guards on HTTP clients and the log handler, a worker soak test in CI that fails on any leaked memory or duplicated span
 
 ## Installation
 
@@ -113,7 +113,7 @@ Mock in tests with `$this->createStub(TracingInterface::class)` and have `trace(
 
 ## Metrics
 
-Opt-in OpenTelemetry metrics — Messenger, Doctrine DBAL, HTTP server/client, and Mailer — alongside a `MeterRegistryInterface` for custom counters/histograms/gauges. See **[docs/metrics.md](docs/metrics.md)**.
+Opt-in OpenTelemetry metrics — Messenger, Doctrine DBAL, HTTP server, HTTP client (Symfony HttpClient, Guzzle and PSR-18), and Mailer — alongside a `MeterRegistryInterface` for custom counters/histograms/gauges. See **[docs/metrics.md](docs/metrics.md)**.
 
 ## Doctor
 

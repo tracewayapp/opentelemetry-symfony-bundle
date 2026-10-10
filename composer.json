@@ -1,6 +1,6 @@
 {
     "name": "traceway/opentelemetry-symfony",
-    "description": "Pure-PHP OpenTelemetry instrumentation for Symfony — automatic HTTP, Console, HttpClient, Messenger, Doctrine DBAL, Cache, Twig tracing and Monolog log-trace correlation with response propagation, a lightweight Tracing helper, route templates, and semantic conventions. No C extension required (ext-protobuf recommended for production).",
+    "description": "Pure-PHP OpenTelemetry instrumentation for Symfony: HTTP, Console, Messenger, Scheduler, Mailer, Doctrine DBAL, Cache and Twig tracing, outgoing HTTP through Symfony HttpClient, Guzzle and PSR-18 clients, opt-in metrics, and Monolog log correlation and export. Stable semantic conventions, no C extension required (ext-protobuf recommended for production).",
     "type": "symfony-bundle",
     "license": "MIT",
     "keywords": ["opentelemetry", "otel", "tracing", "observability", "symfony", "console", "doctrine", "cache", "twig", "monolog", "logging", "instrumentation"],
@@ -89,8 +89,8 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "4.0.x-dev",
-            "dev-master": "4.0.x-dev"
+            "dev-main": "4.1.x-dev",
+            "dev-master": "4.1.x-dev"
         }
     },
     "scripts": {

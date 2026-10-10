@@ -45,10 +45,11 @@ final class MessengerMiddlewareCheck implements CheckInterface
             );
         }
 
-        return CheckResult::warning(
+        // Messenger tracing is on by default, so this is the out-of-the-box state of
+        // every application without Messenger, not a misconfiguration.
+        return CheckResult::skipped(
             $this->name(),
-            'traces.messenger.enabled is true but symfony/messenger is not installed',
-            'Install symfony/messenger to actually trace message buses, or set traces.messenger.enabled: false to silence this warning.',
+            'symfony/messenger is not installed; Messenger tracing has nothing to instrument',
         );
     }
 }

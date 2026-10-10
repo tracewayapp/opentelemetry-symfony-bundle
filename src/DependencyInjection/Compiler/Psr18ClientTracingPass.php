@@ -10,11 +10,12 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\HttpClientInstrumentationCheck;
+use Traceway\OpenTelemetryBundle\HttpClient\Psr\InstrumentedPsr18Client;
 use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
-use Traceway\OpenTelemetryBundle\HttpClient\Psr\TracedPsr18Client;
 
 /**
- * Decorates PSR-18 client services with {@see TracedPsr18Client}.
+ * Decorates PSR-18 client services with {@see InstrumentedPsr18Client}.
  *
  * Only a service whose class implements nothing beyond ClientInterface and
  * ResetInterface is decorated: the decorator replaces the service, so any other
@@ -42,8 +43,10 @@ final class Psr18ClientTracingPass implements CompilerPassInterface
             : [];
 
         $meter = null;
+        $instrumented = [];
+        $excluded = self::excludedServices($container);
         foreach ($container->getDefinitions() as $id => $definition) {
-            if (!$this->isDecoratable($container, $definition)) {
+            if (\in_array($id, $excluded, true) || !$this->isDecoratable($container, $definition)) {
                 continue;
             }
             $meter ??= self::meterReference($container);
@@ -51,7 +54,7 @@ final class Psr18ClientTracingPass implements CompilerPassInterface
             $decoratorId = $id.'.otel';
             $innerId = $decoratorId.'.inner';
 
-            $decorator = new Definition(TracedPsr18Client::class);
+            $decorator = new Definition(InstrumentedPsr18Client::class);
             $decorator->setArgument('$client', new Reference($innerId));
             $decorator->setArgument('$tracerName', $tracerName);
             $decorator->setArgument('$excludedHosts', $excludedHosts);
@@ -60,7 +63,10 @@ final class Psr18ClientTracingPass implements CompilerPassInterface
             $decorator->addTag('kernel.reset', ['method' => 'reset']);
 
             $container->setDefinition($decoratorId, $decorator);
+            $instrumented[] = $id;
         }
+
+        $container->setParameter(HttpClientInstrumentationCheck::PARAMETER_PREFIX.'psr18', $instrumented);
     }
 
     private function isDecoratable(ContainerBuilder $container, Definition $definition): bool
@@ -75,7 +81,7 @@ final class Psr18ClientTracingPass implements CompilerPassInterface
         }
 
         $class = $container->getParameterBag()->resolveValue($class);
-        if (!\is_string($class) || TracedPsr18Client::class === ltrim($class, '\\')) {
+        if (!\is_string($class) || InstrumentedPsr18Client::class === ltrim($class, '\\')) {
             return false;
         }
 
@@ -124,5 +130,17 @@ final class Psr18ClientTracingPass implements CompilerPassInterface
         }
 
         return new Reference(RequestMeter::class);
+    }
+
+    /** @return list<string> */
+    private static function excludedServices(ContainerBuilder $container): array
+    {
+        if (!$container->hasParameter('open_telemetry.http_client.excluded_services')) {
+            return [];
+        }
+
+        $ids = $container->getParameter('open_telemetry.http_client.excluded_services');
+
+        return \is_array($ids) ? array_values(array_filter($ids, 'is_string')) : [];
     }
 }

@@ -54,6 +54,23 @@ final class HttpClientTracingPassTest extends TestCase
         self::assertTrue($container->hasDefinition('my_api.client.otel'));
     }
 
+    public function testExcludedServiceIsLeftUndecorated(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.http_client_enabled', true);
+        $container->setParameter('open_telemetry.tracer_name', 'test-tracer');
+        $container->setParameter('open_telemetry.http_client.excluded_services', ['legacy.client']);
+        $container->setDefinition('http_client', new Definition(HttpClientInterface::class));
+        $container->setDefinition('legacy.client', (new Definition(HttpClientInterface::class))->addTag('http_client.client'));
+
+        (new HttpClientTracingPass())->process($container);
+
+        self::assertTrue($container->hasDefinition('http_client.otel'));
+        self::assertFalse($container->hasDefinition('legacy.client.otel'));
+        self::assertSame(['http_client'], $container->getParameter('open_telemetry.http_client.instrumented.symfony'));
+        self::assertFalse($container->hasDefinition('legacy.client.otel_resend'));
+    }
+
     public function testSkipsWhenDisabled(): void
     {
         $container = new ContainerBuilder();

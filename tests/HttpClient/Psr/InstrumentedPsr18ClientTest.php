@@ -17,12 +17,12 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Psr18Client;
 use Symfony\Component\HttpClient\Response\MockResponse;
-use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\TracingMiddleware;
-use Traceway\OpenTelemetryBundle\HttpClient\Psr\TracedPsr18Client;
+use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\OpenTelemetryMiddleware;
+use Traceway\OpenTelemetryBundle\HttpClient\Psr\InstrumentedPsr18Client;
 use Traceway\OpenTelemetryBundle\HttpClient\TraceableHttpClient;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
-final class TracedPsr18ClientTest extends TestCase
+final class InstrumentedPsr18ClientTest extends TestCase
 {
     use OTelTestTrait;
 
@@ -146,7 +146,7 @@ final class TracedPsr18ClientTest extends TestCase
     {
         $this->mock->append(new Response(200), new Response(200), new Response(200));
         $_SERVER['OTEL_EXPORTER_OTLP_ENDPOINT'] = 'https://collector.internal:4318';
-        $client = new TracedPsr18Client($this->guzzle(), 'test', ['Status.Example.com']);
+        $client = new InstrumentedPsr18Client($this->guzzle(), 'test', ['Status.Example.com']);
 
         $client->sendRequest(new Request('GET', 'https://status.example.com/health'));
         $client->sendRequest(new Request('POST', 'https://collector.internal:4318/v1/traces'));
@@ -161,8 +161,8 @@ final class TracedPsr18ClientTest extends TestCase
     {
         $this->mock->append(new Response(200));
         $stack = HandlerStack::create($this->mock);
-        $stack->push(new TracingMiddleware('test'), TracingMiddleware::NAME);
-        $client = new TracedPsr18Client(new Client(['handler' => $stack]), 'test');
+        $stack->push(new OpenTelemetryMiddleware('test'), OpenTelemetryMiddleware::NAME);
+        $client = new InstrumentedPsr18Client(new Client(['handler' => $stack]), 'test');
 
         $client->sendRequest(new Request('GET', 'https://api.example.com/'));
 
@@ -172,7 +172,7 @@ final class TracedPsr18ClientTest extends TestCase
     public function testDoesNotDoubleTraceOverATracedSymfonyHttpClient(): void
     {
         $symfony = new TraceableHttpClient(new MockHttpClient(new MockResponse('ok', ['http_code' => 200])), 'test');
-        $client = new TracedPsr18Client(new Psr18Client($symfony), 'test');
+        $client = new InstrumentedPsr18Client(new Psr18Client($symfony), 'test');
 
         $client->sendRequest(new Request('GET', 'https://api.example.com/'));
 
@@ -202,9 +202,9 @@ final class TracedPsr18ClientTest extends TestCase
         self::assertCount(2, $this->exporter->getSpans());
     }
 
-    private function client(): TracedPsr18Client
+    private function client(): InstrumentedPsr18Client
     {
-        return new TracedPsr18Client($this->guzzle(), 'test');
+        return new InstrumentedPsr18Client($this->guzzle(), 'test');
     }
 
     private function guzzle(): Client

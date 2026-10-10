@@ -16,10 +16,10 @@ use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
-use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\TracingMiddleware;
+use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\OpenTelemetryMiddleware;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
-final class TracingMiddlewareTest extends TestCase
+final class OpenTelemetryMiddlewareTest extends TestCase
 {
     use OTelTestTrait;
 
@@ -92,7 +92,7 @@ final class TracingMiddlewareTest extends TestCase
             static fn (int $retries, $request, ?ResponseInterface $response = null): bool => $retries < 2 && null !== $response && 503 === $response->getStatusCode(),
             static fn (): int => 0,
         ), 'retry');
-        $stack->push(new TracingMiddleware('test'), TracingMiddleware::NAME);
+        $stack->push(new OpenTelemetryMiddleware('test'), OpenTelemetryMiddleware::NAME);
 
         (new Client(['handler' => $stack]))->get('https://api.example.com/flaky');
 
@@ -142,7 +142,7 @@ final class TracingMiddlewareTest extends TestCase
         $stack = new HandlerStack(static function (): never {
             throw new \InvalidArgumentException('SSL CA bundle not found');
         });
-        $stack->push(new TracingMiddleware('test'), TracingMiddleware::NAME);
+        $stack->push(new OpenTelemetryMiddleware('test'), OpenTelemetryMiddleware::NAME);
 
         try {
             (new Client(['handler' => $stack]))->send(new Request('GET', 'https://api.example.com/'));
@@ -171,7 +171,7 @@ final class TracingMiddlewareTest extends TestCase
     {
         $this->mock->append(new Response(200));
         $stack = HandlerStack::create($this->mock);
-        $stack->push(new TracingMiddleware('test', ['api.example.com']), TracingMiddleware::NAME);
+        $stack->push(new OpenTelemetryMiddleware('test', ['api.example.com']), OpenTelemetryMiddleware::NAME);
 
         (new Client(['handler' => $stack]))->get('https://api.example.com/');
 
@@ -186,7 +186,7 @@ final class TracingMiddlewareTest extends TestCase
     private function stack(): HandlerStack
     {
         $stack = HandlerStack::create($this->mock);
-        $stack->push(new TracingMiddleware('test'), TracingMiddleware::NAME);
+        $stack->push(new OpenTelemetryMiddleware('test'), OpenTelemetryMiddleware::NAME);
 
         return $stack;
     }

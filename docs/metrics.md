@@ -44,7 +44,7 @@ Names and attributes follow OTel semantic conventions ([messaging](https://opent
 
 `http_client.excluded_hosts` skips matching hostnames; the OTLP endpoint (from `OTEL_EXPORTER_OTLP_ENDPOINT`) is always auto-excluded to prevent instrumentation loops.
 
-Guzzle clients and decorated PSR-18 clients record the same three instruments with the same attributes, as long as `traces.http_client.guzzle` or `traces.http_client.psr18` installs their instrumentation. Those paths measure per attempt, since Guzzle's redirects and retries pass through the middleware one by one. Symfony HttpClient measures the whole request, retries included, because its metered decorator sits outside `RetryableHttpClient`. A Guzzle client inside a decorated PSR-18 client is measured once.
+Guzzle clients and decorated PSR-18 clients record the same three instruments with the same attributes, as long as `traces.http_client.guzzle` or `traces.http_client.psr18` installs their instrumentation. Every client family measures per attempt: a request retried under Symfony's `retry_failed` or Guzzle's retry middleware records one measurement for each attempt, like it records one span. A Guzzle client inside a decorated PSR-18 client is measured once.
 
 ## Mailer (outbound transport sends)
 

@@ -11,9 +11,9 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
-use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\TracingMiddleware;
+use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\OpenTelemetryMiddleware;
+use Traceway\OpenTelemetryBundle\HttpClient\Psr\InstrumentedPsr18Client;
 use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
-use Traceway\OpenTelemetryBundle\HttpClient\Psr\TracedPsr18Client;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
 final class RequestMeterTest extends TestCase
@@ -36,7 +36,7 @@ final class RequestMeterTest extends TestCase
     public function testPsr18ClientRecordsDurationAndBodySizesWithRequiredAttributes(): void
     {
         $this->mock->append(new Response(201, ['Content-Length' => '5'], 'hello'));
-        $client = new TracedPsr18Client($this->guzzle(), 'test', [], null, new RequestMeter('test'));
+        $client = new InstrumentedPsr18Client($this->guzzle(), 'test', [], null, new RequestMeter('test'));
 
         $client->sendRequest(new Request('POST', 'https://api.example.com:8443/items', ['Content-Length' => '3'], 'abc'));
 
@@ -60,7 +60,7 @@ final class RequestMeterTest extends TestCase
     {
         $this->mock->append(new Response(302, ['Location' => 'https://api.example.com/final']), new Response(200));
         $stack = HandlerStack::create($this->mock);
-        $stack->push(new TracingMiddleware('test', [], null, new RequestMeter('test')), TracingMiddleware::NAME);
+        $stack->push(new OpenTelemetryMiddleware('test', [], null, new RequestMeter('test')), OpenTelemetryMiddleware::NAME);
 
         (new Client(['handler' => $stack]))->get('https://api.example.com/start');
 
@@ -75,8 +75,8 @@ final class RequestMeterTest extends TestCase
         $this->mock->append(new Response(200));
         $meter = new RequestMeter('test');
         $stack = HandlerStack::create($this->mock);
-        $stack->push(new TracingMiddleware('test', [], null, $meter), TracingMiddleware::NAME);
-        $client = new TracedPsr18Client(new Client(['handler' => $stack]), 'test', [], null, $meter);
+        $stack->push(new OpenTelemetryMiddleware('test', [], null, $meter), OpenTelemetryMiddleware::NAME);
+        $client = new InstrumentedPsr18Client(new Client(['handler' => $stack]), 'test', [], null, $meter);
 
         $client->sendRequest(new Request('GET', 'https://api.example.com/'));
 
@@ -91,7 +91,7 @@ final class RequestMeterTest extends TestCase
         $request = new Request('GET', 'https://api.example.com/');
         $this->mock->append(new ConnectException('refused', $request));
         $stack = HandlerStack::create($this->mock);
-        $stack->push(new TracingMiddleware('test', [], null, new RequestMeter('test')), TracingMiddleware::NAME);
+        $stack->push(new OpenTelemetryMiddleware('test', [], null, new RequestMeter('test')), OpenTelemetryMiddleware::NAME);
 
         try {
             (new Client(['handler' => $stack]))->send($request);
@@ -105,7 +105,7 @@ final class RequestMeterTest extends TestCase
 
     public function testMetersEvenWhenTracingExcludesTheHost(): void
     {
-        $client = new TracedPsr18Client(new PlainPsr18ClientReturning200(), 'test', ['api.example.com'], null, new RequestMeter('test'));
+        $client = new InstrumentedPsr18Client(new PlainPsr18ClientReturning200(), 'test', ['api.example.com'], null, new RequestMeter('test'));
 
         $client->sendRequest(new Request('GET', 'https://api.example.com/'));
 
@@ -115,7 +115,7 @@ final class RequestMeterTest extends TestCase
 
     public function testMetricExcludedHostIsNotMetered(): void
     {
-        $client = new TracedPsr18Client(new PlainPsr18ClientReturning200(), 'test', [], null, new RequestMeter('test', ['api.example.com']));
+        $client = new InstrumentedPsr18Client(new PlainPsr18ClientReturning200(), 'test', [], null, new RequestMeter('test', ['api.example.com']));
 
         $client->sendRequest(new Request('GET', 'https://api.example.com/'));
 

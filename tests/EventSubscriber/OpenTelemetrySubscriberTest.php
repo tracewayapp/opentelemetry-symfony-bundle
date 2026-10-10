@@ -6,6 +6,7 @@ namespace Traceway\OpenTelemetryBundle\Tests\EventSubscriber;
 
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
+use OpenTelemetry\Context\Context;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -60,6 +61,40 @@ final class OpenTelemetrySubscriberTest extends TestCase
         $spans = $this->exporter->getSpans();
         self::assertCount(1, $spans);
         self::assertSame(SpanKind::KIND_SERVER, $spans[0]->getKind());
+    }
+
+    public function testTerminateDetachesTheScopeWhenFinishRequestNeverFired(): void
+    {
+        $request = Request::create('/en/admin/post/', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        self::assertNotNull(Context::storage()->scope());
+
+        // Symfony 8.1.0 skipped kernel.response and kernel.finish_request when an exception listener set a response.
+        $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response('', 302)));
+
+        self::assertNull(Context::storage()->scope(), 'the request scope must not outlive the request');
+        self::assertCount(1, $this->exporter->getSpans());
+        self::assertSame(302, $this->exporter->getSpans()[0]->getAttributes()->get('http.response.status_code'), 'status taken from the response that was sent');
+    }
+
+    public function testScopeIsDetachedExactlyOnceOnTheNormalPath(): void
+    {
+        $request = Request::create('/api/items', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+        $outerContext = Context::getCurrent()->with(Context::createKey('outer'), true);
+        $outer = $outerContext->activate();
+
+        try {
+            $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+            $this->subscriber->onFinishRequestDetachScope(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+            $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response()));
+
+            self::assertSame($outerContext, Context::getCurrent(), 'terminate must not detach a scope that is not the request\'s');
+        } finally {
+            $outer->detach();
+        }
     }
 
     public function testSpanNameUpdatedAfterRouting(): void

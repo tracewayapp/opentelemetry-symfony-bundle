@@ -111,6 +111,8 @@ services:
     # Bundle configuration checks
     Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\XRayDependencyCheck:
         autoconfigure: true
+    Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\HttpClientInstrumentationCheck:
+        autoconfigure: true
     Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\MessengerMiddlewareCheck:
         autoconfigure: true
     Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\OtelLogHandlerCheck:

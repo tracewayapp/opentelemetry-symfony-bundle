@@ -21,7 +21,8 @@ open_telemetry:
         http_client:
             enabled: true
             excluded_hosts: []                # OTLP endpoint is auto-excluded; applies to Symfony HttpClient, PSR-18 and Guzzle
-            psr18: true                       # decorate every Psr\Http\Client\ClientInterface service
+            excluded_services: []             # service ids left undecorated across Symfony HttpClient, PSR-18 and Guzzle
+            psr18: true                       # decorate PSR-18 clients that implement only ClientInterface
             guzzle: true                      # traced handler stack for GuzzleHttp\Client services without their own handler
 
         messenger:
@@ -154,17 +155,19 @@ A few defaults exist because they are the difference between a few MB and a few 
 `traces.http_client` covers three client families with one set of attributes, exclusions and the same W3C propagation:
 
 - **Symfony HttpClient**: the `http_client` service and every scoped client are decorated.
-- **PSR-18**: a service whose class implements only `Psr\Http\Client\ClientInterface` (and optionally `ResetInterface`) is decorated with `TracedPsr18Client`, which covers an SDK's own client or one declared as the interface and built by discovery. A client implementing anything more is left alone, because the decorator replaces the service and would hide those interfaces from consumers. That rule skips Symfony's `Psr18Client` (also a PSR-17 factory), php-http adapters (also HTTPlug clients) and Guzzle; their requests are still traced, by the Symfony HttpClient decorator and the Guzzle middleware underneath. When a decorated PSR-18 client wraps a traced Symfony HttpClient, the inner decorator steps aside, so each request is one span.
+- **PSR-18**: a service whose class implements only `Psr\Http\Client\ClientInterface` (and optionally `ResetInterface`) is decorated with `InstrumentedPsr18Client`, which covers an SDK's own client or one declared as the interface and built by discovery. A client implementing anything more is left alone, because the decorator replaces the service and would hide those interfaces from consumers. That rule skips Symfony's `Psr18Client` (also a PSR-17 factory), php-http adapters (also HTTPlug clients) and Guzzle; their requests are still traced, by the Symfony HttpClient decorator and the Guzzle middleware underneath. When a decorated PSR-18 client wraps a traced Symfony HttpClient, the inner decorator steps aside, so each request is one span.
 - **Guzzle**: every `GuzzleHttp\Client` service that does not pass its own `handler` gets a handler stack with the tracing middleware. A client that builds its own stack pushes the middleware service itself:
 
 ```php
 use GuzzleHttp\HandlerStack;
-use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\TracingMiddleware;
+use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\OpenTelemetryMiddleware;
 
 $stack = HandlerStack::create();
 $stack->push($retryMiddleware, 'retry');
-$stack->push($tracingMiddleware, TracingMiddleware::NAME);   // last, so it sees every attempt
+$stack->push($tracingMiddleware, OpenTelemetryMiddleware::NAME);   // last, so it sees every attempt
 $client = new Client(['handler' => $stack]);
 ```
 
 Push it last. Guzzle runs the first-pushed middleware outermost, so pushing the tracing middleware after your retry and redirect middlewares puts it closest to the transport, where each redirected or retried request passes through it and `http.request.resend_count` reflects Guzzle's own counters. A Guzzle client wrapped in a traced PSR-18 adapter produces one span, not two: the PSR-18 decorator marks the request in flight and the middleware steps aside.
+
+If wrapping one particular service causes trouble, list its id under `traces.http_client.excluded_services`. The bundle then leaves that service exactly as you defined it, in all three families, while the rest stay instrumented.

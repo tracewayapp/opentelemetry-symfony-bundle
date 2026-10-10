@@ -311,6 +311,13 @@ final class OpenTelemetryExtensionTest extends TestCase
         self::assertFalse($container->getParameter('open_telemetry.http_client.guzzle_enabled'));
     }
 
+    public function testHttpClientExcludedServicesWired(): void
+    {
+        $container = $this->buildContainer(['traces' => ['http_client' => ['excluded_services' => ['app.legacy', 'app.legacy', 'app.sdk']]]]);
+
+        self::assertSame(['app.legacy', 'app.sdk'], $container->getParameter('open_telemetry.http_client.excluded_services'));
+    }
+
     public function testMessengerExcludedMessagesWired(): void
     {
         $container = $this->buildContainer([

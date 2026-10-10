@@ -13,10 +13,12 @@ use OpenTelemetry\SemConv\Attributes\NetworkAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Event\FinishRequestEvent;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
+use Symfony\Component\HttpKernel\Event\TerminateEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Contracts\Service\ResetInterface;
 use Traceway\OpenTelemetryBundle\Instrumentation\MeterAwareTrait;
@@ -94,6 +96,7 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
             KernelEvents::EXCEPTION => ['onException', 0],
             KernelEvents::RESPONSE => ['onResponse', -256],
             KernelEvents::FINISH_REQUEST => ['onFinishRequest', -512],
+            KernelEvents::TERMINATE => ['onTerminate', -1024],
         ];
     }
 
@@ -169,16 +172,19 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
             return;
         }
 
-        $request = $event->getRequest();
+        $this->recordResponse($event->getRequest(), $event->getResponse());
+    }
+
+    private function recordResponse(Request $request, Response $response): void
+    {
         $data = $this->requestData[$request] ?? null;
-        if (null === $data) {
+        if (null === $data || ($data['recorded'] ?? false)) {
             return;
         }
 
         try {
             $attributes = $this->requestMetricAttributes($request, $data);
 
-            $response = $event->getResponse();
             $statusCode = $response->getStatusCode();
             $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE] = $statusCode;
 
@@ -213,7 +219,28 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
             return;
         }
 
+        $this->finish($event->getRequest());
+    }
+
+    /**
+     * kernel.response and kernel.finish_request normally finished the request. When
+     * the kernel or a listener skipped them (Symfony 8.1.0 did on exception
+     * responses), the request is measured from the response that was sent, and the
+     * active-requests counter still comes back down.
+     */
+    public function onTerminate(TerminateEvent $event): void
+    {
         $request = $event->getRequest();
+        if (!isset($this->requestData[$request])) {
+            return;
+        }
+
+        $this->recordResponse($request, $event->getResponse());
+        $this->finish($request);
+    }
+
+    private function finish(Request $request): void
+    {
         $data = $this->requestData[$request] ?? null;
         if (null === $data) {
             return;

@@ -28,4 +28,16 @@ final class MessengerMiddlewareCheckTest extends TestCase
 
         self::assertSame(Status::Ok, $result->status);
     }
+
+    public function testDefaultConfigWithoutMessengerIsNotAWarning(): void
+    {
+        $check = new MessengerMiddlewareCheck();
+        $result = $check->run(CheckTestHelper::context(params: ['open_telemetry.traces.messenger.enabled' => true]));
+
+        if (interface_exists(\Symfony\Component\Messenger\MessageBusInterface::class)) {
+            self::assertSame(Status::Ok, $result->status);
+        } else {
+            self::assertSame(Status::Skipped, $result->status);
+        }
+    }
 }

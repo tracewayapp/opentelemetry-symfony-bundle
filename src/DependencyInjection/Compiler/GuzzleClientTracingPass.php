@@ -8,11 +8,12 @@ use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
-use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\TracingMiddleware;
+use Traceway\OpenTelemetryBundle\Command\Doctor\Check\Bundle\HttpClientInstrumentationCheck;
+use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\OpenTelemetryMiddleware;
 use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
 
 /**
- * Registers the Guzzle {@see TracingMiddleware} service and gives every
+ * Registers the Guzzle {@see OpenTelemetryMiddleware} service and gives every
  * GuzzleHttp\Client service that does not configure its own handler a
  * handler stack with the middleware pushed.
  *
@@ -21,7 +22,7 @@ use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
  */
 final class GuzzleClientTracingPass implements CompilerPassInterface
 {
-    public const MIDDLEWARE_ID = TracingMiddleware::class;
+    public const MIDDLEWARE_ID = OpenTelemetryMiddleware::class;
     public const HANDLER_STACK_ID = 'open_telemetry.guzzle.handler_stack';
 
     public function process(ContainerBuilder $container): void
@@ -40,7 +41,7 @@ final class GuzzleClientTracingPass implements CompilerPassInterface
             ? $container->getParameter('open_telemetry.http_client_excluded_hosts')
             : [];
 
-        $middleware = new Definition(TracingMiddleware::class);
+        $middleware = new Definition(OpenTelemetryMiddleware::class);
         $middleware->setArgument('$tracerName', $tracerName);
         $middleware->setArgument('$excludedHosts', $excludedHosts);
         $middleware->setArgument('$meter', self::meterReference($container));
@@ -50,12 +51,14 @@ final class GuzzleClientTracingPass implements CompilerPassInterface
 
         $stack = new Definition(\GuzzleHttp\HandlerStack::class);
         $stack->setFactory([\GuzzleHttp\HandlerStack::class, 'create']);
-        $stack->addMethodCall('push', [new Reference(self::MIDDLEWARE_ID), TracingMiddleware::NAME]);
+        $stack->addMethodCall('push', [new Reference(self::MIDDLEWARE_ID), OpenTelemetryMiddleware::NAME]);
         $stack->setShared(false);
         $container->setDefinition(self::HANDLER_STACK_ID, $stack);
 
-        foreach ($container->getDefinitions() as $definition) {
-            if (!$this->isGuzzleClient($container, $definition)) {
+        $instrumented = [];
+        $excluded = self::excludedServices($container);
+        foreach ($container->getDefinitions() as $id => $definition) {
+            if (\in_array($id, $excluded, true) || !$this->isGuzzleClient($container, $definition)) {
                 continue;
             }
 
@@ -67,7 +70,10 @@ final class GuzzleClientTracingPass implements CompilerPassInterface
 
             $config['handler'] = new Reference(self::HANDLER_STACK_ID);
             $definition->setArgument(\array_key_exists('$config', $arguments) ? '$config' : 0, $config);
+            $instrumented[] = $id;
         }
+
+        $container->setParameter(HttpClientInstrumentationCheck::PARAMETER_PREFIX.'guzzle', $instrumented);
     }
 
     private function isGuzzleClient(ContainerBuilder $container, Definition $definition): bool
@@ -108,5 +114,17 @@ final class GuzzleClientTracingPass implements CompilerPassInterface
         }
 
         return new Reference(RequestMeter::class);
+    }
+
+    /** @return list<string> */
+    private static function excludedServices(ContainerBuilder $container): array
+    {
+        if (!$container->hasParameter('open_telemetry.http_client.excluded_services')) {
+            return [];
+        }
+
+        $ids = $container->getParameter('open_telemetry.http_client.excluded_services');
+
+        return \is_array($ids) ? array_values(array_filter($ids, 'is_string')) : [];
     }
 }

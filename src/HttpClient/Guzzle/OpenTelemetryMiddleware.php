@@ -14,8 +14,9 @@ use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
 use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestTracer;
 
 /**
- * Guzzle handler-stack middleware: one CLIENT span per attempt, with
- * http.request.resend_count from Guzzle's redirect and retry middlewares.
+ * Guzzle handler-stack middleware: one CLIENT span and one http.client.* metric
+ * measurement per attempt, with http.request.resend_count from Guzzle's
+ * redirect and retry middlewares.
  *
  * Push it onto the stack (not unshift) so it sits below those middlewares and
  * sees every redirected or retried request:
@@ -23,7 +24,7 @@ use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestTracer;
  *     $stack = HandlerStack::create();
  *     $stack->push($middleware, 'otel');
  */
-final class TracingMiddleware implements ResetInterface
+final class OpenTelemetryMiddleware implements ResetInterface
 {
     public const NAME = 'otel';
 

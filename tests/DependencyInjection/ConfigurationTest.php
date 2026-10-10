@@ -39,6 +39,7 @@ final class ConfigurationTest extends TestCase
         self::assertFalse($config['traces']['console']['trace_long_running_commands']);
         self::assertTrue($config['traces']['http_client']['enabled']);
         self::assertSame([], $config['traces']['http_client']['excluded_hosts']);
+        self::assertSame([], $config['traces']['http_client']['excluded_services']);
         self::assertTrue($config['traces']['http_client']['psr18']);
         self::assertTrue($config['traces']['http_client']['guzzle']);
         self::assertTrue($config['traces']['messenger']['enabled']);

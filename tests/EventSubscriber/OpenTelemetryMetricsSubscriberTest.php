@@ -13,6 +13,7 @@ use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Event\FinishRequestEvent;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
+use Symfony\Component\HttpKernel\Event\TerminateEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetryMetricsSubscriber;
@@ -44,6 +45,41 @@ final class OpenTelemetryMetricsSubscriberTest extends TestCase
         self::assertArrayHasKey(KernelEvents::EXCEPTION, $events);
         self::assertArrayHasKey(KernelEvents::RESPONSE, $events);
         self::assertArrayHasKey(KernelEvents::FINISH_REQUEST, $events);
+        self::assertArrayHasKey(KernelEvents::TERMINATE, $events);
+    }
+
+    public function testTerminateFinishesARequestWhoseResponseAndFinishEventsWereSkipped(): void
+    {
+        $request = Request::create('/en/admin/post/', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response('', 302)));
+
+        $metrics = $this->collectMetrics();
+        $durationPoints = [...$metrics['http.server.request.duration']->data->dataPoints];
+        self::assertCount(1, $durationPoints);
+        self::assertSame(1, $durationPoints[0]->count);
+        self::assertSame(302, $durationPoints[0]->attributes->get('http.response.status_code'));
+
+        $active = [...$metrics['http.server.active_requests']->data->dataPoints];
+        self::assertSame(0, array_sum(array_map(static fn ($p): int|float => $p->value, $active)), 'active requests must come back down');
+    }
+
+    public function testTerminateAfterTheNormalPathRecordsNothingTwice(): void
+    {
+        $request = Request::create('/api/items', 'GET');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onResponse(new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, new Response('', 200)));
+        $this->subscriber->onFinishRequest(new FinishRequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        $this->subscriber->onTerminate(new TerminateEvent($kernel, $request, new Response('', 200)));
+
+        $metrics = $this->collectMetrics();
+        self::assertSame(1, [...$metrics['http.server.request.duration']->data->dataPoints][0]->count);
+        $active = [...$metrics['http.server.active_requests']->data->dataPoints];
+        self::assertSame(0, array_sum(array_map(static fn ($p): int|float => $p->value, $active)));
     }
 
     public function testMainRequestEmitsDurationAndActiveCount(): void

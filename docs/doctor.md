@@ -21,6 +21,7 @@ SDK configuration
   ✓ TracerProvider is TracerProvider
 
 Bundle configuration
+  ○ Symfony HttpClient: http_client; PSR-18: none; Guzzle: none
   ○ propagator=w3c, id_generator=default; X-Ray not configured
   ✓ Messenger tracing enabled and symfony/messenger is installed
   ○ logs.export.enabled is false
@@ -28,7 +29,7 @@ Bundle configuration
 Connectivity
   ✓ OTLP endpoint reachable (HTTP 404, 7ms)
 
-Results: 10 ok, 0 warning, 0 error, 3 skipped, 0 info
+Results: 10 ok, 0 warning, 0 error, 3 skipped, 1 info
 ```
 
 The command is also discoverable in the `debug:` namespace as `debug:traceway`.

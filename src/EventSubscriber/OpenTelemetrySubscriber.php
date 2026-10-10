@@ -20,6 +20,7 @@ use OpenTelemetry\SemConv\Attributes\UserAgentAttributes;
 use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Event\FinishRequestEvent;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
@@ -50,7 +51,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
 
     private readonly RouteTemplateResolver $routeTemplateResolver;
 
-    /** @var \WeakMap<Request, array{span?: SpanInterface, scope?: ScopeInterface, exception?: \Throwable}> */
+    /** @var \WeakMap<Request, array{span?: SpanInterface, scope?: ScopeInterface, exception?: \Throwable, responded?: bool}> */
     private \WeakMap $requestData;
 
     /**
@@ -182,21 +183,36 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
 
     public function onResponse(ResponseEvent $event): void
     {
-        $span = $this->getSpan($event->getRequest());
-        if (null === $span || !$span->isRecording()) {
+        if (!$this->applyResponse($event->getRequest(), $event->getResponse())) {
             return;
         }
 
-        $data = $this->requestData[$event->getRequest()] ?? [];
+        if ($event->isMainRequest()) {
+            $response = $event->getResponse();
+            Globals::responsePropagator()->inject($response, ResponsePropagationSetter::instance(), Context::getCurrent());
+        }
+    }
+
+    /**
+     * Records the response on the request's span once. Returns false when there is no recording span.
+     */
+    private function applyResponse(Request $request, Response $response): bool
+    {
+        $span = $this->getSpan($request);
+        if (null === $span || !$span->isRecording()) {
+            return false;
+        }
+
+        $data = $this->requestData[$request] ?? [];
         $exception = $data['exception'] ?? null;
         unset($data['exception']);
-        $this->requestData[$event->getRequest()] = $data;
+        $data['responded'] = true;
+        $this->requestData[$request] = $data;
 
-        $response = $event->getResponse();
         $statusCode = $response->getStatusCode();
         $span->setAttribute(HttpAttributes::HTTP_RESPONSE_STATUS_CODE, $statusCode);
 
-        $requestBodySize = $event->getRequest()->headers->get('Content-Length');
+        $requestBodySize = $request->headers->get('Content-Length');
         if (null !== $requestBodySize && ctype_digit($requestBodySize)) {
             $span->setAttribute(HttpIncubatingAttributes::HTTP_REQUEST_BODY_SIZE, (int) $requestBodySize);
         }
@@ -216,16 +232,12 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
             }
         }
 
-        if ($event->isMainRequest()) {
-            $responsePropagator = Globals::responsePropagator();
-            $responsePropagator->inject($response, ResponsePropagationSetter::instance(), Context::getCurrent());
-        }
+        return true;
     }
 
     public function onFinishRequestDetachScope(FinishRequestEvent $event): void
     {
-        $scope = $this->getScope($event->getRequest());
-        $scope?->detach();
+        $this->detachScope($event->getRequest());
     }
 
     /**
@@ -263,6 +275,17 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
     public function onTerminate(TerminateEvent $event): void
     {
         $request = $event->getRequest();
+
+        // kernel.finish_request normally detached it already. When the kernel or a
+        // listener skipped that event (Symfony 8.1.0 did on exception responses),
+        // the scope would otherwise stay active into the next request of a worker.
+        $this->detachScope($request);
+
+        // Likewise kernel.response: the response that was sent still carries the status.
+        if (!(($this->requestData[$request] ?? [])['responded'] ?? false)) {
+            $this->applyResponse($request, $event->getResponse());
+        }
+
         $span = $this->getSpan($request);
         $span?->end();
 
@@ -311,9 +334,16 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
         return ($this->requestData[$request] ?? [])['span'] ?? null;
     }
 
-    private function getScope(Request $request): ?ScopeInterface
+    private function detachScope(Request $request): void
     {
-        return ($this->requestData[$request] ?? [])['scope'] ?? null;
+        $data = $this->requestData[$request] ?? null;
+        if (!isset($data['scope'])) {
+            return;
+        }
+
+        $data['scope']->detach();
+        unset($data['scope']);
+        $this->requestData[$request] = $data;
     }
 
     /**

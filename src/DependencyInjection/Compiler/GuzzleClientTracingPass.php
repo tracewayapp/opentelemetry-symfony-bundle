@@ -22,8 +22,11 @@ use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
  */
 final class GuzzleClientTracingPass implements CompilerPassInterface
 {
+    use ExcludedClientServicesTrait;
+
     public const REQUEST_METER_ID = 'open_telemetry.http_client.request_meter';
     public const MIDDLEWARE_ID = 'open_telemetry.http_client.guzzle_middleware';
+    public const PARENT_MIDDLEWARE_ID = 'open_telemetry.http_client.guzzle_parent_middleware';
     public const HANDLER_STACK_ID = 'open_telemetry.guzzle.handler_stack';
 
     public function process(ContainerBuilder $container): void
@@ -51,9 +54,14 @@ final class GuzzleClientTracingPass implements CompilerPassInterface
         $container->setDefinition(self::MIDDLEWARE_ID, $middleware);
         $container->setAlias(OpenTelemetryMiddleware::class, self::MIDDLEWARE_ID)->setPublic(true);
 
+        $parent = new Definition(\Closure::class);
+        $parent->setFactory([OpenTelemetryMiddleware::class, 'parentContext']);
+        $container->setDefinition(self::PARENT_MIDDLEWARE_ID, $parent);
+
         $stack = new Definition(\GuzzleHttp\HandlerStack::class);
         $stack->setFactory([\GuzzleHttp\HandlerStack::class, 'create']);
         $stack->addMethodCall('push', [new Reference(self::MIDDLEWARE_ID), OpenTelemetryMiddleware::NAME]);
+        $stack->addMethodCall('unshift', [new Reference(self::PARENT_MIDDLEWARE_ID), OpenTelemetryMiddleware::PARENT_NAME]);
         $stack->setShared(false);
         $container->setDefinition(self::HANDLER_STACK_ID, $stack);
 
@@ -117,17 +125,5 @@ final class GuzzleClientTracingPass implements CompilerPassInterface
         }
 
         return new Reference(self::REQUEST_METER_ID);
-    }
-
-    /** @return list<string> */
-    private static function excludedServices(ContainerBuilder $container): array
-    {
-        if (!$container->hasParameter('open_telemetry.http_client.excluded_services')) {
-            return [];
-        }
-
-        $ids = $container->getParameter('open_telemetry.http_client.excluded_services');
-
-        return \is_array($ids) ? array_values(array_filter($ids, 'is_string')) : [];
     }
 }

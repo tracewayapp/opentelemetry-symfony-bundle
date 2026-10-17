@@ -107,7 +107,7 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface
             }
         }
 
-        $parent = Context::getCurrent();
+        $parent = $counter instanceof ResendCounter && null !== $counter->parent ? $counter->parent : Context::getCurrent();
         $span = $spanBuilder->setParent($parent)->startSpan();
         $context = $span->storeInContext($parent);
 

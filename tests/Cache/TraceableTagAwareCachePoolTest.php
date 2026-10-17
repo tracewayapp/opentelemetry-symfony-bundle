@@ -85,7 +85,7 @@ final class TraceableTagAwareCachePoolTest extends TestCase
 
     public function testConstructorRejectsNonTagAwarePool(): void
     {
-        $inner = $this->createMock(CacheItemPoolInterface::class);
+        $inner = $this->createStub(CacheItemPoolInterface::class);
 
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('does not implement TagAwareCacheInterface');

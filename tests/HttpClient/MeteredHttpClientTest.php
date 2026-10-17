@@ -364,7 +364,7 @@ final class MeteredHttpClientTest extends TestCase
 
     private function injectBrokenDurationHistogram(MeteredHttpClient $client): void
     {
-        $broken = $this->createMock(HistogramInterface::class);
+        $broken = $this->createStub(HistogramInterface::class);
         $broken->method('record')->willThrowException(new \RuntimeException('metrics down'));
 
         $reflection = new \ReflectionClass($client);
@@ -374,7 +374,7 @@ final class MeteredHttpClientTest extends TestCase
 
     private function injectBrokenRequestBodySizeHistogram(MeteredHttpClient $client): void
     {
-        $broken = $this->createMock(HistogramInterface::class);
+        $broken = $this->createStub(HistogramInterface::class);
         $broken->method('record')->willThrowException(new \RuntimeException('metrics down'));
 
         $reflection = new \ReflectionClass($client);

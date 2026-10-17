@@ -79,6 +79,24 @@ final class OpenTelemetrySubscriberTest extends TestCase
         self::assertSame(302, $this->exporter->getSpans()[0]->getAttributes()->get('http.response.status_code'), 'status taken from the response that was sent');
     }
 
+    public function testTerminateFirstDetachesASubRequestScopeLeftAboveTheMainOne(): void
+    {
+        $main = Request::create('/page');
+        $fragment = Request::create('/_fragment');
+        $kernel = $this->createStub(HttpKernelInterface::class);
+
+        $this->subscriber->onRequest(new RequestEvent($kernel, $main, HttpKernelInterface::MAIN_REQUEST));
+        $mainScope = Context::storage()->scope();
+        // The sub-request skips kernel.finish_request, so its scope stays on top.
+        $this->subscriber->onRequest(new RequestEvent($kernel, $fragment, HttpKernelInterface::SUB_REQUEST));
+        self::assertNotSame($mainScope, Context::storage()->scope());
+
+        $this->subscriber->onTerminate(new TerminateEvent($kernel, $main, new Response()));
+
+        self::assertNull(Context::storage()->scope(), 'both scopes are detached');
+        self::assertCount(2, $this->exporter->getSpans(), 'the sub-request span is ended, not lost');
+    }
+
     public function testResetEndsAndDetachesAnAbortedRequest(): void
     {
         $kernel = $this->createStub(HttpKernelInterface::class);

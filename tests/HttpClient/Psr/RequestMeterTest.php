@@ -12,7 +12,11 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpClient\MockHttpClient;
+use Symfony\Component\HttpClient\Psr18Client;
+use Symfony\Component\HttpClient\Response\MockResponse;
 use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\OpenTelemetryMiddleware;
+use Traceway\OpenTelemetryBundle\HttpClient\MeteredHttpClient;
 use Traceway\OpenTelemetryBundle\HttpClient\Psr\InstrumentedPsr18Client;
 use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
@@ -85,6 +89,18 @@ final class RequestMeterTest extends TestCase
         self::assertCount(1, $points);
         self::assertSame(1, $points[0]->count);
         self::assertCount(1, $this->exporter->getSpans());
+    }
+
+    public function testSymfonyHttpClientInsideADecoratedPsr18ClientIsCountedOnce(): void
+    {
+        $symfony = new MeteredHttpClient(new MockHttpClient(new MockResponse('ok', ['http_code' => 200])), 'test');
+        $client = new InstrumentedPsr18Client(new Psr18Client($symfony), 'test', [], null, new RequestMeter('test'));
+
+        $client->sendRequest(new Request('GET', 'https://api.example.com/'));
+
+        $points = [...$this->collectMetrics()['http.client.request.duration']->data->dataPoints];
+        self::assertCount(1, $points);
+        self::assertSame(1, $points[0]->count);
     }
 
     public function testTransportFailureRecordsErrorType(): void

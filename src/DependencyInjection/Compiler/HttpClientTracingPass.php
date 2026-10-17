@@ -25,6 +25,8 @@ use Traceway\OpenTelemetryBundle\HttpClient\TraceableHttpClient;
  */
 final class HttpClientTracingPass implements CompilerPassInterface
 {
+    use ExcludedClientServicesTrait;
+
     public const TRACER_PRIORITY = 64;
     public const RESEND_COUNTER_PRIORITY = -16;
 
@@ -88,17 +90,5 @@ final class HttpClientTracingPass implements CompilerPassInterface
         }
 
         return $ids;
-    }
-
-    /** @return list<string> */
-    private static function excludedServices(ContainerBuilder $container): array
-    {
-        if (!$container->hasParameter('open_telemetry.http_client.excluded_services')) {
-            return [];
-        }
-
-        $ids = $container->getParameter('open_telemetry.http_client.excluded_services');
-
-        return \is_array($ids) ? array_values(array_filter($ids, 'is_string')) : [];
     }
 }

@@ -60,7 +60,7 @@ final class TraceableNamespacedCachePoolTest extends TestCase
 
     public function testConstructorRejectsNonNamespacedPool(): void
     {
-        $inner = $this->createMock(CacheItemPoolInterface::class);
+        $inner = $this->createStub(CacheItemPoolInterface::class);
 
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('does not implement NamespacedPoolInterface');

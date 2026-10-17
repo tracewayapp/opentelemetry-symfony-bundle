@@ -66,49 +66,70 @@ final class ClientParityTest extends TestCase
     #[DataProvider('requests')]
     public function testAllClientsEmitIdenticalTelemetry(int $status, string $method, string $url): void
     {
-        $symfony = $this->observe(static function () use ($status, $method, $url): void {
-            $mock = new MockHttpClient(new MockResponse('hello', [
-                'http_code' => $status,
-                'http_version' => self::CURL_HTTP_VERSION_1_1,
-                'primary_ip' => self::PEER_ADDRESS,
-                'primary_port' => self::PEER_PORT,
-                'response_headers' => ['content-length' => '5'],
-            ]));
-            (new MeteredHttpClient(new TraceableHttpClient($mock, 'test'), 'test'))->request($method, $url)->getContent(false);
-        });
-
-        $guzzle = $this->observe(static function () use ($status, $method, $url): void {
-            $response = new Response($status, ['Content-Length' => '5'], 'hello');
-            $stack = HandlerStack::create(static function (RequestInterface $request, array $options) use ($response) {
-                if (isset($options['on_stats'])) {
-                    $options['on_stats'](new TransferStats($request, $response, 0.01, null, ['primary_ip' => self::PEER_ADDRESS, 'primary_port' => self::PEER_PORT]));
-                }
-
-                return Create::promiseFor($response);
-            });
-            $stack->push(new OpenTelemetryMiddleware('test', [], null, new RequestMeter('test')), OpenTelemetryMiddleware::NAME);
-            (new Client(['handler' => $stack, 'http_errors' => false]))->request($method, $url);
-        });
-
-        $psr18 = $this->observe(static function () use ($status, $method, $url): void {
-            $inner = new class($status) implements ClientInterface {
-                public function __construct(private readonly int $status)
-                {
-                }
-
-                public function sendRequest(RequestInterface $request): ResponseInterface
-                {
-                    return new Response($this->status, ['Content-Length' => '5'], 'hello');
-                }
-            };
-            (new InstrumentedPsr18Client($inner, 'test', [], null, new RequestMeter('test')))->sendRequest(new Request($method, $url));
-        });
+        $symfony = $this->observe(static fn () => self::sendThroughSymfony($status, $method, $url));
+        $guzzle = $this->observe(static fn () => self::sendThroughGuzzle($status, $method, $url));
+        $psr18 = $this->observe(static fn () => self::sendThroughPsr18($status, $method, $url));
 
         self::assertSame(self::PEER_ADDRESS, $symfony['attributes']['network.peer.address'] ?? null, 'the comparison must include a real peer');
         self::assertSame($symfony, $guzzle, 'Guzzle diverges from Symfony HttpClient');
 
         unset($symfony['attributes']['network.peer.address'], $symfony['attributes']['network.peer.port']);
         self::assertSame($symfony, $psr18, 'PSR-18 diverges from Symfony HttpClient beyond the peer a plain PSR-18 client cannot expose');
+    }
+
+    #[DataProvider('requests')]
+    public function testAllClientsRecordIntoOneStreamPerAttributeSet(int $status, string $method, string $url): void
+    {
+        self::sendThroughSymfony($status, $method, $url);
+        self::sendThroughGuzzle($status, $method, $url);
+        self::sendThroughPsr18($status, $method, $url);
+
+        foreach ($this->collectMetrics() as $name => $metric) {
+            $points = [...$metric->data->dataPoints];
+            self::assertCount(1, $points, $name.': same attributes from another client must not open a second stream');
+            self::assertSame(3, $points[0]->count, $name);
+        }
+    }
+
+    private static function sendThroughSymfony(int $status, string $method, string $url): void
+    {
+        $mock = new MockHttpClient(new MockResponse('hello', [
+            'http_code' => $status,
+            'http_version' => self::CURL_HTTP_VERSION_1_1,
+            'primary_ip' => self::PEER_ADDRESS,
+            'primary_port' => self::PEER_PORT,
+            'response_headers' => ['content-length' => '5'],
+        ]));
+        (new MeteredHttpClient(new TraceableHttpClient($mock, 'test'), 'test'))->request($method, $url)->getContent(false);
+    }
+
+    private static function sendThroughGuzzle(int $status, string $method, string $url): void
+    {
+        $response = new Response($status, ['Content-Length' => '5'], 'hello');
+        $stack = HandlerStack::create(static function (RequestInterface $request, array $options) use ($response) {
+            if (isset($options['on_stats'])) {
+                $options['on_stats'](new TransferStats($request, $response, 0.01, null, ['primary_ip' => self::PEER_ADDRESS, 'primary_port' => self::PEER_PORT]));
+            }
+
+            return Create::promiseFor($response);
+        });
+        $stack->push(new OpenTelemetryMiddleware('test', [], null, new RequestMeter('test')), OpenTelemetryMiddleware::NAME);
+        (new Client(['handler' => $stack, 'http_errors' => false]))->request($method, $url);
+    }
+
+    private static function sendThroughPsr18(int $status, string $method, string $url): void
+    {
+        $inner = new class($status) implements ClientInterface {
+            public function __construct(private readonly int $status)
+            {
+            }
+
+            public function sendRequest(RequestInterface $request): ResponseInterface
+            {
+                return new Response($this->status, ['Content-Length' => '5'], 'hello');
+            }
+        };
+        (new InstrumentedPsr18Client($inner, 'test', [], null, new RequestMeter('test')))->sendRequest(new Request($method, $url));
     }
 
     public function testRetriesAreOneSpanAndOneMeasurementPerAttemptOnEveryClient(): void

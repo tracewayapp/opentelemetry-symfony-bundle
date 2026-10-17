@@ -67,6 +67,21 @@ final class HttpClientMetricsPassTest extends TestCase
         self::assertTrue($container->hasDefinition('my_api.client.otel_metrics'));
     }
 
+    public function testExcludedServiceIsNotMetered(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('open_telemetry.http_client_metrics_enabled', true);
+        $container->setParameter('open_telemetry.metrics_meter_name', 'test-meter');
+        $container->setParameter('open_telemetry.http_client.excluded_services', ['my_api.client']);
+        $container->setDefinition('http_client', new Definition(HttpClientInterface::class));
+        $container->setDefinition('my_api.client', (new Definition(HttpClientInterface::class))->addTag('http_client.client'));
+
+        (new HttpClientMetricsPass())->process($container);
+
+        self::assertTrue($container->hasDefinition('http_client.otel_metrics'));
+        self::assertFalse($container->hasDefinition('my_api.client.otel_metrics'));
+    }
+
     public function testSkipsWhenDisabled(): void
     {
         $container = new ContainerBuilder();

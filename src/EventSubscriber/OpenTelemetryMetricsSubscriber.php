@@ -64,8 +64,12 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
     private ?HistogramInterface $requestBodySize = null;
     private ?HistogramInterface $responseBodySize = null;
 
-    /** @var \WeakMap<Request, array{start: int|float, active_counted: bool, recorded?: bool, route?: string, exception?: \Throwable}> */
+    /** @var \WeakMap<Request, array{start: int|float, active?: int, recorded?: bool, route?: string, exception?: \Throwable}> */
     private \WeakMap $requestData;
+
+    /** @var array<int, array<non-empty-string, string|int>> held strongly so reset() can decrement requests a worker freed before they finished */
+    private array $countedActive = [];
+    private int $nextActiveToken = 0;
 
     private readonly RouteTemplateResolver $routeTemplateResolver;
 
@@ -96,7 +100,8 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
             KernelEvents::EXCEPTION => ['onException', 0],
             KernelEvents::RESPONSE => ['onResponse', -256],
             KernelEvents::FINISH_REQUEST => ['onFinishRequest', -512],
-            KernelEvents::TERMINATE => ['onTerminate', -1024],
+            // Ahead of OtelMetricsFlushSubscriber at -1024, so the fallback is exported with its own request.
+            KernelEvents::TERMINATE => ['onTerminate', -1000],
         ];
     }
 
@@ -111,17 +116,16 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
             return;
         }
 
-        $activeCounted = false;
+        $data = ['start' => hrtime(true)];
         try {
-            $this->getActiveRequestsCounter()->add(1, $this->baseAttributes($request));
-            $activeCounted = true;
+            $attributes = $this->baseAttributes($request);
+            $this->getActiveRequestsCounter()->add(1, $attributes);
+            $data['active'] = $this->nextActiveToken;
+            $this->countedActive[$this->nextActiveToken++] = $attributes;
         } catch (\Throwable) {
         }
 
-        $this->requestData[$request] = [
-            'start' => hrtime(true),
-            'active_counted' => $activeCounted,
-        ];
+        $this->requestData[$request] = $data;
     }
 
     /**
@@ -246,11 +250,8 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
             return;
         }
 
-        if ($data['active_counted']) {
-            try {
-                $this->getActiveRequestsCounter()->add(-1, $this->baseAttributes($request));
-            } catch (\Throwable) {
-            }
+        if (isset($data['active'])) {
+            $this->decrementActive($data['active']);
         }
 
         // Unhandled exceptions never reach onResponse; the failed request must still be measured.
@@ -270,12 +271,29 @@ final class OpenTelemetryMetricsSubscriber implements EventSubscriberInterface, 
 
     public function reset(): void
     {
+        foreach (array_keys($this->countedActive) as $token) {
+            $this->decrementActive($token);
+        }
         $this->resetMeter();
         $this->duration = null;
         $this->activeRequests = null;
         $this->requestBodySize = null;
         $this->responseBodySize = null;
         $this->requestData = new \WeakMap();
+    }
+
+    private function decrementActive(int $token): void
+    {
+        $attributes = $this->countedActive[$token] ?? null;
+        unset($this->countedActive[$token]);
+        if (null === $attributes) {
+            return;
+        }
+
+        try {
+            $this->getActiveRequestsCounter()->add(-1, $attributes);
+        } catch (\Throwable) {
+        }
     }
 
     /**

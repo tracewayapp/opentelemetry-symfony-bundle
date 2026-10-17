@@ -25,6 +25,8 @@ use Traceway\OpenTelemetryBundle\HttpClient\MeteredHttpClient;
  */
 final class HttpClientMetricsPass implements CompilerPassInterface
 {
+    use ExcludedClientServicesTrait;
+
     public const METER_PRIORITY = 60;
 
     public function process(ContainerBuilder $container): void
@@ -45,7 +47,7 @@ final class HttpClientMetricsPass implements CompilerPassInterface
             ? $container->getParameter('open_telemetry.http_client_metrics_excluded_hosts')
             : [];
 
-        foreach ($this->findHttpClientServiceIds($container) as $clientId) {
+        foreach (array_diff($this->findHttpClientServiceIds($container), self::excludedServices($container)) as $clientId) {
             $decoratorId = $clientId.'.otel_metrics';
             $innerId = $decoratorId.'.inner';
 

@@ -14,6 +14,7 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\TransferStats;
+use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\TestCase;
@@ -84,6 +85,32 @@ final class OpenTelemetryMiddlewareTest extends TestCase
         self::assertArrayNotHasKey('http.request.resend_count', $spans[0]->getAttributes()->toArray());
         self::assertSame('https://api.example.com/final', $spans[1]->getAttributes()->get('url.full'));
         self::assertSame(1, $spans[1]->getAttributes()->get('http.request.resend_count'));
+    }
+
+    public function testRedirectIssuedDuringWaitUnderAnotherSpanKeepsTheFirstAttemptsParent(): void
+    {
+        $this->mock->append(new Response(302, ['Location' => 'https://api.example.com/final']), new Response(200));
+        $stack = $this->stack();
+        $stack->unshift(OpenTelemetryMiddleware::parentContext(), OpenTelemetryMiddleware::PARENT_NAME);
+        $tracer = Globals::tracerProvider()->getTracer('test');
+
+        $caller = $tracer->spanBuilder('caller')->startSpan();
+        $scope = $caller->activate();
+        $promise = (new Client(['handler' => $stack]))->getAsync('https://api.example.com/start');
+        $scope->detach();
+        $caller->end();
+
+        $waiter = $tracer->spanBuilder('waiter')->startSpan();
+        $scope = $waiter->activate();
+        $promise->wait();
+        $scope->detach();
+        $waiter->end();
+
+        $attempts = array_values(array_filter($this->exporter->getSpans(), static fn ($s): bool => 'GET' === $s->getName()));
+        self::assertCount(2, $attempts);
+        foreach ($attempts as $span) {
+            self::assertSame($caller->getContext()->getSpanId(), $span->getParentSpanId());
+        }
     }
 
     public function testRetryProducesOneSpanPerAttemptWithResendCount(): void

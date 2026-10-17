@@ -288,6 +288,7 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
         // kernel.finish_request normally detached it already. When the kernel or a
         // listener skipped that event (Symfony 8.1.0 did on exception responses),
         // the scope would otherwise stay active into the next request of a worker.
+        $this->detachScopesAbove($request);
         $this->detachScope($request);
 
         // Likewise kernel.response: the response that was sent still carries the status.
@@ -343,6 +344,31 @@ final class OpenTelemetrySubscriber implements EventSubscriberInterface, ResetIn
     private function getSpan(Request $request): ?SpanInterface
     {
         return ($this->requestData[$request] ?? [])['span'] ?? null;
+    }
+
+    // A sub-request that skipped kernel.finish_request too left its scope above this one; scopes nest, so those go first.
+    private function detachScopesAbove(Request $request): void
+    {
+        $scope = ($this->requestData[$request] ?? [])['scope'] ?? null;
+        if (null === $scope) {
+            return;
+        }
+
+        $above = [];
+        $found = false;
+        foreach ($this->openScopes as $id => $entry) {
+            if ($found) {
+                $above[$id] = $entry;
+            } elseif ($entry[0] === $scope) {
+                $found = true;
+            }
+        }
+
+        foreach (array_reverse($above, true) as $id => [$aboveScope, $span]) {
+            unset($this->openScopes[$id]);
+            $aboveScope->detach();
+            $span->end();
+        }
     }
 
     private function detachScope(Request $request): void

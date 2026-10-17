@@ -27,6 +27,8 @@ use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
  */
 final class Psr18ClientTracingPass implements CompilerPassInterface
 {
+    use ExcludedClientServicesTrait;
+
     public const REQUEST_METER_ID = 'open_telemetry.http_client.request_meter';
 
     public function process(ContainerBuilder $container): void
@@ -133,17 +135,5 @@ final class Psr18ClientTracingPass implements CompilerPassInterface
         }
 
         return new Reference(self::REQUEST_METER_ID);
-    }
-
-    /** @return list<string> */
-    private static function excludedServices(ContainerBuilder $container): array
-    {
-        if (!$container->hasParameter('open_telemetry.http_client.excluded_services')) {
-            return [];
-        }
-
-        $ids = $container->getParameter('open_telemetry.http_client.excluded_services');
-
-        return \is_array($ids) ? array_values(array_filter($ids, 'is_string')) : [];
     }
 }

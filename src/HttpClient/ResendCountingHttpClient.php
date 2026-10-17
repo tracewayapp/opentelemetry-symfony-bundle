@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\HttpClient;
 
+use OpenTelemetry\Context\Context;
 use Symfony\Component\HttpClient\DecoratorTrait;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
@@ -25,7 +26,7 @@ final class ResendCountingHttpClient implements HttpClientInterface, ResetInterf
     {
         $extra = isset($options['extra']) && \is_array($options['extra']) ? $options['extra'] : [];
         if (!($extra[ResendCounter::OPTION] ?? null) instanceof ResendCounter) {
-            $extra[ResendCounter::OPTION] = new ResendCounter();
+            $extra[ResendCounter::OPTION] = new ResendCounter(Context::getCurrent());
             $options['extra'] = $extra;
         }
 

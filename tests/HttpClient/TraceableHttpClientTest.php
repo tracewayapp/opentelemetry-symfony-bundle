@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Traceway\OpenTelemetryBundle\Tests\HttpClient;
 
+use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use PHPUnit\Framework\TestCase;
@@ -448,6 +449,36 @@ final class TraceableHttpClientTest extends TestCase
         self::assertSame(1, $spans[1]->getAttributes()->get('http.request.resend_count'));
         self::assertSame(2, $spans[2]->getAttributes()->get('http.request.resend_count'));
         self::assertSame(200, $spans[2]->getAttributes()->get('http.response.status_code'));
+    }
+
+    public function testRetryIssuedWhileReadingUnderAnotherSpanKeepsTheFirstAttemptsParent(): void
+    {
+        $attempt = 0;
+        $mock = new MockHttpClient(static function () use (&$attempt): MockResponse {
+            return new MockResponse('', ['http_code' => ++$attempt < 3 ? 503 : 200]);
+        });
+        $client = new ResendCountingHttpClient(
+            new RetryableHttpClient(new TraceableHttpClient($mock), new GenericRetryStrategy([503], 0), 3),
+        );
+        $tracer = Globals::tracerProvider()->getTracer('test');
+
+        $caller = $tracer->spanBuilder('caller')->startSpan();
+        $scope = $caller->activate();
+        $response = $client->request('GET', 'https://api.example.com/flaky');
+        $scope->detach();
+        $caller->end();
+
+        $reader = $tracer->spanBuilder('reader')->startSpan();
+        $scope = $reader->activate();
+        $response->getContent(false);
+        $scope->detach();
+        $reader->end();
+
+        $attempts = array_values(array_filter($this->exporter->getSpans(), static fn ($s): bool => 'GET' === $s->getName()));
+        self::assertCount(3, $attempts);
+        foreach ($attempts as $span) {
+            self::assertSame($caller->getContext()->getSpanId(), $span->getParentSpanId());
+        }
     }
 
     public function testSeparateRequestsEachStartAtZero(): void

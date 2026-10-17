@@ -166,9 +166,12 @@ use Traceway\OpenTelemetryBundle\HttpClient\Guzzle\OpenTelemetryMiddleware;
 $stack = HandlerStack::create();
 $stack->push($retryMiddleware, 'retry');
 $stack->push($tracingMiddleware, OpenTelemetryMiddleware::NAME);   // last, so it sees every attempt
+$stack->unshift(OpenTelemetryMiddleware::parentContext(), OpenTelemetryMiddleware::PARENT_NAME);   // first, so every attempt keeps one parent
 $client = new Client(['handler' => $stack]);
 ```
 
-Push it last. Guzzle runs the first-pushed middleware outermost, so pushing the tracing middleware after your retry and redirect middlewares puts it closest to the transport, where each redirected or retried request passes through it and `http.request.resend_count` reflects Guzzle's own counters. A Guzzle client wrapped in a traced PSR-18 adapter produces one span, not two: the PSR-18 decorator marks the request in flight and the middleware steps aside.
+Push it last. Guzzle runs the first-pushed middleware outermost, so pushing the tracing middleware after your retry and redirect middlewares puts it closest to the transport, where each redirected or retried request passes through it and `http.request.resend_count` reflects Guzzle's own counters. `parentContext()`, unshifted outermost, records the context the request was sent in, so an attempt issued later, while `wait()` runs under some other span, still gets the first attempt's parent.
 
-If wrapping one particular service causes trouble, list its id under `traces.http_client.excluded_services`. The bundle then leaves that service exactly as you defined it, in all three families, while the rest stay instrumented.
+The stack the bundle builds for a client without its own `handler` contains Guzzle's default middlewares (redirects, but no retry), the tracing middleware and `parentContext()`. A retry middleware pushed onto that stack afterwards, through `$client->getConfig('handler')`, lands below the tracing middleware: the attempts then share one span with `http.request.resend_count` unset. For one span per retried attempt, give the client its own stack as above, with the retry middleware pushed before the tracing middleware. A Guzzle client wrapped in a traced PSR-18 adapter produces one span, not two: the PSR-18 decorator marks the request in flight and the middleware steps aside.
+
+If wrapping one particular service causes trouble, list its id under `traces.http_client.excluded_services`. The bundle then leaves that service exactly as you defined it, in all three families and for both traces and `http.client.*` metrics, while the rest stay instrumented.

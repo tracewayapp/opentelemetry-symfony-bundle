@@ -253,7 +253,7 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
 
     private function injectBrokenDispatchSentCounter(OpenTelemetryMetricsMiddleware $middleware): void
     {
-        $broken = $this->createMock(CounterInterface::class);
+        $broken = $this->createStub(CounterInterface::class);
         $broken->method('add')->willThrowException(new \RuntimeException('metrics down'));
 
         $reflection = new \ReflectionClass($middleware);
@@ -404,7 +404,7 @@ final class OpenTelemetryMetricsMiddlewareTest extends TestCase
 
     private function injectBrokenCounter(OpenTelemetryMetricsMiddleware $middleware): void
     {
-        $brokenCounter = $this->createMock(CounterInterface::class);
+        $brokenCounter = $this->createStub(CounterInterface::class);
         $brokenCounter->method('add')->willThrowException(new \RuntimeException('metrics down'));
 
         $reflection = new \ReflectionClass($middleware);

@@ -37,7 +37,11 @@ final class GuzzleClientTracingPassTest extends TestCase
         self::assertSame(HandlerStack::class, $stack->getClass());
         self::assertSame([HandlerStack::class, 'create'], $stack->getFactory());
         self::assertFalse($stack->isShared());
-        self::assertEquals([['push', [new Reference(GuzzleClientTracingPass::MIDDLEWARE_ID), OpenTelemetryMiddleware::NAME]]], $stack->getMethodCalls());
+        self::assertEquals([
+            ['push', [new Reference(GuzzleClientTracingPass::MIDDLEWARE_ID), OpenTelemetryMiddleware::NAME]],
+            ['unshift', [new Reference(GuzzleClientTracingPass::PARENT_MIDDLEWARE_ID), OpenTelemetryMiddleware::PARENT_NAME]],
+        ], $stack->getMethodCalls());
+        self::assertSame([OpenTelemetryMiddleware::class, 'parentContext'], $container->getDefinition(GuzzleClientTracingPass::PARENT_MIDDLEWARE_ID)->getFactory());
     }
 
     public function testClientWithoutHandlerGetsTheTracedStack(): void

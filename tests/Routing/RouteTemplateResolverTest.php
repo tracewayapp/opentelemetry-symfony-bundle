@@ -120,7 +120,7 @@ final class RouteTemplateResolverTest extends TestCase
             $collection = new RouteCollection();
             $collection->add('api_item_show', new Route('/api/items/{id}'));
 
-            $router = $this->createMock(RouterInterface::class);
+            $router = $this->createStub(RouterInterface::class);
             $router->method('getRouteCollection')->willReturn($collection);
 
             $warmer = new RouteTemplateCacheWarmer($router);

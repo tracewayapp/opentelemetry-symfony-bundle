@@ -268,7 +268,7 @@ final class TraceableCachePoolTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('must implement');
 
-        $inner = $this->createMock(CacheItemPoolInterface::class);
+        $inner = $this->createStub(CacheItemPoolInterface::class);
         $pool = new TraceableCachePool($inner, 'test-tracer', 'cache.app');
         $pool->get('key', static fn () => 'value');
     }
@@ -278,7 +278,7 @@ final class TraceableCachePoolTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('must implement');
 
-        $inner = $this->createMock(CacheItemPoolInterface::class);
+        $inner = $this->createStub(CacheItemPoolInterface::class);
         $pool = new TraceableCachePool($inner, 'test-tracer', 'cache.app');
         $pool->delete('key');
     }

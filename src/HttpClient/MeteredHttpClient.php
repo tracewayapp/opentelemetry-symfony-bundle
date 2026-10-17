@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Traceway\OpenTelemetryBundle\HttpClient;
 
 use OpenTelemetry\API\Metrics\HistogramInterface;
+use OpenTelemetry\Context\Context;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\HttpAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
@@ -14,6 +15,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 use Symfony\Contracts\HttpClient\ResponseStreamInterface;
 use Symfony\Contracts\Service\ResetInterface;
+use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestMeter;
 use Traceway\OpenTelemetryBundle\Instrumentation\MeterAwareTrait;
 use Traceway\OpenTelemetryBundle\Metrics\DurationBoundaries;
 use Traceway\OpenTelemetryBundle\Util\ErrorTypeResolver;
@@ -73,7 +75,7 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
      */
     public function request(string $method, string $url, array $options = []): ResponseInterface
     {
-        if ($this->inFlight || $this->isExcluded($url)) {
+        if ($this->inFlight || $this->isExcluded($url) || true === Context::getCurrent()->get(RequestMeter::inFlightKey())) {
             return $this->client->request($method, $url, $options);
         }
 
@@ -182,6 +184,8 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
             if ($statusCode >= 400) {
                 $attributes[ErrorAttributes::ERROR_TYPE] = (string) $statusCode;
             }
+            // The SDK keys streams by attribute order; sorted keys match RequestMeter's series.
+            ksort($attributes);
 
             $this->recordDuration($start, $attributes, $requestBodySize);
 
@@ -201,6 +205,7 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
     {
         try {
             $attributes[ErrorAttributes::ERROR_TYPE] = ErrorTypeResolver::resolve($exception);
+            ksort($attributes);
 
             $this->recordDuration($start, $attributes, $requestBodySize);
         } catch (\Throwable) {
@@ -216,6 +221,7 @@ final class MeteredHttpClient implements HttpClientInterface, ResetInterface
     {
         try {
             $attributes[ErrorAttributes::ERROR_TYPE] = 'cancelled';
+            ksort($attributes);
 
             $this->recordDuration($start, $attributes, $requestBodySize);
         } catch (\Throwable) {

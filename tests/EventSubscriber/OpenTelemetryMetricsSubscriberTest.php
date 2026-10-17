@@ -17,6 +17,7 @@ use Symfony\Component\HttpKernel\Event\TerminateEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Traceway\OpenTelemetryBundle\EventSubscriber\OpenTelemetryMetricsSubscriber;
+use Traceway\OpenTelemetryBundle\EventSubscriber\OtelMetricsFlushSubscriber;
 use Traceway\OpenTelemetryBundle\Metrics\DurationBoundaries;
 use Traceway\OpenTelemetryBundle\Tests\OTelTestTrait;
 
@@ -79,6 +80,29 @@ final class OpenTelemetryMetricsSubscriberTest extends TestCase
         $metrics = $this->collectMetrics();
         self::assertSame(1, [...$metrics['http.server.request.duration']->data->dataPoints][0]->count);
         $active = [...$metrics['http.server.active_requests']->data->dataPoints];
+        self::assertSame(0, array_sum(array_map(static fn ($p): int|float => $p->value, $active)));
+    }
+
+    public function testTerminateFallbackRunsBeforeTheMetricsFlush(): void
+    {
+        $terminate = OpenTelemetryMetricsSubscriber::getSubscribedEvents()[KernelEvents::TERMINATE];
+        $flush = OtelMetricsFlushSubscriber::getSubscribedEvents()[KernelEvents::TERMINATE];
+        \assert(\is_array($terminate) && \is_array($flush));
+
+        self::assertGreaterThan($flush[1], $terminate[1]);
+    }
+
+    public function testResetBringsActiveRequestsBackDownForARequestFreedBeforeItFinished(): void
+    {
+        $kernel = $this->createStub(HttpKernelInterface::class);
+        $request = Request::create('/aborted');
+        $this->subscriber->onRequest(new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST));
+        // The worker drops the request without kernel.terminate, which empties the WeakMap entry.
+        unset($request);
+
+        $this->subscriber->reset();
+
+        $active = [...$this->collectMetrics()['http.server.active_requests']->data->dataPoints];
         self::assertSame(0, array_sum(array_map(static fn ($p): int|float => $p->value, $active)));
     }
 
@@ -407,7 +431,7 @@ final class OpenTelemetryMetricsSubscriberTest extends TestCase
 
     private function injectBrokenActiveRequestsCounter(): void
     {
-        $broken = $this->createMock(UpDownCounterInterface::class);
+        $broken = $this->createStub(UpDownCounterInterface::class);
         $broken->method('add')->willThrowException(new \RuntimeException('metrics down'));
 
         $reflection = new \ReflectionClass($this->subscriber);
@@ -417,7 +441,7 @@ final class OpenTelemetryMetricsSubscriberTest extends TestCase
 
     private function injectBrokenDurationHistogram(): void
     {
-        $broken = $this->createMock(HistogramInterface::class);
+        $broken = $this->createStub(HistogramInterface::class);
         $broken->method('record')->willThrowException(new \RuntimeException('metrics down'));
 
         $reflection = new \ReflectionClass($this->subscriber);

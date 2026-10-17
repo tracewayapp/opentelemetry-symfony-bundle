@@ -116,6 +116,8 @@ final class RequestMeter
             if (null !== $version) {
                 $attributes[NetworkAttributes::NETWORK_PROTOCOL_VERSION] = $version;
             }
+            // The SDK keys streams by attribute order; sorted keys match MeteredHttpClient's series.
+            ksort($attributes);
 
             $this->record($state, $attributes);
 
@@ -138,6 +140,7 @@ final class RequestMeter
                 $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE] = $response->getStatusCode();
             }
             $attributes[ErrorAttributes::ERROR_TYPE] = ErrorTypeResolver::resolve($e);
+            ksort($attributes);
 
             $this->record($state, $attributes);
         } catch (\Throwable) {

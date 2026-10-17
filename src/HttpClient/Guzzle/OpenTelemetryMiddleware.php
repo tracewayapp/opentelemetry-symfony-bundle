@@ -8,6 +8,8 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use OpenTelemetry\API\Trace\SpanInterface;
+use OpenTelemetry\Context\Context;
+use OpenTelemetry\Context\ContextInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Symfony\Contracts\Service\ResetInterface;
@@ -24,10 +26,14 @@ use Traceway\OpenTelemetryBundle\HttpClient\Psr\RequestTracer;
  *
  *     $stack = HandlerStack::create();
  *     $stack->push($middleware, 'otel');
+ *     $stack->unshift(OpenTelemetryMiddleware::parentContext(), 'otel_parent');
  */
 final class OpenTelemetryMiddleware implements ResetInterface
 {
     public const NAME = 'otel';
+    public const PARENT_NAME = 'otel_parent';
+
+    private const PARENT_OPTION = 'traceway_parent_context';
 
     private readonly RequestTracer $tracer;
 
@@ -59,7 +65,8 @@ final class OpenTelemetryMiddleware implements ResetInterface
 
             $span = null;
             if ($traced) {
-                [$span, $request] = $this->tracer->start($request, self::resendCount($options));
+                $parent = ($options[self::PARENT_OPTION] ?? null) instanceof ContextInterface ? $options[self::PARENT_OPTION] : null;
+                [$span, $request] = $this->tracer->start($request, self::resendCount($options), $parent);
             }
             $measurement = $metered ? $this->meter->start($request) : null;
 
@@ -94,6 +101,12 @@ final class OpenTelemetryMiddleware implements ResetInterface
         };
 
         return $traced;
+    }
+
+    /** Unshifted outermost, so redirects and retries reuse the first attempt's context as their parent. */
+    public static function parentContext(): \Closure
+    {
+        return self::pinParentContext(...);
     }
 
     public function reset(): void
@@ -132,6 +145,18 @@ final class OpenTelemetryMiddleware implements ResetInterface
             if (\is_callable($applicationCallback)) {
                 $applicationCallback($stats);
             }
+        };
+    }
+
+    /** @param callable(RequestInterface, array<mixed>): PromiseInterface $handler */
+    private static function pinParentContext(callable $handler): \Closure
+    {
+        return static function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
+            if (!($options[self::PARENT_OPTION] ?? null) instanceof ContextInterface) {
+                $options[self::PARENT_OPTION] = Context::getCurrent();
+            }
+
+            return $handler($request, $options);
         };
     }
 

@@ -123,7 +123,7 @@ final class DbMetricRecorderTest extends TestCase
     {
         $recorder = new DbMetricRecorder('test', 'postgresql', null, null, null);
 
-        $broken = $this->createMock(HistogramInterface::class);
+        $broken = $this->createStub(HistogramInterface::class);
         $broken->method('record')->willThrowException(new \RuntimeException('metrics down'));
 
         $reflection = new \ReflectionClass($recorder);

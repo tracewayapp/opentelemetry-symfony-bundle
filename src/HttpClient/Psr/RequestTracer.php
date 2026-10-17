@@ -64,7 +64,7 @@ final class RequestTracer
      *
      * @return array{SpanInterface, RequestInterface, ContextInterface}
      */
-    public function start(RequestInterface $request, int $resendCount = 0): array
+    public function start(RequestInterface $request, int $resendCount = 0, ?ContextInterface $parent = null): array
     {
         $uri = $request->getUri();
         $method = $request->getMethod();
@@ -102,7 +102,7 @@ final class RequestTracer
             $builder->setAttribute(HttpAttributes::HTTP_REQUEST_RESEND_COUNT, $resendCount);
         }
 
-        $parent = Context::getCurrent();
+        $parent ??= Context::getCurrent();
         $span = $builder->setParent($parent)->startSpan();
         $context = $span->storeInContext($parent)->with(self::inFlightKey(), true);
 

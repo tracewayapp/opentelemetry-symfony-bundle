@@ -27,4 +27,30 @@ final class DbSystemResolver
             default => 'other_sql',
         };
     }
+
+    /**
+     * @param array<string, mixed> $params
+     */
+    public static function serverAddress(array $params): ?string
+    {
+        return self::isNetworked($params) && isset($params['host']) && \is_string($params['host']) ? $params['host'] : null;
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     */
+    public static function serverPort(array $params): ?int
+    {
+        return self::isNetworked($params) && isset($params['port']) && is_numeric($params['port']) ? (int) $params['port'] : null;
+    }
+
+    /**
+     * SQLite runs in-process: DBAL's DSN parser still fills in host=localhost for sqlite:/// URLs.
+     *
+     * @param array<string, mixed> $params
+     */
+    private static function isNetworked(array $params): bool
+    {
+        return 'sqlite' !== self::resolve($params);
+    }
 }

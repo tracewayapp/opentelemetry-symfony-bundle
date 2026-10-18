@@ -39,7 +39,7 @@ open_telemetry:
 
         doctrine:
             enabled: true
-            record_statements: true           # false = hide SQL from spans
+            record_statements: false          # true = record SQL as db.query.text (off by default per DB semconv)
             only_with_parent: true            # false = emit DB spans even without an active parent span (pre-3.4.1 behavior, incl. messenger transport poll noise)
                                               # a long-running command's own span does not count as a parent, so worker poll queries stay suppressed
             max_spans_per_trace: 0            # e.g. 200 = after 200 DB spans in one trace further statements run untraced and the parent span gets traceway.db.spans_dropped

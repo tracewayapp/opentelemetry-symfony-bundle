@@ -38,4 +38,21 @@ final class DbSystemResolverTest extends TestCase
     {
         self::assertSame($expected, DbSystemResolver::resolve($params));
     }
+
+    public function testNetworkedDatabaseKeepsItsServer(): void
+    {
+        $params = ['driver' => 'pdo_pgsql', 'host' => 'db.local', 'port' => '5432'];
+
+        self::assertSame('db.local', DbSystemResolver::serverAddress($params));
+        self::assertSame(5432, DbSystemResolver::serverPort($params));
+    }
+
+    public function testSqliteHasNoServerEvenWhenTheDsnParserFilledInLocalhost(): void
+    {
+        // DBAL parses sqlite:///var/data.db as host=localhost.
+        $params = ['driver' => 'pdo_sqlite', 'host' => 'localhost', 'path' => '/var/data.db'];
+
+        self::assertNull(DbSystemResolver::serverAddress($params));
+        self::assertNull(DbSystemResolver::serverPort($params));
+    }
 }

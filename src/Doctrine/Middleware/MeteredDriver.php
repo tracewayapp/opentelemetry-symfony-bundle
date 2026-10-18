@@ -26,8 +26,8 @@ final class MeteredDriver extends AbstractDriverMiddleware
             $this->meterName,
             DbSystemResolver::resolve($params),
             $params['dbname'] ?? null,
-            $params['host'] ?? null,
-            isset($params['port']) ? (int) $params['port'] : null,
+            DbSystemResolver::serverAddress($params),
+            DbSystemResolver::serverPort($params),
         );
 
         return self::isDbal4()

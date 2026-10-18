@@ -30,8 +30,8 @@ final class TraceableDriver extends AbstractDriverMiddleware
             $this->recordStatements,
             DbSystemResolver::resolve($params),
             $params['dbname'] ?? null,
-            $params['host'] ?? null,
-            isset($params['port']) ? (int) $params['port'] : null,
+            DbSystemResolver::serverAddress($params),
+            DbSystemResolver::serverPort($params),
             $this->onlyWithParent,
             $this->spanBudget,
         ];

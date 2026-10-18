@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [4.1.0] - 2026-10-17
+## [4.1.0] - 2026-10-18
 
 ### Upgrade notes
 
@@ -36,6 +36,8 @@ Nothing breaks on upgrade, but four things change what reaches your backend:
 - **The request scope can no longer outlive its request.** The server span's context scope was detached only on `kernel.finish_request`. Symfony 8.1.0 skipped that event (and `kernel.response`) whenever an exception listener answered with a response, as Security does when it redirects an anonymous user to the login page; the scope then stayed active, and in a worker runtime every later request was parented under the stale span. `kernel.terminate` now detaches a scope that `kernel.finish_request` left behind, whatever skipped it, and fills in the response status that `kernel.response` never delivered. A sub-request scope left open the same way, above the main one, is detached and its span ended first, since scopes nest. The metrics subscriber gets the same fallback, ordered ahead of the metrics flush so the request is exported with itself, not with the next one: such a request is still measured, and `http.server.active_requests` comes back down instead of staying one too high for the life of the worker. Found running the bundle inside the Symfony Demo application; Symfony 8.1.8 fixes the kernel side.
 
 - **Resetting services detaches the scope of a request that was freed before it ended.** The server subscriber kept each request's scope only in a `WeakMap` keyed by the request. When a worker dropped an aborted request before resetting services, the entry went with it, `reset()` found nothing to detach, and the next request without a `traceparent` header was parented under the dead span. Open scopes are now also held by the subscriber and drained newest first on reset. The metrics subscriber likewise holds every request it counted in `http.server.active_requests` and decrements those that never finished when services are reset, where the gauge used to stay one too high per aborted request.
+
+- **SQLite connections no longer report `server.address: localhost`.** DBAL's DSN parser turns `sqlite:///path` into host `localhost`, and the bundle copied it onto every DB span and onto `db.client.operation.duration`. SQLite runs in-process and has no server, so `server.address` and `server.port` are now left out for it, which is what the database conventions describe for an embedded database.
 
 ### Changed
 

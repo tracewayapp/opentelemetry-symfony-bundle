@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Localized routes resolve from the warmed route map. `_route` holds their base name while the map keys them `<name>.<locale>`, so every such request rebuilt the route collection and reported a near-literal URL as `http.route`.
+- **Localized routes resolve from the warmed route map.** The matcher reports their base name in `_route` while the map keys them `<name>.<locale>`, so every such request rebuilt the route collection and reported a near-literal URL as `http.route`.
 
 ## [4.1.0] - 2026-10-18
 

@@ -6,6 +6,8 @@ namespace Traceway\OpenTelemetryBundle\Tests\Routing;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Routing\Matcher\UrlMatcher;
+use Symfony\Component\Routing\RequestContext;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\Routing\RouteCollection;
 use Symfony\Component\Routing\RouterInterface;
@@ -149,8 +151,8 @@ final class RouteTemplateResolverTest extends TestCase
         try {
             // How the routing loaders store a localized route: one entry per locale, <name>.<locale>.
             $collection = new RouteCollection();
-            $collection->add('catalog.en', new Route('/en/catalog/{path}'));
-            $collection->add('catalog.fr', new Route('/fr/catalogue/{path}'));
+            $collection->add('catalog.en', new Route('/en/catalog/{path}', ['_locale' => 'en', '_canonical_route' => 'catalog'], ['path' => '.+']));
+            $collection->add('catalog.fr', new Route('/fr/catalogue/{path}', ['_locale' => 'fr', '_canonical_route' => 'catalog'], ['path' => '.+']));
 
             $router = $this->createStub(RouterInterface::class);
             $router->method('getRouteCollection')->willReturn($collection);
@@ -161,14 +163,40 @@ final class RouteTemplateResolverTest extends TestCase
             $runtimeRouter = $this->createMock(RouterInterface::class);
             $runtimeRouter->expects(self::never())->method('getRouteCollection');
 
-            // The matcher reports the canonical name in _route, and the locale in _locale.
             $resolver = new RouteTemplateResolver($runtimeRouter, $cacheDir);
             $request = Request::create('/fr/catalogue/a/b', 'GET');
+            $request->attributes->add((new UrlMatcher($collection, new RequestContext()))->match('/fr/catalogue/a/b'));
+
+            self::assertSame('catalog', $request->attributes->get('_route'), 'the matcher reports the canonical name');
+            self::assertSame('/fr/catalogue/{path}', $resolver->resolve($request));
+        } finally {
+            @unlink(RouteTemplateCacheFile::pathIn($cacheDir));
+            @rmdir($cacheDir);
+        }
+    }
+
+    public function testWarmedMapPrefersTheExactRouteNameOverItsLocalizedForm(): void
+    {
+        $cacheDir = sys_get_temp_dir().'/otel-route-test-'.uniqid('', true);
+        mkdir($cacheDir);
+
+        try {
+            $collection = new RouteCollection();
+            $collection->add('catalog', new Route('/{_locale}/catalog'));
+            $collection->add('catalog.fr', new Route('/fr/other'));
+
+            $router = $this->createStub(RouterInterface::class);
+            $router->method('getRouteCollection')->willReturn($collection);
+
+            $warmer = new RouteTemplateCacheWarmer($router);
+            $warmer->warmUp($cacheDir);
+
+            $resolver = new RouteTemplateResolver(null, $cacheDir);
+            $request = Request::create('/fr/catalog', 'GET');
             $request->attributes->set('_route', 'catalog');
             $request->attributes->set('_locale', 'fr');
-            $request->attributes->set('_route_params', ['_locale' => 'fr', 'path' => 'a/b']);
 
-            self::assertSame('/fr/catalogue/{path}', $resolver->resolve($request));
+            self::assertSame('/{_locale}/catalog', $resolver->resolve($request));
         } finally {
             @unlink(RouteTemplateCacheFile::pathIn($cacheDir));
             @rmdir($cacheDir);

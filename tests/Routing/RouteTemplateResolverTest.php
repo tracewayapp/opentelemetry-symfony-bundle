@@ -141,6 +141,40 @@ final class RouteTemplateResolverTest extends TestCase
         }
     }
 
+    public function testWarmedMapResolvesALocalizedRouteWithoutTheRouter(): void
+    {
+        $cacheDir = sys_get_temp_dir().'/otel-route-test-'.uniqid('', true);
+        mkdir($cacheDir);
+
+        try {
+            // How the routing loaders store a localized route: one entry per locale, <name>.<locale>.
+            $collection = new RouteCollection();
+            $collection->add('catalog.en', new Route('/en/catalog/{path}'));
+            $collection->add('catalog.fr', new Route('/fr/catalogue/{path}'));
+
+            $router = $this->createStub(RouterInterface::class);
+            $router->method('getRouteCollection')->willReturn($collection);
+
+            $warmer = new RouteTemplateCacheWarmer($router);
+            $warmer->warmUp($cacheDir);
+
+            $runtimeRouter = $this->createMock(RouterInterface::class);
+            $runtimeRouter->expects(self::never())->method('getRouteCollection');
+
+            // The matcher reports the canonical name in _route, and the locale in _locale.
+            $resolver = new RouteTemplateResolver($runtimeRouter, $cacheDir);
+            $request = Request::create('/fr/catalogue/a/b', 'GET');
+            $request->attributes->set('_route', 'catalog');
+            $request->attributes->set('_locale', 'fr');
+            $request->attributes->set('_route_params', ['_locale' => 'fr', 'path' => 'a/b']);
+
+            self::assertSame('/fr/catalogue/{path}', $resolver->resolve($request));
+        } finally {
+            @unlink(RouteTemplateCacheFile::pathIn($cacheDir));
+            @rmdir($cacheDir);
+        }
+    }
+
     public function testMissingWarmedFileFallsBackToRouter(): void
     {
         $collection = new RouteCollection();

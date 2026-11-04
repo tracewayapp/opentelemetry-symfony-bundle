@@ -38,7 +38,14 @@ final class RouteTemplateResolver implements ResetInterface
             return null;
         }
 
-        return $this->getWarmedTemplates()[$routeName] ?? $this->fromRouter($routeName) ?? $this->synthesize($request);
+        $warmedTemplates = $this->getWarmedTemplates();
+        $locale = $request->attributes->get('_locale');
+
+        // A localized route matches under its base name but is dumped as <name>.<locale>.
+        return $warmedTemplates[$routeName]
+            ?? (\is_string($locale) ? $warmedTemplates[$routeName.'.'.$locale] ?? null : null)
+            ?? $this->fromRouter($routeName)
+            ?? $this->synthesize($request);
     }
 
     /**

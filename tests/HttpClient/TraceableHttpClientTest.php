@@ -124,7 +124,7 @@ final class TraceableHttpClientTest extends TestCase
         }
 
         self::assertArrayHasKey('traceparent', $headerMap);
-        self::assertMatchesRegularExpression('/^00-[a-f0-9]{32}-[a-f0-9]{16}-0[01]$/', $headerMap['traceparent']);
+        self::assertMatchesRegularExpression('/^00-[a-f0-9]{32}-[a-f0-9]{16}-0[0-3]$/', $headerMap['traceparent']);
     }
 
     public function testSuccessfulResponseHasOkStatus(): void

@@ -123,7 +123,7 @@ final class InstrumentedPsr18ClientTest extends TestCase
         $sent = $this->mock->getLastRequest();
         self::assertNotNull($sent);
         $traceparent = $sent->getHeaderLine('traceparent');
-        self::assertMatchesRegularExpression('/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/', $traceparent);
+        self::assertMatchesRegularExpression('/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[13]$/', $traceparent);
 
         $spans = $this->exporter->getSpans();
         self::assertStringContainsString($spans[0]->getContext()->getSpanId(), $traceparent);

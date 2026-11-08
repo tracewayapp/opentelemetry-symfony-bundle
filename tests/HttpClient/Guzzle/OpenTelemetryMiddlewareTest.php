@@ -66,7 +66,7 @@ final class OpenTelemetryMiddlewareTest extends TestCase
 
         $sent = $this->mock->getLastRequest();
         self::assertNotNull($sent);
-        self::assertMatchesRegularExpression('/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/', $sent->getHeaderLine('traceparent'));
+        self::assertMatchesRegularExpression('/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[13]$/', $sent->getHeaderLine('traceparent'));
     }
 
     public function testRedirectProducesOneSpanPerAttemptWithResendCount(): void

@@ -7,6 +7,7 @@ namespace Traceway\OpenTelemetryBundle\Tests\Functional;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
+use Symfony\Component\Messenger\Middleware\HandleMessageMiddleware;
 use Symfony\Component\Messenger\Middleware\SendMessageMiddleware;
 use Traceway\OpenTelemetryBundle\Command\Doctor\Support\CheckRunner;
 use Traceway\OpenTelemetryBundle\Command\DoctorCommand;
@@ -278,6 +279,77 @@ final class BundleBootTest extends TestCase
         self::assertContains(SendMessageMiddleware::class, $middlewareClasses);
     }
 
+    public function testMessengerMiddlewareIsWiredOnEveryBusWhenAllBusesIsOn(): void
+    {
+        $container = $this->boot(['traces' => ['messenger' => ['all_buses' => true]]], [], [
+            'messenger' => [
+                'default_bus' => 'command.bus',
+                'buses' => [
+                    'command.bus' => null,
+                    'event.bus' => [
+                        'middleware' => [
+                            NoopMessengerMiddleware::class,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        self::assertSame(
+            [NoopMessengerMiddleware::class, OpenTelemetryMiddleware::class, SendMessageMiddleware::class, HandleMessageMiddleware::class],
+            \array_slice($this->messengerMiddlewareClasses($this->eventBus($container)), -4),
+        );
+        self::assertContains(OpenTelemetryMiddleware::class, $this->messengerMiddlewareClasses($container->get('messenger.default_bus')));
+    }
+
+    public function testMessengerMiddlewareIsOnlyWiredOnDefaultBusByDefault(): void
+    {
+        $container = $this->boot([], [], [
+            'messenger' => [
+                'default_bus' => 'command.bus',
+                'buses' => [
+                    'command.bus' => null,
+                    'event.bus' => [
+                        'middleware' => [
+                            NoopMessengerMiddleware::class,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        self::assertNotContains(OpenTelemetryMiddleware::class, $this->messengerMiddlewareClasses($this->eventBus($container)));
+        self::assertContains(OpenTelemetryMiddleware::class, $this->messengerMiddlewareClasses($container->get('messenger.default_bus')));
+    }
+
+    public function testMessengerMetricsMiddlewareIsWiredOnEveryBusWhenAllBusesIsOn(): void
+    {
+        $container = $this->boot([
+            'metrics' => [
+                'enabled' => true,
+                'messenger' => ['enabled' => true, 'all_buses' => true],
+            ],
+        ], [], [
+            'messenger' => [
+                'default_bus' => 'command.bus',
+                'buses' => [
+                    'command.bus' => null,
+                    'event.bus' => [
+                        'middleware' => [
+                            NoopMessengerMiddleware::class,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        self::assertSame(
+            [NoopMessengerMiddleware::class, OpenTelemetryMetricsMiddleware::class, SendMessageMiddleware::class, HandleMessageMiddleware::class],
+            \array_slice($this->messengerMiddlewareClasses($this->eventBus($container)), -4),
+        );
+        self::assertContains(OpenTelemetryMetricsMiddleware::class, $this->messengerMiddlewareClasses($container->get('messenger.default_bus')));
+    }
+
     public function testMessengerMetricsWithoutMetricsEnabledFails(): void
     {
         $this->expectException(InvalidConfigurationException::class);
@@ -491,6 +563,17 @@ final class BundleBootTest extends TestCase
         $this->kernel->boot();
 
         return $this->kernel->getContainer();
+    }
+
+    private function eventBus(\Symfony\Component\DependencyInjection\ContainerInterface $container): object
+    {
+        $testContainer = $container->get('test.service_container');
+        self::assertInstanceOf(\Symfony\Component\DependencyInjection\ContainerInterface::class, $testContainer);
+
+        $eventBus = $testContainer->get('event.bus');
+        self::assertIsObject($eventBus);
+
+        return $eventBus;
     }
 
     /**

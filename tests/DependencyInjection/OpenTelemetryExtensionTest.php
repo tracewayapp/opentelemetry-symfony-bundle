@@ -374,6 +374,25 @@ final class OpenTelemetryExtensionTest extends TestCase
         self::assertSame(['App\\Message\\MlFlats', 'App\\Message\\Noise'], $def->getArgument('$excludedMessages'));
     }
 
+    public function testMessengerAllBusesDefaultsToFalse(): void
+    {
+        $container = $this->buildContainer([]);
+
+        self::assertFalse($container->getParameter('open_telemetry.traces.messenger.all_buses'));
+        self::assertFalse($container->getParameter('open_telemetry.metrics.messenger.all_buses'));
+    }
+
+    public function testMessengerAllBusesWired(): void
+    {
+        $container = $this->buildContainer([
+            'traces' => ['messenger' => ['all_buses' => true]],
+            'metrics' => ['enabled' => true, 'messenger' => ['all_buses' => true]],
+        ]);
+
+        self::assertTrue($container->getParameter('open_telemetry.traces.messenger.all_buses'));
+        self::assertTrue($container->getParameter('open_telemetry.metrics.messenger.all_buses'));
+    }
+
     public function testDoctrineMiddlewareNotRegisteredWhenDisabled(): void
     {
         $container = $this->buildContainer(['traces' => ['doctrine' => ['enabled' => false]]]);

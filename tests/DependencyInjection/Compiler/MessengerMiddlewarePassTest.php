@@ -161,6 +161,85 @@ final class MessengerMiddlewarePassTest extends TestCase
         self::assertFalse($containerWithoutParameter->hasParameter('default.middleware'));
     }
 
+    public function testLeavesOtherBusesAloneByDefault(): void
+    {
+        $container = $this->containerWithBuses();
+        $this->registerMiddleware($container);
+
+        (new MessengerMiddlewarePass())->process($container);
+
+        self::assertSame(['send_message', 'handle_message'], $this->middlewareIds($container, 'event.bus.middleware'));
+    }
+
+    public function testInsertsTracingMiddlewareOnEveryBusWhenTracesAllBusesIsOn(): void
+    {
+        $container = $this->containerWithBuses();
+        $this->registerMiddleware($container);
+        $container->setParameter('open_telemetry.traces.messenger.all_buses', true);
+
+        (new MessengerMiddlewarePass())->process($container);
+
+        self::assertSame([self::TRACING_ID, self::METRICS_ID, 'send_message', 'handle_message'], $this->middlewareIds($container, 'command.bus.middleware'));
+        self::assertSame([self::TRACING_ID, 'send_message', 'handle_message'], $this->middlewareIds($container, 'event.bus.middleware'));
+    }
+
+    public function testInsertsMetricsMiddlewareOnEveryBusWhenMetricsAllBusesIsOn(): void
+    {
+        $container = $this->containerWithBuses();
+        $this->registerMiddleware($container);
+        $container->setParameter('open_telemetry.metrics.messenger.all_buses', true);
+
+        (new MessengerMiddlewarePass())->process($container);
+
+        self::assertSame([self::TRACING_ID, self::METRICS_ID, 'send_message', 'handle_message'], $this->middlewareIds($container, 'command.bus.middleware'));
+        self::assertSame([self::METRICS_ID, 'send_message', 'handle_message'], $this->middlewareIds($container, 'event.bus.middleware'));
+    }
+
+    public function testInsertsTracingThenMetricsMiddlewareOnEveryBusWhenBothAllBusesAreOn(): void
+    {
+        $container = $this->containerWithBuses();
+        $this->registerMiddleware($container);
+        $container->setParameter('open_telemetry.traces.messenger.all_buses', true);
+        $container->setParameter('open_telemetry.metrics.messenger.all_buses', true);
+
+        (new MessengerMiddlewarePass())->process($container);
+
+        self::assertSame([self::TRACING_ID, self::METRICS_ID, 'send_message', 'handle_message'], $this->middlewareIds($container, 'event.bus.middleware'));
+    }
+
+    public function testKeepsMiddlewareListedByHandOnAnotherBus(): void
+    {
+        $container = $this->containerWithBuses();
+        $this->registerMiddleware($container, metrics: false);
+        $container->setParameter('open_telemetry.traces.messenger.all_buses', true);
+        $container->setParameter('event.bus.middleware', [
+            ['id' => OpenTelemetryMiddleware::class],
+            ['id' => 'validation'],
+            ['id' => 'send_message'],
+            ['id' => 'handle_message'],
+        ]);
+
+        (new MessengerMiddlewarePass())->process($container);
+
+        self::assertSame([OpenTelemetryMiddleware::class, 'validation', 'send_message', 'handle_message'], $this->middlewareIds($container, 'event.bus.middleware'));
+    }
+
+    /** A default bus "command.bus" and a second bus "event.bus", both tagged "messenger.bus", with send_message/handle_message as middleware. */
+    private function containerWithBuses(): ContainerBuilder
+    {
+        $container = $this->containerWithDefaultBus('command.bus');
+
+        foreach (['command.bus', 'event.bus'] as $busId) {
+            $container->register($busId)->addTag('messenger.bus');
+            $container->setParameter($busId.'.middleware', [
+                ['id' => 'send_message'],
+                ['id' => 'handle_message'],
+            ]);
+        }
+
+        return $container;
+    }
+
     private function containerWithDefaultBus(string $busId): ContainerBuilder
     {
         $container = new ContainerBuilder();

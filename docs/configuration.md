@@ -28,6 +28,7 @@ open_telemetry:
         messenger:
             enabled: true
             root_spans: false                 # true = standalone traces per consumed message
+            all_buses: false                  # true = middleware on every bus, not only the default one
             excluded_messages: []             # message classes (FQCN) skipped on dispatch and consume; with doctrine.only_with_parent their handler's queries stay untraced too
 
         scheduler:
@@ -66,6 +67,7 @@ open_telemetry:
 
         messenger:
             enabled: false
+            all_buses: false                  # true = middleware on every bus, not only the default one
             excluded_queues: []
 
         doctrine:

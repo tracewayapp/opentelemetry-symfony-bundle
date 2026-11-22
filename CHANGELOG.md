@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-11-22
+
 ### Added
 
 - **Messenger middleware on every bus** (`traces.messenger.all_buses` and `metrics.messenger.all_buses`, default off) — the tracing and metrics middlewares go on every message bus instead of the default one only, so a command or event bus no longer has to list them by hand. They take the same position as on the default bus — before `send_message`/`handle_message`, or last when the bus has neither — and a bus that lists one in its own middleware config keeps it where it is.
@@ -561,7 +563,8 @@ This is a **conformance major**: a full pass aligning every instrumentation with
 - Messenger root spans for task-oriented backends (Traceway, Sentry)
 - 58 unit tests with 131 assertions
 
-[Unreleased]: https://github.com/tracewayapp/opentelemetry-symfony-bundle/compare/v4.1.0...HEAD
+[Unreleased]: https://github.com/tracewayapp/opentelemetry-symfony-bundle/compare/v4.2.0...HEAD
+[4.2.0]: https://github.com/tracewayapp/opentelemetry-symfony-bundle/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/tracewayapp/opentelemetry-symfony-bundle/compare/v4.0.0...v4.1.0
 [4.0.0]: https://github.com/tracewayapp/opentelemetry-symfony-bundle/compare/v3.6.0...v4.0.0
 [3.6.0]: https://github.com/tracewayapp/opentelemetry-symfony-bundle/compare/v3.5.0...v3.6.0

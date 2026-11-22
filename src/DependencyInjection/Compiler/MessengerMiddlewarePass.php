@@ -10,7 +10,8 @@ use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMetricsMiddleware;
 use Traceway\OpenTelemetryBundle\Messenger\OpenTelemetryMiddleware;
 
 /**
- * Adds Traceway middleware to the normalized Messenger middleware parameter.
+ * Adds Traceway middleware to the normalized Messenger middleware parameter of the default bus,
+ * and of every bus when the matching all_buses option is on.
  *
  * FrameworkBundle creates the "<bus id>.middleware" parameter before compiler
  * passes run, and MessengerPass consumes it later in the same phase. Mutating
@@ -24,6 +25,12 @@ final class MessengerMiddlewarePass implements CompilerPassInterface
         'open_telemetry.messenger.metrics_middleware' => OpenTelemetryMetricsMiddleware::class,
     ];
 
+    /** Service id => parameter holding its all_buses option. */
+    private const ALL_BUSES_PARAMETERS = [
+        'open_telemetry.messenger.middleware' => 'open_telemetry.traces.messenger.all_buses',
+        'open_telemetry.messenger.metrics_middleware' => 'open_telemetry.metrics.messenger.all_buses',
+    ];
+
     private const TERMINAL_MIDDLEWARE_IDS = [
         'send_message',
         'messenger.middleware.send_message',
@@ -33,11 +40,49 @@ final class MessengerMiddlewarePass implements CompilerPassInterface
 
     public function process(ContainerBuilder $container): void
     {
-        if (!$container->hasAlias('messenger.default_bus')) {
-            return;
+        /** @var array<string, list<string>> $middlewareByBus */
+        $middlewareByBus = [];
+
+        foreach (self::ALL_BUSES_PARAMETERS as $serviceId => $allBusesParameter) {
+            if (!$container->has($serviceId)) {
+                continue;
+            }
+
+            foreach ($this->targetBusIds($container, $allBusesParameter) as $busId) {
+                $middlewareByBus[$busId][] = $serviceId;
+            }
         }
 
-        $parameter = $container->getAlias('messenger.default_bus').'.middleware';
+        foreach ($middlewareByBus as $busId => $serviceIds) {
+            $this->insert($container, $busId.'.middleware', $serviceIds);
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function targetBusIds(ContainerBuilder $container, string $allBusesParameter): array
+    {
+        $busIds = [];
+
+        if ($container->hasAlias('messenger.default_bus')) {
+            $busIds[] = (string) $container->getAlias('messenger.default_bus');
+        }
+
+        if ($container->hasParameter($allBusesParameter) && true === $container->getParameter($allBusesParameter)) {
+            foreach (array_keys($container->findTaggedServiceIds('messenger.bus')) as $busId) {
+                $busIds[] = $busId;
+            }
+        }
+
+        return array_values(array_unique($busIds));
+    }
+
+    /**
+     * @param list<string> $serviceIds
+     */
+    private function insert(ContainerBuilder $container, string $parameter, array $serviceIds): void
+    {
         if (!$container->hasParameter($parameter)) {
             return;
         }
@@ -47,13 +92,9 @@ final class MessengerMiddlewarePass implements CompilerPassInterface
         $middlewareIds = array_column($middlewares, 'id');
         $middlewareToInsert = [];
 
-        foreach (self::OPENTELEMETRY_MIDDLEWARE_IDS as $serviceId => $classId) {
-            if (!$container->has($serviceId)) {
-                continue;
-            }
-
+        foreach ($serviceIds as $serviceId) {
             // Listed by hand under either id: inserting it again would trace every message twice.
-            foreach ([$serviceId, $classId] as $id) {
+            foreach ([$serviceId, self::OPENTELEMETRY_MIDDLEWARE_IDS[$serviceId]] as $id) {
                 if (\in_array($id, $middlewareIds, true) || \in_array('messenger.middleware.'.$id, $middlewareIds, true)) {
                     continue 2;
                 }

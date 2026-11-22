@@ -31,7 +31,7 @@ open_telemetry:
 Names and attributes follow OTel semantic conventions ([messaging](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-metrics/), [database](https://opentelemetry.io/docs/specs/semconv/database/database-metrics/), [HTTP](https://opentelemetry.io/docs/specs/semconv/http/http-metrics/)). `http.server.request.duration` and `error.type` are Stable; the rest are Development.
 
 - **HTTP server** — only main requests are measured; sub-requests are covered by the main duration. Service identity comes from the OTel resource (`OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`), not from metric name prefixing.
-- **Messenger** — `excluded_queues` matches the transport name on both sides (`ReceivedStamp::getTransportName()` on consume, `SentStamp::getSenderAlias()` on dispatch). A dispatched envelope landing on multiple transports emits one point per non-excluded transport.
+- **Messenger** — `excluded_queues` matches the transport name on both sides (`ReceivedStamp::getTransportName()` on consume, `SentStamp::getSenderAlias()` on dispatch). A dispatched envelope landing on multiple transports emits one point per non-excluded transport. The middleware goes on the default bus; `all_buses: true` puts it on every bus.
 - **DBAL** — records duration for `Connection::query()`/`exec()`, prepared `Statement::execute()`, and transaction control methods. SQL text is **never** recorded — only the leading keyword (`db.operation.name`) and the primary table when extractable (`db.collection.name`).
 
 ## HTTP Client (outgoing requests)
